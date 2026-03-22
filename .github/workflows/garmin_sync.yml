@@ -11,10 +11,6 @@ on:
         required: false
         default: '7'
 
-permissions:
-  contents: read
-  secrets: write    # nécessaire pour sauvegarder les tokens Garmin
-
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -31,12 +27,12 @@ jobs:
 
       - name: Run Garmin sync
         env:
-          GARMIN_EMAIL:     ${{ secrets.GARMIN_EMAIL }}
-          GARMIN_PASSWORD:  ${{ secrets.GARMIN_PASSWORD }}
-          SUPABASE_URL:     ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY:     ${{ secrets.SUPABASE_KEY }}
-          GARMIN_TOKENS:    ${{ secrets.GARMIN_TOKENS }}
-          GITHUB_TOKEN:     ${{ secrets.GITHUB_TOKEN }}
+          GARMIN_EMAIL:      ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD:   ${{ secrets.GARMIN_PASSWORD }}
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:      ${{ secrets.SUPABASE_KEY }}
+          GARMIN_TOKENS:     ${{ secrets.GARMIN_TOKENS }}
+          GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          DAYS_BACK:        ${{ github.event.inputs.days_back || '7' }}
+          DAYS_BACK:         ${{ github.event.inputs.days_back || '7' }}
         run: python sync_garmin.py
