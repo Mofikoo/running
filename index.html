@@ -527,8 +527,8 @@ let intervalCount = 0;
 async function init() {
   const today = new Date();
   document.getElementById('dash-date').textContent = today.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  document.getElementById('log-date').value = today.toISOString().split('T')[0];
-  document.getElementById('skip-date').value = today.toISOString().split('T')[0];
+  document.getElementById('log-date').value = localDateStr();
+  document.getElementById('skip-date').value = localDateStr();
   setRating('effort',3); setRating('pain',0);
   await testConnection();
   await loadProfile();
@@ -722,7 +722,7 @@ function renderAlerts(wKm,wSess) {
 }
 
 function renderNextSessions() {
-  const today=new Date().toISOString().split('T')[0];
+  const today=localDateStr();
   const next=plannedSessions.filter(s=>s.date>=today&&!s.skipped).slice(0,5);
   const el=document.getElementById('next-sessions');
   if(!next.length){el.innerHTML='<div class="empty-state">Génère un planning pour commencer</div>';return;}
@@ -754,7 +754,7 @@ function renderLastSessions() {
 // ═══════════════════════════════════════════
 async function generatePlan() {
   showToast('Génération du planning...','success');
-  const today=new Date().toISOString().split('T')[0];
+  const today=localDateStr();
   await db.from('planned_sessions').delete().gte('date',today);
   const sessions=buildPlan();
   if(sessions.length>0){
@@ -802,7 +802,7 @@ function buildPlan() {
       const d=new Date(wMon); d.setDate(d.getDate()+prefs[i]);
       if(d<today) return;
       sessions.push({
-        date:d.toISOString().split('T')[0],
+        date:localDateStr(d),
         type:s.type, description:s.desc,
         target_distance_km:adjustKm(s.km,w,totalWeeks,isRecup),
         target_duration_minutes:Math.round(adjustKm(s.km,w,totalWeeks,isRecup)*paceForType(s.type)),
@@ -899,8 +899,8 @@ function renderWeek() {
   const days=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   document.getElementById('week-grid').innerHTML=days.map((dn,i)=>{
     const d=new Date(ws); d.setDate(d.getDate()+i);
-    const ds=d.toISOString().split('T')[0];
-    const isToday=ds===today.toISOString().split('T')[0];
+    const ds=localDateStr(d);
+    const isToday=ds===localDateStr();
     const planned=plannedSessions.find(s=>s.date===ds);
     const done=allSessions.find(s=>s.date===ds);
     let cls='day-cell';
@@ -981,7 +981,7 @@ async function askPlanCoach() {
   textEl.innerHTML='<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
   actEl.innerHTML='';
 
-  const today=new Date().toISOString().split('T')[0];
+  const today=localDateStr();
   const todayFr=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   const upcoming=plannedSessions.filter(s=>s.date>=today).slice(0,14)
     .map(s=>`- ${s.date} (${getDayFr(s.date)}): ${s.type} ~${s.target_distance_km}km — "${s.description}" [id:${s.id}]`).join('\n')||'Aucune';
@@ -1149,7 +1149,7 @@ async function saveSession() {
 }
 
 async function adaptPlanForPain(session) {
-  const today=new Date().toISOString().split('T')[0];
+  const today=localDateStr();
   const next=plannedSessions.filter(s=>s.date>today&&!s.skipped&&['VMA','Seuil'].includes(s.type)).slice(0,3);
   for(const s of next) await db.from('planned_sessions').update({type:'Récup',description:`[Adapté douleur ${session.pain_location||''}] Footing léger`,intensity_zone:1,target_distance_km:6}).eq('id',s.id);
   const {data}=await db.from('planned_sessions').select('*').order('date');
@@ -1223,7 +1223,7 @@ async function askCoach(type) {
   const today=new Date(), race10=new Date(profile.race_10k_date||'2027-01-15');
   const daysLeft=Math.ceil((race10-today)/86400000);
   const recent=allSessions.slice(0,7).map(s=>`- ${s.date}: ${s.type} ${s.distance_km||'?'}km @ ${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'?'} effort ${s.perceived_effort}/5 douleur ${s.pain_level}/5`).join('\n')||'Aucune';
-  const next=plannedSessions.filter(s=>s.date>=today.toISOString().split('T')[0]).slice(0,5).map(s=>`- ${s.date}: ${s.type} ~${s.target_distance_km}km`).join('\n')||'Non généré';
+  const next=plannedSessions.filter(s=>s.date>=localDateStr()).slice(0,5).map(s=>`- ${s.date}: ${s.type} ~${s.target_distance_km}km`).join('\n')||'Non généré';
   const prompts={
     'bilan':'Fais un bilan de la semaine et donne les priorités pour la semaine à venir.',
     'planning':'Explique le planning prévu et pourquoi ces choix sont adaptés.',
@@ -1308,6 +1308,10 @@ function formatDateShort(d) {
 function getDayFr(dateStr) {
   const [y,m,d] = dateStr.split('-');
   return new Date(+y,+m-1,+d).toLocaleDateString('fr-FR',{weekday:'long'});
+}
+function localDateStr(d) {
+  const date = d || new Date();
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
 function getWeekStart(date) {
   const d=new Date(date), day=d.getDay(), diff=day===0?-6:1-day;
