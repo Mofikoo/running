@@ -268,12 +268,14 @@
     display: inline-block;
   }
 
-  .type-EF { background: rgba(46,213,115,0.15); color: var(--success); }
+  .type-EF { background: rgba(71,184,255,0.15); color: var(--accent2); }
+  .type-AérobieZ3, .type-Aérobie { background: rgba(46,213,115,0.15); color: var(--success); }
   .type-VMA { background: rgba(255,71,87,0.15); color: var(--danger); }
   .type-Seuil { background: rgba(255,165,2,0.15); color: var(--warn); }
-  .type-Long { background: rgba(71,184,255,0.15); color: var(--accent2); }
+  .type-Long { background: rgba(232,255,71,0.15); color: var(--accent); }
   .type-Récup { background: rgba(107,107,138,0.15); color: var(--muted); }
   .type-Repos { background: transparent; color: var(--border); }
+  .type-Compét { background: rgba(255,71,87,0.25); color: var(--danger); }
 
   /* ZONES */
   .zones-grid {
@@ -906,9 +908,10 @@
         <div class="form-group">
           <label>Type de séance</label>
           <select id="log-type" onchange="onTypeChange()">
-            <option value="EF">Endurance fondamentale</option>
-            <option value="Seuil">Seuil</option>
-            <option value="VMA">Fractionné VMA</option>
+            <option value="EF">Endurance fondamentale (Z1-Z2)</option>
+            <option value="Aérobie Z3">Aérobie Z3</option>
+            <option value="Seuil">Seuil (Z4)</option>
+            <option value="VMA">Fractionné VMA (Z5)</option>
             <option value="Long">Sortie longue</option>
             <option value="Récup">Récupération</option>
             <option value="Compét">Compétition</option>
@@ -1044,12 +1047,8 @@
         <div class="ai-sub">Analyse complète de ta situation</div>
       </div>
     </div>
-    <div class="ai-message" id="coach-text">
-      <div class="ai-loading">
-        <div class="ai-dot"></div>
-        <div class="ai-dot"></div>
-        <div class="ai-dot"></div>
-      </div>
+    <div class="ai-message" id="coach-text" style="color:var(--muted);font-family:var(--font-mono);font-size:0.78rem;">
+      Clique sur un bouton ci-dessous ou pose une question pour commencer.
     </div>
   </div>
 
@@ -1397,7 +1396,7 @@ async function saveProfile() {
 // ==================== SESSIONS ====================
 async function loadSessions() {
   try {
-    const { data, error } = await db.from('sessions').select('*').order('date', { ascending: false }).limit(50);
+    const { data, error } = await db.from('sessions').select('*').order('date', { ascending: false }).limit(500);
     if (error) throw error;
     allSessions = data || [];
   } catch(e) { console.error('loadSessions:', e); }
@@ -1538,7 +1537,7 @@ function renderNextSessions() {
   el.innerHTML = next.map(s => `
     <div class="session-item">
       <div class="session-date">${formatDate(s.date)}</div>
-      <div><span class="day-type type-${s.type.replace(' ','')}">${s.type}</span></div>
+      <div><span class="${typeClass(s.type)}">${s.type}</span></div>
       <div style="font-family:var(--font-mono);font-size:0.72rem;">${s.description || ''}</div>
       <div class="session-pace">${s.target_distance_km ? s.target_distance_km+'km' : ''}</div>
     </div>
@@ -1552,7 +1551,7 @@ function renderLastSessions() {
   el.innerHTML = last.map(s => `
     <div class="session-item">
       <div class="session-date">${formatDate(s.date)}</div>
-      <div><span class="day-type type-${s.type}">${s.type}</span></div>
+      <div><span class="${typeClass(s.type)}">${s.type}</span></div>
       <div class="session-pace">${s.avg_pace_seconds ? secToAllure(s.avg_pace_seconds)+'/km' : ''}</div>
       <div class="session-dist">${s.distance_km ? s.distance_km+'km' : ''}</div>
       <div class="session-effort">
@@ -1751,13 +1750,14 @@ function renderWeek() {
 
     const typeClass = planned ? `type-${planned.type === 'Long' ? 'Long' : planned.type}` : 'type-Repos';
     const typeLabel = completed ? completed.type : (planned ? planned.type : 'Repos');
+    const tClass = typeClass(typeLabel);
 
     return `
       <div class="${cellClass}" onclick="selectDay('${dateStr}')">
         <div class="day-name">${dayName}</div>
         <div class="day-num" style="${isToday ? 'color:var(--accent)' : ''}">${d.getDate()}</div>
         ${completed ? `<span class="day-type" style="background:rgba(46,213,115,0.2);color:var(--success);">✓ ${completed.type}</span>` :
-          `<span class="day-type ${typeClass}">${typeLabel}</span>`}
+          `<span class="day-type ${tClass}">${typeLabel}</span>`}
         ${planned && !completed ? `<div style="font-family:var(--font-mono);font-size:0.55rem;color:var(--muted);margin-top:0.3rem;">${planned.target_distance_km || ''}km</div>` : ''}
       </div>
     `;
@@ -1802,7 +1802,7 @@ function selectDay(dateStr) {
   } else if (planned) {
     el.innerHTML = `
       <div style="font-family:var(--font-mono);font-size:0.78rem;line-height:2;">
-        <div><span class="day-type type-${planned.type}">${planned.type}</span> <span style="color:var(--muted);margin-left:0.5rem;">${planned.week_phase}</span></div>
+        <div><span class="${typeClass(planned.type)}">${planned.type}</span> <span style="color:var(--muted);margin-left:0.5rem;">${planned.week_phase}</span></div>
         <div style="margin:0.5rem 0;font-family:var(--font-body);font-size:0.9rem;">${planned.description || ''}</div>
         <div><span style="color:var(--muted);">Distance:</span> ~${planned.target_distance_km || '?'} km</div>
         <div><span style="color:var(--muted);">Durée:</span> ~${planned.target_duration_minutes || '?'} min</div>
@@ -2155,7 +2155,14 @@ async function applyPlanModifications(modifications) {
   }
 }
 
-function getDayFr(dateStr) {
+function typeClass(type) {
+  const map = {
+    'EF': 'EF', 'Aérobie Z3': 'AérobieZ3', 'Seuil': 'Seuil',
+    'VMA': 'VMA', 'Long': 'Long', 'Récup': 'Récup',
+    'Compét': 'Compét', 'Repos': 'Repos'
+  };
+  return 'type-' + (map[type] || type.replace(/\s+/g,''));
+}
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long'});
 }
 
@@ -2276,7 +2283,7 @@ function renderHistory() {
     ${allSessions.map(s => `
       <div class="session-item">
         <div class="session-date">${formatDate(s.date)}</div>
-        <div><span class="day-type type-${s.type}">${s.type}</span></div>
+        <div><span class="${typeClass(s.type)}">${s.type}</span></div>
         <div style="font-family:var(--font-body);font-size:0.8rem;">${s.distance_km ? s.distance_km+'km' : ''} ${s.duration_minutes ? s.duration_minutes+'min' : ''} ${s.avg_hr ? '· '+s.avg_hr+'bpm' : ''}</div>
         <div class="session-pace">${s.avg_pace_seconds ? secToAllure(s.avg_pace_seconds)+'/km' : '—'}</div>
         <div class="session-effort">
@@ -2436,7 +2443,6 @@ function showPage(name) {
   const idx = tabs.indexOf(name);
   if (idx >= 0) document.querySelectorAll('.nav-tab')[idx].classList.add('active');
 
-  if (name === 'coach') loadCoach();
   if (name === 'planning') renderWeek();
 }
 
