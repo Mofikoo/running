@@ -1,0 +1,35 @@
+name: Strava → Supabase Sync
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: 'Jours à importer (7 normal, 30 historique)'
+        required: false
+        default: '7'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install requests PyNaCl
+      - name: Run Strava sync
+        env:
+          STRAVA_CLIENT_ID:     ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:         ${{ secrets.SUPABASE_KEY }}
+          GITHUB_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY:    ${{ github.repository }}
+          DAYS_BACK:            ${{ github.event.inputs.days_back || '7' }}
+        run: python sync_strava.py
