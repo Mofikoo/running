@@ -1961,7 +1961,7 @@ Donne une analyse concise de la séance (2-3 paragraphes max):
 Sois direct, technique, bienveillant. Pas de bla-bla.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://runcoach-proxy.landelleleo.workers.dev', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2068,7 +2068,7 @@ Règles:
 - Si la demande est risquée pour la santé, ajoute un warning mais applique quand même si raisonnable`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://runcoach-proxy.landelleleo.workers.dev', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2335,7 +2335,7 @@ Demande: ${prompts[type] || type}
 Réponds en français, de manière directe et personnalisée. 3-4 paragraphes max. Pas de bla-bla générique.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://runcoach-proxy.landelleleo.workers.dev', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
