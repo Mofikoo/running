@@ -447,6 +447,15 @@ select option{background:var(--surface);}
         <div class="form-group"><label>Séances/sem actuelles</label><input type="number" id="prof-sessions" value="4" min="1" max="7"></div>
         <div class="form-group"><label>Séances/sem visées</label><input type="number" id="prof-sessions-target" value="5" min="1" max="7"></div>
         <div class="form-group full"><label>Fragilités</label><textarea id="prof-fragility" rows="2">Périostite si charge trop rapide. Genou (guéri).</textarea></div>
+        <div class="form-group full">
+          <label>Intensité de progression du volume <span id="prog-pct-label" style="color:var(--accent);">normale (+30%)</span></label>
+          <input type="range" id="prof-prog-intensity" min="1" max="5" value="3" step="1"
+            style="accent-color:var(--accent);width:100%;margin-top:.3rem;"
+            oninput="updateProgLabel(this.value)">
+          <div style="display:flex;justify-content:space-between;font-family:var(--fm);font-size:.6rem;color:var(--muted);margin-top:.3rem;">
+            <span>Très prudent</span><span>Prudent</span><span>Normal</span><span>Ambitieux</span><span>Agressif</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -514,7 +523,8 @@ let profile = {
   vma_kmh:16.5, fc_max:208, fc_repos:55,
   race_15k_date:'2026-09-20', race_10k_date:'2027-01-15',
   weekly_sessions:4, target_weekly_sessions:5,
-  fragility_notes:'Périostite si charge trop rapide. Genou (guéri).'
+  fragility_notes:'Périostite si charge trop rapide. Genou (guéri).',
+  prog_intensity: 3
 };
 let selectedEffort = 3, selectedPain = 0;
 let currentWeekOffset = 0;
@@ -594,6 +604,9 @@ function applyProfileToForm() {
   document.getElementById('prof-sessions').value = profile.weekly_sessions||4;
   document.getElementById('prof-sessions-target').value = profile.target_weekly_sessions||5;
   document.getElementById('prof-fragility').value = profile.fragility_notes||'';
+  const pi = profile.prog_intensity||3;
+  document.getElementById('prof-prog-intensity').value = pi;
+  updateProgLabel(pi);
   document.getElementById('prof-pb-display').textContent = secToTime(profile.pb_10k_seconds||2430);
 }
 
@@ -608,6 +621,7 @@ async function saveProfile() {
   profile.weekly_sessions = parseInt(document.getElementById('prof-sessions').value);
   profile.target_weekly_sessions = parseInt(document.getElementById('prof-sessions-target').value);
   profile.fragility_notes = document.getElementById('prof-fragility').value;
+  profile.prog_intensity = parseInt(document.getElementById('prof-prog-intensity').value);
   try {
     const {data} = await db.from('profile').select('id').limit(1).single();
     if (data) await db.from('profile').update(profile).eq('id',data.id);
@@ -702,7 +716,9 @@ function renderDashboard() {
   const r7km=r7.reduce((a,s)=>a+(s.distance_km||0),0);
   const lbl=r7km>60?'⚠️ Chargé':r7km>40?'↗ Modéré':'✓ Frais';
   document.getElementById('stat-tsb').textContent=r7km.toFixed(0);
-  document.getElementById('stat-tsb-sub').textContent=lbl;
+  const baseKm = calcBaseKmFromHistory();
+  const baseStr = baseKm ? ` · base ${baseKm.toFixed(0)}km/sem` : '';
+  document.getElementById('stat-tsb-sub').textContent=lbl+baseStr;
 
   renderAlerts(wKm,wSess);
   renderNextSessions();
@@ -869,9 +885,63 @@ function getSessionsForPhase(phase) {
   return plans[phase]||plans['base'];
 }
 
-function adjustKm(km,w,total,isRecup) {
-  const mult=isRecup?.75:1+(w/total)*.25;
-  return Math.round(km*mult*10)/10;
+// Progression intelligente basée sur l'historique réel + réglage utilisateur
+function getProgMultipliers() {
+  // Intensité utilisateur : 1=très prudent, 2=prudent, 3=normal, 4=ambitieux, 5=agressif
+  const intensity = profile.prog_intensity || 3;
+  // Max gain total sur la période selon intensité
+  const maxGain = { 1: 0.20, 2: 0.30, 3: 0.40, 4: 0.55, 5: 0.70 }[intensity];
+  // Taux de progression hebdomadaire max (règle des 10% adaptée)
+  const weeklyMax = { 1: 0.06, 2: 0.08, 3: 0.10, 4: 0.12, 5: 0.15 }[intensity];
+  return { maxGain, weeklyMax };
+}
+
+function calcBaseKmFromHistory() {
+  // Calcule la moyenne km/semaine des 4 dernières semaines réelles
+  if (!allSessions.length) return null;
+  const now = new Date();
+  const weeklyKms = [];
+  for (let w = 0; w < 4; w++) {
+    const wStart = new Date(now); wStart.setDate(wStart.getDate() - (w+1)*7);
+    const wEnd = new Date(now); wEnd.setDate(wEnd.getDate() - w*7);
+    const km = allSessions
+      .filter(s => { const d = new Date(s.date+'T12:00:00'); return d >= wStart && d < wEnd; })
+      .reduce((acc, s) => acc + (s.distance_km || 0), 0);
+    if (km > 0) weeklyKms.push(km);
+  }
+  if (!weeklyKms.length) return null;
+  return weeklyKms.reduce((a,b) => a+b, 0) / weeklyKms.length;
+}
+
+function adjustKm(km, w, total, isRecup) {
+  if (isRecup) return Math.round(km * 0.75 * 10) / 10;
+
+  const { maxGain, weeklyMax } = getProgMultipliers();
+
+  // Courbe de progression en S : montée rapide au milieu, plateau aux extrêmes
+  // Évite de monter trop vite au début (risque blessure) et trop à la fin (affûtage)
+  const x = w / total;
+  // Courbe sigmoïde normalisée 0→1
+  const sigmoid = 1 / (1 + Math.exp(-10 * (x - 0.45)));
+  const normalizedSigmoid = (sigmoid - (1/(1+Math.exp(4.5)))) / ((1/(1+Math.exp(-4.5))) - (1/(1+Math.exp(4.5))));
+
+  // Plafond par progression hebdomadaire max
+  const cappedPct = Math.min(maxGain, w * weeklyMax);
+  // Combine courbe en S et plafond
+  const pct = Math.min(cappedPct, normalizedSigmoid * maxGain);
+
+  return Math.round(km * (1 + pct) * 10) / 10;
+}
+
+function updateProgLabel(val) {
+  const labels = {
+    1: 'très prudente (+20% max)',
+    2: 'prudente (+30% max)',
+    3: 'normale (+40% max)',
+    4: 'ambitieuse (+55% max)',
+    5: 'agressive (+70% max)'
+  };
+  document.getElementById('prog-pct-label').textContent = labels[val] || 'normale';
 }
 
 function paceForType(type) {
@@ -991,7 +1061,6 @@ async function askPlanCoach() {
   const prompt=`Tu es un coach running expert. Profil:
 - Aujourd'hui: ${today} (${todayFr})
 - PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif sub-37 | Race: ${profile.race_10k_date}
-- Fragilité: périostite si charge monte trop vite
 - Types: EF (Z1-Z2), Aérobie Z3, Seuil (Z4), VMA (Z5), Long, Récup
 
 Planning actuel:
@@ -1232,8 +1301,8 @@ async function askCoach(type) {
   };
   const prompt=`Coach running expert. Profil:
 - PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37 | ${daysLeft} jours restants
-- FC max: ${profile.fc_max} | Fragilité: périostite si charge monte trop vite
-- Types utilisés: EF (Z1-Z2), Aérobie Z3, Seuil (Z4), VMA (Z5), Long, Récup
+- FC max: ${profile.fc_max} | Séances visées: ${profile.weekly_sessions}→${profile.target_weekly_sessions}/sem
+- Types: EF (Z1-Z2), Aérobie Z3, Seuil (Z4), VMA (Z5), Long, Récup
 
 Historique récent:\n${recent}
 
