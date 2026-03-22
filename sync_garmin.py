@@ -1,207 +1,188 @@
 #!/usr/bin/env python3
 """
 RunCoach — Garmin Connect → Supabase sync
-Tourne automatiquement via GitHub Actions 2x/jour
+Gère les tokens OAuth pour éviter le 429 de Garmin
 """
 
 import os
 import json
 import time
+import base64
 import logging
-from datetime import datetime, timedelta, date
-
 import requests
-from garminconnect import Garmin
+from datetime import datetime, timedelta, date
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 log = logging.getLogger(__name__)
 
-# ── Config depuis variables d'environnement GitHub Secrets ──────────────────
-GARMIN_EMAIL    = os.environ["GARMIN_EMAIL"]
-GARMIN_PASSWORD = os.environ["GARMIN_PASSWORD"]
-SUPABASE_URL    = os.environ["SUPABASE_URL"]      # https://xxx.supabase.co
-SUPABASE_KEY    = os.environ["SUPABASE_KEY"]      # anon key
+GARMIN_EMAIL      = os.environ["GARMIN_EMAIL"]
+GARMIN_PASSWORD   = os.environ["GARMIN_PASSWORD"]
+SUPABASE_URL      = os.environ["SUPABASE_URL"]
+SUPABASE_KEY      = os.environ["SUPABASE_KEY"]
+GITHUB_TOKEN      = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO       = os.environ.get("GITHUB_REPOSITORY", "")
+GARMIN_TOKENS_B64 = os.environ.get("GARMIN_TOKENS", "")
 
-HEADERS = {
+TOKEN_DIR = Path("/tmp/garmin_tokens")
+
+SUPABASE_HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
     "Prefer": "resolution=merge-duplicates",
 }
 
-# ── Types de séances ─────────────────────────────────────────────────────────
-ACTIVITY_TYPE_MAP = {
-    "running":           "EF",
-    "track_running":     "VMA",
-    "trail_running":     "Long",
-    "treadmill_running": "EF",
-    "cycling":           "Récup",
-    "walking":           "Récup",
-}
-
-def map_activity_type(garmin_type: str, training_effect: float) -> str:
-    """Devine le type de séance depuis le type Garmin + Training Effect."""
-    base = ACTIVITY_TYPE_MAP.get(garmin_type, "EF")
-    if base == "EF" and training_effect:
-        if training_effect >= 4.0:
-            return "VMA"
-        elif training_effect >= 3.0:
-            return "Seuil"
+def map_session_type(garmin_type, te):
+    m = {"running":"EF","track_running":"VMA","trail_running":"Long","treadmill_running":"EF"}
+    base = m.get(garmin_type, "EF")
+    if base == "EF" and te:
+        if te >= 4.0: return "VMA"
+        if te >= 3.0: return "Seuil"
     return base
 
-def pace_to_seconds(pace_min_per_km: float) -> int:
-    """Convertit min/km (float) en secondes/km."""
-    if not pace_min_per_km or pace_min_per_km <= 0:
-        return None
-    minutes = int(pace_min_per_km)
-    seconds = round((pace_min_per_km - minutes) * 60)
-    return minutes * 60 + seconds
-
-def extract_intervals(laps: list) -> list:
-    """Extrait les intervalles depuis les laps Garmin."""
-    if not laps:
-        return []
-    intervals = []
-    for i, lap in enumerate(laps):
-        duration_sec = lap.get("duration", 0)
-        distance_m   = lap.get("distance", 0)
-        avg_hr       = lap.get("averageHR")
-        avg_speed    = lap.get("averageSpeed")  # m/s
-
-        pace_sec = None
-        if avg_speed and avg_speed > 0:
-            pace_sec = round(1000 / avg_speed)  # secondes/km
-
-        intervals.append({
-            "num":          i + 1,
-            "duration":     f"{int(duration_sec//60)}min{int(duration_sec%60):02d}s" if duration_sec else None,
-            "distance_m":   round(distance_m) if distance_m else None,
-            "pace_seconds": pace_sec,
-            "pace":         f"{pace_sec//60}'{pace_sec%60:02d}\"" if pace_sec else None,
-            "avg_hr":       avg_hr,
-            "feel":         "ok",
+def extract_intervals(laps):
+    out = []
+    for i, lap in enumerate(laps or []):
+        dur = lap.get("duration", 0)
+        spd = lap.get("averageSpeed")
+        p   = round(1000 / spd) if spd and spd > 0 else None
+        out.append({
+            "num": i+1,
+            "duration": f"{int(dur//60)}'{int(dur%60):02d}\"" if dur else None,
+            "distance_m": round(lap.get("distance",0)),
+            "pace_seconds": p,
+            "pace": f"{p//60}'{p%60:02d}\"" if p else None,
+            "avg_hr": lap.get("averageHR"),
+            "feel": "ok",
         })
-    return intervals
+    return out
 
-def get_existing_garmin_ids() -> set:
-    """Récupère les garmin_activity_id déjà en base pour éviter les doublons."""
-    url = f"{SUPABASE_URL}/rest/v1/sessions?select=garmin_activity_id&garmin_activity_id=not.is.null"
-    r = requests.get(url, headers=HEADERS)
-    if r.status_code != 200:
-        log.warning(f"Impossible de récupérer les IDs existants: {r.text}")
-        return set()
-    return {row["garmin_activity_id"] for row in r.json() if row.get("garmin_activity_id")}
+def load_tokens():
+    if not GARMIN_TOKENS_B64: return False
+    try:
+        TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+        tokens = json.loads(base64.b64decode(GARMIN_TOKENS_B64).decode())
+        for fname, content in tokens.items():
+            (TOKEN_DIR / fname).write_text(content)
+        log.info(f"Tokens chargés ({len(tokens)} fichiers)")
+        return True
+    except Exception as e:
+        log.warning(f"Chargement tokens échoué: {e}")
+        return False
 
-def upsert_session(session: dict):
-    """Insère ou met à jour une session dans Supabase."""
-    url = f"{SUPABASE_URL}/rest/v1/sessions"
-    headers = {**HEADERS, "Prefer": "resolution=merge-duplicates,return=minimal"}
-    r = requests.post(url, headers=headers, json=session)
-    if r.status_code not in (200, 201):
-        log.error(f"Erreur upsert: {r.status_code} {r.text}")
-    else:
-        log.info(f"✓ Session {session['date']} ({session['type']}) insérée/mise à jour")
+def save_tokens():
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        log.warning("Pas de GITHUB_TOKEN → tokens non persistés")
+        return
+    try:
+        from nacl import encoding, public
+        files = {f.name: f.read_text() for f in TOKEN_DIR.iterdir() if f.is_file()}
+        if not files: return
+        encoded = base64.b64encode(json.dumps(files).encode()).decode()
+        pk_r = requests.get(
+            f"https://api.github.com/repos/{GITHUB_REPO}/actions/secrets/public-key",
+            headers={"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
+        )
+        pk = pk_r.json()
+        box = public.SealedBox(public.PublicKey(pk["key"].encode(), encoding.Base64Encoder()))
+        encrypted = base64.b64encode(box.encrypt(encoded.encode())).decode()
+        r = requests.put(
+            f"https://api.github.com/repos/{GITHUB_REPO}/actions/secrets/GARMIN_TOKENS",
+            headers={"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"},
+            json={"encrypted_value": encrypted, "key_id": pk["key_id"]}
+        )
+        if r.status_code in (201, 204):
+            log.info("✓ Tokens sauvegardés dans GitHub Secrets")
+        else:
+            log.warning(f"Sauvegarde échouée: {r.status_code}")
+    except ImportError:
+        log.warning("PyNaCl manquant, tokens non sauvegardés")
+    except Exception as e:
+        log.warning(f"Erreur save_tokens: {e}")
 
-def sync_activities(days_back: int = 7):
-    """Sync principal : récupère les N derniers jours depuis Garmin."""
-    log.info(f"Connexion à Garmin Connect ({GARMIN_EMAIL})...")
+def get_existing_ids():
+    r = requests.get(f"{SUPABASE_URL}/rest/v1/sessions?select=garmin_activity_id&garmin_activity_id=not.is.null", headers=SUPABASE_HEADERS)
+    return {row["garmin_activity_id"] for row in r.json()} if r.status_code == 200 else set()
+
+def upsert(session):
+    h = {**SUPABASE_HEADERS, "Prefer": "resolution=merge-duplicates,return=minimal"}
+    r = requests.post(f"{SUPABASE_URL}/rest/v1/sessions", headers=h, json=session)
+    if r.status_code not in (200,201): log.error(f"Upsert error: {r.status_code} {r.text}")
+    else: log.info(f"✓ {session['date']} {session['type']} {session.get('distance_km','?')}km")
+
+def sync_activities(days_back=7):
+    from garminconnect import Garmin
+    TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+    has_tokens = load_tokens()
     client = Garmin(GARMIN_EMAIL, GARMIN_PASSWORD)
-    client.login()
-    log.info("Connecté ✓")
 
-    existing_ids = get_existing_garmin_ids()
-    log.info(f"{len(existing_ids)} activités déjà en base")
+    if has_tokens:
+        try:
+            client.login(tokenstore=str(TOKEN_DIR))
+            log.info("Connecté via token ✓")
+        except Exception as e:
+            log.warning(f"Token invalide: {e} → re-login")
+            has_tokens = False
 
-    start_date = date.today() - timedelta(days=days_back)
-    end_date   = date.today()
+    if not has_tokens:
+        log.info("Login email/password...")
+        client.login()
+        log.info("Connecté ✓")
 
-    log.info(f"Récupération des activités du {start_date} au {end_date}...")
-    activities = client.get_activities_by_date(
-        start_date.strftime("%Y-%m-%d"),
-        end_date.strftime("%Y-%m-%d"),
-        "running"
-    )
-    log.info(f"{len(activities)} activité(s) trouvée(s)")
+    try:
+        client.garth.dump(str(TOKEN_DIR))
+        save_tokens()
+    except Exception as e:
+        log.warning(f"Dump token échoué: {e}")
+
+    existing = get_existing_ids()
+    start = (date.today() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+    end   = date.today().strftime("%Y-%m-%d")
+    log.info(f"Récupération {start} → {end}...")
+    activities = client.get_activities_by_date(start, end, "running")
+    log.info(f"{len(activities)} activité(s)")
 
     for act in activities:
-        activity_id = act.get("activityId")
-        if not activity_id:
+        aid = act.get("activityId")
+        if not aid or aid in existing:
             continue
+        atype    = act.get("activityType",{}).get("typeKey","running")
+        date_str = (act.get("startTimeLocal") or str(date.today()))[:10]
+        dist_km  = round((act.get("distance") or 0)/1000, 2) or None
+        dur_min  = round((act.get("duration") or 0)/60) or None
+        spd      = act.get("averageSpeed")
+        pace_sec = round(1000/spd) if spd and spd > 0 else None
+        te       = act.get("aerobicTrainingEffect") or 0
+        stype    = map_session_type(atype, te)
 
-        # Skip si déjà importé
-        if activity_id in existing_ids:
-            log.info(f"Skip {activity_id} (déjà importé)")
-            continue
-
-        activity_type_raw = act.get("activityType", {}).get("typeKey", "running")
-        start_time        = act.get("startTimeLocal", "")
-        activity_date     = start_time[:10] if start_time else str(date.today())
-
-        distance_m   = act.get("distance", 0)
-        distance_km  = round(distance_m / 1000, 2) if distance_m else None
-        duration_sec = act.get("duration", 0)
-        duration_min = round(duration_sec / 60) if duration_sec else None
-        avg_hr       = act.get("averageHR")
-        max_hr       = act.get("maxHR")
-        avg_speed    = act.get("averageSpeed")  # m/s
-        training_effect = act.get("aerobicTrainingEffect", 0) or 0
-        vo2max       = act.get("vO2MaxValue")
-        cadence      = act.get("averageRunningCadenceInStepsPerMinute")
-        elevation    = act.get("elevationGain")
-
-        # Allure moyenne en secondes/km
-        avg_pace_sec = None
-        if avg_speed and avg_speed > 0:
-            avg_pace_sec = round(1000 / avg_speed)
-
-        # Type de séance intelligent
-        session_type = map_activity_type(activity_type_raw, training_effect)
-
-        # Récupérer les laps (intervalles) pour les séances intensives
-        laps = []
         intervals = []
-        if session_type in ("VMA", "Seuil") or training_effect >= 3.0:
+        if stype in ("VMA","Seuil") or te >= 3.0:
             try:
-                time.sleep(0.5)  # rate limiting
-                details = client.get_activity_splits(activity_id)
-                laps = details.get("lapDTOs", []) if details else []
-                intervals = extract_intervals(laps)
-                log.info(f"  → {len(intervals)} intervalles récupérés")
+                time.sleep(1)
+                details = client.get_activity_splits(aid) or {}
+                intervals = extract_intervals(details.get("lapDTOs",[]))
+                log.info(f"  {len(intervals)} intervalles")
             except Exception as e:
-                log.warning(f"  Impossible de récupérer les laps: {e}")
+                log.warning(f"  Laps non récupérés: {e}")
 
-        # Description automatique
-        if intervals:
-            desc = f"{len(intervals)} intervalles — auto-importé depuis Garmin"
-        else:
-            desc = f"Importé depuis Garmin · TE:{training_effect:.1f}"
-
-        session = {
-            "date":                 activity_date,
-            "type":                 session_type,
-            "distance_km":          distance_km,
-            "duration_minutes":     duration_min,
-            "avg_pace_seconds":     avg_pace_sec,
-            "avg_hr":               avg_hr,
-            "perceived_effort":     min(5, max(1, round(training_effect))) if training_effect else 3,
-            "pain_level":           0,
-            "notes":                desc,
-            "completed":            True,
-            "garmin_activity_id":   activity_id,
-            "training_effect":      training_effect if training_effect else None,
-            "vo2max":               vo2max,
-            "cadence_avg":          int(cadence) if cadence else None,
-            "elevation_gain":       round(elevation, 1) if elevation else None,
-            "intervals":            intervals if intervals else None,
-        }
-
-        upsert_session(session)
-        time.sleep(0.3)  # rate limiting Garmin
+        upsert({
+            "date": date_str, "type": stype,
+            "distance_km": dist_km, "duration_minutes": dur_min,
+            "avg_pace_seconds": pace_sec, "avg_hr": act.get("averageHR"),
+            "perceived_effort": min(5, max(1, round(te))) if te else 3,
+            "pain_level": 0,
+            "notes": f"Garmin import · TE:{te:.1f}",
+            "completed": True, "garmin_activity_id": aid,
+            "training_effect": te or None,
+            "vo2max": act.get("vO2MaxValue"),
+            "cadence_avg": int(act["averageRunningCadenceInStepsPerMinute"]) if act.get("averageRunningCadenceInStepsPerMinute") else None,
+            "elevation_gain": round(act["elevationGain"],1) if act.get("elevationGain") else None,
+            "intervals": intervals or None,
+        })
+        time.sleep(0.5)
 
     log.info("Sync terminé ✓")
 
 if __name__ == "__main__":
-    # Par défaut sync les 7 derniers jours
-    # Pour le premier run, on sync 30 jours
-    days = int(os.environ.get("DAYS_BACK", "7"))
-    sync_activities(days_back=days)
+    sync_activities(days_back=int(os.environ.get("DAYS_BACK","7")))
