@@ -2,39 +2,41 @@ name: Garmin → Supabase Sync
 
 on:
   schedule:
-    # Tourne à 8h00 et 20h00 (UTC) tous les jours
     - cron: '0 8 * * *'
     - cron: '0 20 * * *'
   workflow_dispatch:
     inputs:
       days_back:
-        description: 'Nombre de jours à importer (défaut: 7, premier run: 30)'
+        description: 'Jours à importer (7 normal, 30 premier run)'
         required: false
         default: '7'
+
+permissions:
+  contents: read
+  secrets: write    # nécessaire pour sauvegarder les tokens Garmin
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install garminconnect requests
+        run: pip install garminconnect requests PyNaCl
 
       - name: Run Garmin sync
         env:
-          GARMIN_EMAIL:    ${{ secrets.GARMIN_EMAIL }}
-          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
-          SUPABASE_URL:    ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY:    ${{ secrets.SUPABASE_KEY }}
-          DAYS_BACK:       ${{ github.event.inputs.days_back || '7' }}
+          GARMIN_EMAIL:     ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD:  ${{ secrets.GARMIN_PASSWORD }}
+          SUPABASE_URL:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:     ${{ secrets.SUPABASE_KEY }}
+          GARMIN_TOKENS:    ${{ secrets.GARMIN_TOKENS }}
+          GITHUB_TOKEN:     ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DAYS_BACK:        ${{ github.event.inputs.days_back || '7' }}
         run: python sync_garmin.py
