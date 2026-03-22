@@ -779,6 +779,30 @@
     <!-- Jours générés par JS -->
   </div>
 
+  <!-- COACH IA PLANNING -->
+  <div class="card" style="margin-top:1rem;border-color:rgba(232,255,71,0.2);">
+    <div class="card-title">🧠 Modifie ton planning en langage naturel <span class="badge">COACH IA</span></div>
+    <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);margin-bottom:0.75rem;">
+      Ex: "Mets une sortie longue aujourd'hui" · "Décale le VMA de mardi à jeudi" · "J'ai mal au genou, adapte la semaine" · "Je veux courir samedi et dimanche"
+    </div>
+    <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem;">
+      <input type="text" id="plan-coach-input" placeholder="Dis au coach ce que tu veux changer..." style="flex:1;" onkeydown="if(event.key==='Enter') askPlanCoach()">
+      <button class="btn" onclick="askPlanCoach()" id="plan-coach-btn">Modifier</button>
+    </div>
+    <div id="plan-coach-response" style="display:none;">
+      <div class="ai-panel" style="margin:0;padding:1rem;">
+        <div class="ai-header" style="margin-bottom:0.75rem;">
+          <div class="ai-avatar" style="width:28px;height:28px;font-size:0.8rem;">⚡</div>
+          <div>
+            <div class="ai-name" style="font-size:0.85rem;">COACH</div>
+          </div>
+        </div>
+        <div class="ai-message" id="plan-coach-text" style="font-size:0.85rem;"></div>
+        <div id="plan-coach-actions" style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="grid-2" style="margin-top:1rem;">
     <div class="card">
       <div class="card-title">Détail de la séance sélectionnée</div>
@@ -810,6 +834,53 @@
       <div class="card-title">Phase actuelle</div>
       <div id="current-phase" style="font-family:var(--font-mono);font-size:0.8rem;color:var(--accent2);">
         Calcul en cours...
+      </div>
+    </div>
+  </div>
+
+  <!-- COACH PLANNING CHAT -->
+  <div style="margin-top:1rem;" class="card">
+    <div class="card-title">🧠 Modifier le planning avec le Coach <span class="badge">IA</span></div>
+    <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);margin-bottom:1rem;">
+      Parle-lui en langage naturel — il modifie directement ton planning dans la base de données.
+    </div>
+
+    <!-- Suggestions rapides -->
+    <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem;">
+      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Aujourd\'hui c\'est ma sortie longue, place-la au 22 mars')">📅 Sortie longue aujourd'hui</button>
+      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Décale ma prochaine séance VMA à demain')">⏭ Décaler VMA</button>
+      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('J\'ai mal au genou, adapte les 2 prochaines semaines')">🦵 Douleur genou</button>
+      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Je veux courir samedi et dimanche cette semaine, réorganise')">📆 Week-end running</button>
+      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Je suis fatigué cette semaine, allège le planning')">😴 Semaine allégée</button>
+      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Je me sens très bien, augmente un peu la charge cette semaine')">🔥 Semaine chargée</button>
+    </div>
+
+    <div style="display:flex;gap:0.75rem;margin-bottom:1rem;">
+      <input type="text" id="planning-coach-input" 
+        placeholder="Ex: mets ma sortie longue samedi et la VMA jeudi..." 
+        style="flex:1;"
+        onkeydown="if(event.key==='Enter') askPlanningCoach()">
+      <button class="btn" onclick="askPlanningCoach()">Modifier</button>
+    </div>
+
+    <div id="planning-coach-response" style="display:none;">
+      <div class="ai-panel" style="margin:0;">
+        <div class="ai-header">
+          <div class="ai-avatar">⚡</div>
+          <div>
+            <div class="ai-name">COACH — MODIFICATION PLANNING</div>
+            <div class="ai-sub" id="planning-coach-sub">Analyse en cours...</div>
+          </div>
+        </div>
+        <div class="ai-message" id="planning-coach-text"></div>
+        <div id="planning-coach-actions" style="margin-top:1rem;display:none;">
+          <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);margin-bottom:0.5rem;">MODIFICATIONS PROPOSÉES :</div>
+          <div id="planning-coach-changes" style="font-family:var(--font-mono);font-size:0.75rem;margin-bottom:1rem;"></div>
+          <div style="display:flex;gap:0.75rem;">
+            <button class="btn" id="btn-apply-changes" onclick="applyPlanningChanges()">✓ Appliquer les modifications</button>
+            <button class="btn btn-ghost" onclick="cancelPlanningChanges()">✗ Annuler</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1919,6 +1990,173 @@ function clearLog() {
   document.getElementById('intervals-section').style.display = 'none';
   intervalCount = 0;
   document.getElementById('intervals-list').innerHTML = '';
+}
+
+// ==================== COACH IA PLANNING ====================
+async function askPlanCoach() {
+  const input = document.getElementById('plan-coach-input');
+  const userMsg = input.value.trim();
+  if (!userMsg) return;
+
+  const btn = document.getElementById('plan-coach-btn');
+  btn.textContent = '...';
+  btn.disabled = true;
+
+  const responseDiv = document.getElementById('plan-coach-response');
+  const textEl = document.getElementById('plan-coach-text');
+  const actionsEl = document.getElementById('plan-coach-actions');
+  responseDiv.style.display = 'block';
+  textEl.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+  actionsEl.innerHTML = '';
+
+  // Contexte planning
+  const today = new Date().toISOString().split('T')[0];
+  const todayFr = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+  const upcoming = plannedSessions
+    .filter(s => s.date >= today)
+    .slice(0, 14)
+    .map(s => `- ${s.date} (${getDayFr(s.date)}): ${s.type} ~${s.target_distance_km}km — "${s.description}" [id:${s.id}]`)
+    .join('\n') || 'Aucune séance planifiée';
+
+  const recent = allSessions.slice(0, 5)
+    .map(s => `- ${s.date}: ${s.type} ${s.distance_km||'?'}km effort ${s.perceived_effort}/5 douleur ${s.pain_level}/5`)
+    .join('\n') || 'Aucune';
+
+  const prompt = `Tu es un coach running expert qui gère le planning d'entraînement d'un athlète.
+
+CONTEXTE ATHLÈTE:
+- Aujourd'hui: ${today} (${todayFr})
+- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37 | Race 10km: ${profile.race_10k_date}
+- Fragilité: périostite si charge monte trop vite
+- Préférences: sortie longue le week-end, intensité en semaine
+
+PLANNING ACTUEL (prochaines 2 semaines):
+${upcoming}
+
+SÉANCES RÉCENTES:
+${recent}
+
+DEMANDE DE L'ATHLÈTE: "${userMsg}"
+
+Tu dois analyser la demande et retourner un JSON UNIQUEMENT (pas de texte avant ou après) avec cette structure exacte:
+{
+  "message": "explication courte de ce que tu fais (2-3 phrases max, ton direct de coach)",
+  "modifications": [
+    {
+      "action": "update" | "delete" | "insert",
+      "id": "uuid de la séance existante (pour update/delete)",
+      "data": {
+        "date": "YYYY-MM-DD",
+        "type": "EF|VMA|Seuil|Long|Récup|Compét",
+        "description": "description courte",
+        "target_distance_km": 10,
+        "target_duration_minutes": 60,
+        "intensity_zone": 2,
+        "week_phase": "base|développement|spécifique|affûtage_15k|bloc_final|affûtage_10k",
+        "priority": 1
+      }
+    }
+  ],
+  "warning": "message d'alerte si risque santé (optionnel, null sinon)"
+}
+
+Règles:
+- Pour déplacer une séance: update l'id existant avec la nouvelle date
+- Pour ajouter une séance: insert avec data complète (pas d'id)
+- Pour supprimer: delete avec l'id, pas besoin de data
+- Respecte toujours la règle des 10% de charge max par semaine pour éviter la périostite
+- Si la demande est risquée pour la santé, ajoute un warning mais applique quand même si raisonnable`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const raw = data.content?.[0]?.text || '{}';
+
+    // Parse JSON response
+    let parsed;
+    try {
+      const clean = raw.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      textEl.textContent = 'Le coach n\'a pas pu analyser ta demande. Reformule différemment.';
+      btn.textContent = 'Modifier'; btn.disabled = false;
+      return;
+    }
+
+    // Affiche le message du coach
+    textEl.textContent = parsed.message || '';
+
+    // Affiche warning si présent
+    if (parsed.warning) {
+      textEl.innerHTML += `<div class="alert alert-warn" style="margin-top:0.75rem;">${parsed.warning}</div>`;
+    }
+
+    // Affiche les modifications proposées avec bouton de confirmation
+    if (parsed.modifications && parsed.modifications.length > 0) {
+      const summary = parsed.modifications.map(m => {
+        if (m.action === 'update') return `✏️ Modifier séance du ${m.data?.date || '?'} → ${m.data?.type} ${m.data?.target_distance_km||'?'}km`;
+        if (m.action === 'insert') return `➕ Ajouter ${m.data?.type} le ${m.data?.date} (~${m.data?.target_distance_km||'?'}km)`;
+        if (m.action === 'delete') return `🗑 Supprimer séance`;
+        return m.action;
+      }).join('<br>');
+
+      actionsEl.innerHTML = `
+        <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);width:100%;margin-bottom:0.5rem;">${summary}</div>
+        <button class="btn" onclick="applyPlanModifications(${JSON.stringify(parsed.modifications).replace(/"/g,'&quot;')})">✓ Appliquer les modifications</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('plan-coach-response').style.display='none'">Annuler</button>
+      `;
+    }
+
+    input.value = '';
+  } catch(e) {
+    textEl.textContent = 'Erreur de connexion au coach IA.';
+  }
+
+  btn.textContent = 'Modifier';
+  btn.disabled = false;
+}
+
+async function applyPlanModifications(modifications) {
+  const actionsEl = document.getElementById('plan-coach-actions');
+  actionsEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--muted);">Application en cours...</div>';
+
+  try {
+    for (const mod of modifications) {
+      if (mod.action === 'update' && mod.id) {
+        await db.from('planned_sessions').update(mod.data).eq('id', mod.id);
+      } else if (mod.action === 'insert' && mod.data) {
+        await db.from('planned_sessions').insert([mod.data]);
+      } else if (mod.action === 'delete' && mod.id) {
+        await db.from('planned_sessions').delete().eq('id', mod.id);
+      }
+    }
+
+    // Reload planning
+    await loadPlannedSessions();
+    renderWeek();
+    renderNextSessions();
+
+    actionsEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--success);">✓ Planning mis à jour !</div>';
+    setTimeout(() => {
+      document.getElementById('plan-coach-response').style.display = 'none';
+    }, 2000);
+
+    showToast('Planning modifié par le coach ✓', 'success');
+  } catch(e) {
+    actionsEl.innerHTML = `<div style="color:var(--danger);font-family:var(--font-mono);font-size:0.75rem;">Erreur: ${e.message}</div>`;
+  }
+}
+
+function getDayFr(dateStr) {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long'});
 }
 
 // ==================== INTERVALS ====================
