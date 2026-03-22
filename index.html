@@ -834,7 +834,7 @@
         </div>
         <div class="form-group">
           <label>Type de séance</label>
-          <select id="log-type">
+          <select id="log-type" onchange="onTypeChange()">
             <option value="EF">Endurance fondamentale</option>
             <option value="Seuil">Seuil</option>
             <option value="VMA">Fractionné VMA</option>
@@ -904,6 +904,20 @@
           <textarea id="log-notes" rows="3" placeholder="Comment s'est passée la séance ? Conditions, sensations..."></textarea>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- SECTION FRACTIONNÉ -->
+  <div id="intervals-section" style="display:none;margin-top:1rem;">
+    <div class="card">
+      <div class="card-title">Détail des intervalles <span class="badge" id="intervals-badge">VMA</span></div>
+      <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--muted);margin-bottom:1rem;" id="intervals-hint"></div>
+      <div id="intervals-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;"></div>
+      <div style="display:flex;gap:0.75rem;">
+        <button class="btn btn-ghost" onclick="addInterval()" style="flex:1;">+ Ajouter un intervalle</button>
+        <button class="btn btn-ghost" onclick="removeInterval()" style="padding:0.75rem 1rem;">−</button>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);margin-top:0.75rem;" id="intervals-summary"></div>
     </div>
   </div>
 
@@ -1003,12 +1017,12 @@
           <input type="text" id="prof-name" value="Coureur">
         </div>
         <div class="form-group">
-          <label>PB 10km actuel (secondes)</label>
-          <input type="number" id="prof-pb" value="2430">
+          <label>PB 10km actuel (min:sec)</label>
+          <input type="text" id="prof-pb" placeholder="40:30" value="40:30">
         </div>
         <div class="form-group">
-          <label>Objectif 10km (secondes)</label>
-          <input type="number" id="prof-target" value="2220">
+          <label>Objectif 10km (min:sec)</label>
+          <input type="text" id="prof-target" placeholder="37:00" value="37:00">
         </div>
         <div class="form-group">
           <label>FC Max (bpm)</label>
@@ -1139,12 +1153,106 @@ async function init() {
 async function testConnection() {
   try {
     const { data, error } = await db.from('profile').select('id').limit(1);
-    if (error) throw error;
-    document.getElementById('nav-db-status').textContent = 'Connecté';
+    if (error) {
+      // Tables might not exist yet — try to create them
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        document.getElementById('nav-db-status').textContent = '⚠ Tables manquantes';
+        showDbSetupAlert();
+      } else {
+        throw error;
+      }
+      return;
+    }
+    document.getElementById('nav-db-status').textContent = 'Connecté ✓';
+    document.querySelector('.status-dot').style.background = 'var(--success)';
   } catch(e) {
     document.getElementById('nav-db-status').textContent = 'Erreur DB';
-    console.error(e);
+    document.querySelector('.status-dot').style.background = 'var(--danger)';
+    document.querySelector('.status-dot').style.animation = 'none';
+    console.error('DB Error:', e);
   }
+}
+
+function showDbSetupAlert() {
+  const zone = document.getElementById('alerts-zone');
+  zone.innerHTML = `
+    <div class="alert alert-danger" style="flex-direction:column;gap:0.75rem;">
+      <div><strong>⚠️ Tables Supabase manquantes</strong> — L'app ne peut pas fonctionner sans elles.</div>
+      <div>Va dans ton projet Supabase → <strong>SQL Editor</strong> → colle et exécute ce script :</div>
+      <textarea readonly style="width:100%;height:280px;font-size:0.65rem;background:#0a0a0f;border:1px solid var(--danger);border-radius:6px;padding:0.75rem;color:var(--text);font-family:var(--font-mono);">${getSQLSchema()}</textarea>
+      <button class="btn" onclick="copySQL()">Copier le SQL</button>
+    </div>
+  `;
+}
+
+function copySQL() {
+  navigator.clipboard.writeText(getSQLSchema());
+  showToast('SQL copié ✓ — Colle-le dans Supabase SQL Editor', 'success');
+}
+
+function getSQLSchema() {
+  return `create table if not exists profile (
+  id uuid default gen_random_uuid() primary key,
+  created_at timestamp default now(),
+  name text default 'Coureur',
+  pb_10k_seconds integer default 2430,
+  target_10k_seconds integer default 2220,
+  vma_kmh numeric default 16.5,
+  fc_max integer default 208,
+  fc_repos integer default 55,
+  race_15k_date date default '2026-09-20',
+  race_10k_date date default '2027-01-15',
+  weekly_sessions integer default 4,
+  target_weekly_sessions integer default 5,
+  fragility_notes text default 'Périostite si charge augmente trop vite.'
+);
+
+create table if not exists sessions (
+  id uuid default gen_random_uuid() primary key,
+  created_at timestamp default now(),
+  date date not null,
+  type text not null,
+  distance_km numeric,
+  duration_minutes integer,
+  avg_pace_seconds integer,
+  avg_hr integer,
+  perceived_effort integer check (perceived_effort between 1 and 5),
+  pain_level integer default 0 check (pain_level between 0 and 5),
+  pain_location text,
+  notes text,
+  intervals jsonb,
+  completed boolean default true,
+  garmin_id text
+);
+
+create table if not exists planned_sessions (
+  id uuid default gen_random_uuid() primary key,
+  created_at timestamp default now(),
+  date date not null,
+  type text not null,
+  description text,
+  target_distance_km numeric,
+  target_duration_minutes integer,
+  target_pace_seconds integer,
+  intensity_zone integer check (intensity_zone between 1 and 5),
+  week_phase text,
+  priority integer default 1,
+  skipped boolean default false,
+  skip_reason text
+);
+
+create table if not exists health_logs (
+  id uuid default gen_random_uuid() primary key,
+  created_at timestamp default now(),
+  date date not null,
+  location text not null,
+  severity integer check (severity between 1 and 5),
+  notes text,
+  resolved boolean default false
+);
+
+create index if not exists idx_sessions_date on sessions(date desc);
+create index if not exists idx_planned_date on planned_sessions(date asc);`;
 }
 
 // ==================== PROFILE ====================
@@ -1164,8 +1272,8 @@ async function loadProfile() {
 
 function applyProfileToForm() {
   document.getElementById('prof-name').value = profile.name || '';
-  document.getElementById('prof-pb').value = profile.pb_10k_seconds || 2430;
-  document.getElementById('prof-target').value = profile.target_10k_seconds || 2220;
+  document.getElementById('prof-pb').value = secToMinSec(profile.pb_10k_seconds || 2430);
+  document.getElementById('prof-target').value = secToMinSec(profile.target_10k_seconds || 2220);
   document.getElementById('prof-fcmax').value = profile.fc_max || 208;
   document.getElementById('prof-fcrep').value = profile.fc_repos || 55;
   document.getElementById('prof-race15').value = profile.race_15k_date || '2026-09-20';
@@ -1175,10 +1283,23 @@ function applyProfileToForm() {
   document.getElementById('prof-fragility').value = profile.fragility_notes || '';
 }
 
+function secToMinSec(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function minSecToSec(str) {
+  if (!str) return 0;
+  const parts = str.replace("'", ':').replace('"', '').split(':');
+  if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  return parseInt(str) || 0;
+}
+
 async function saveProfile() {
   profile.name = document.getElementById('prof-name').value;
-  profile.pb_10k_seconds = parseInt(document.getElementById('prof-pb').value);
-  profile.target_10k_seconds = parseInt(document.getElementById('prof-target').value);
+  profile.pb_10k_seconds = minSecToSec(document.getElementById('prof-pb').value);
+  profile.target_10k_seconds = minSecToSec(document.getElementById('prof-target').value);
   profile.fc_max = parseInt(document.getElementById('prof-fcmax').value);
   profile.fc_repos = parseInt(document.getElementById('prof-fcrep').value);
   profile.race_15k_date = document.getElementById('prof-race15').value;
@@ -1390,69 +1511,64 @@ async function generatePlan() {
 
 function buildPlan() {
   const today = new Date();
+  today.setHours(0,0,0,0);
   const race10 = new Date(profile.race_10k_date || '2027-01-15');
   const race15 = new Date(profile.race_15k_date || '2026-09-20');
   const sessions = [];
   const totalWeeks = Math.ceil((race10 - today) / (7 * 86400000));
 
-  // Phases
-  // 0-4 sem: base aérobie (4 séances, montée douce)
-  // 5-14 sem: développement (4→5 séances, volume + intensité)
-  // 15-22 sem: spécifique 10km (5 séances, seuil + VMA)
-  // 23-26 sem: affûtage + récup pré-15km
-  // 27-38 sem: bloc final 10km (qualité + volume modéré)
-  // 39-41 sem: affûtage final
+  // Day offsets from Monday: 0=Mon,1=Tue,2=Wed,3=Thu,4=Fri,5=Sat,6=Sun
+  // Séances placées: Mardi, Jeudi (intensité), Mercredi (EF), Samedi, Dimanche
+  const dayPrefs = {
+    'base':          [1, 3, 2, 5],       // Mar, Jeu, Mer, Sam
+    'développement': [1, 3, 2, 5, 6],   // + Dim
+    'spécifique':    [1, 3, 2, 5, 6],
+    'affûtage_15k':  [1, 3, 6],
+    'bloc_final':    [1, 3, 2, 5, 6],
+    'affûtage_10k':  [1, 3, 6],
+  };
 
-  const weekSessions = [
-    // EF, type, km, description, zone
-    { type: 'EF', km: 8, desc: 'Endurance fondamentale douce', zone: 2 },
-    { type: 'Seuil', km: 10, desc: '3×10\' au seuil + échauffement', zone: 4 },
-    { type: 'VMA', km: 9, desc: '6×6\' à 90% VMA + récup', zone: 5 },
-    { type: 'Long', km: 14, desc: 'Sortie longue Z2 allure conversationnelle', zone: 2 },
-    { type: 'Récup', km: 6, desc: 'Footing récupération très lent', zone: 1 },
-  ];
+  const monday = getWeekStart(new Date(today));
+  // If today is Thu or later, start next week to avoid cramming
+  const startMonday = new Date(monday);
+  if (today.getDay() >= 4) startMonday.setDate(startMonday.getDate() + 7);
 
-  let d = new Date(today);
-  d.setDate(d.getDate() + 1); // Commence demain
+  for (let w = 0; w < Math.min(totalWeeks, 43); w++) {
+    const weekMonday = new Date(startMonday);
+    weekMonday.setDate(weekMonday.getDate() + w * 7);
 
-  for (let w = 0; w < Math.min(totalWeeks, 42); w++) {
     const phase = getPhase(w, totalWeeks, race15, today);
     const sessionsThisWeek = getSessionsForPhase(phase, w);
+    const isRecupWeek = (w + 1) % 4 === 0;
+    const prefs = dayPrefs[phase] || dayPrefs['base'];
 
-    let weekDay = 0;
-    for (let dayOff = 0; dayOff < 7; dayOff++) {
-      const dayOfWeek = d.getDay(); // 0=dim, 1=lun, ..., 6=sam
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    sessionsThisWeek.forEach((s, i) => {
+      if (i >= prefs.length) return;
+      const d = new Date(weekMonday);
+      d.setDate(d.getDate() + prefs[i]); // offset from Monday
+      if (d < today) return;
 
-      if (weekDay < sessionsThisWeek.length) {
-        const s = sessionsThisWeek[weekDay];
-        // Préférence : intensité en semaine, long le week-end
-        if (isWeekend && s.type !== 'Long' && weekDay < sessionsThisWeek.length - 1) {
-          // Skip pour placer la sortie longue le week-end
-        } else {
-          sessions.push({
-            date: d.toISOString().split('T')[0],
-            type: s.type,
-            description: s.desc,
-            target_distance_km: adjustKmForPhase(s.km, w, totalWeeks),
-            target_duration_minutes: Math.round(adjustKmForPhase(s.km, w, totalWeeks) * getPaceForType(s.type)),
-            intensity_zone: s.zone,
-            week_phase: phase,
-            priority: s.type === 'Récup' ? 2 : 1
-          });
-          weekDay++;
-        }
-      }
-      d.setDate(d.getDate() + 1);
-      if (dayOff === 6) break;
-    }
-
-    // Avancer au lundi suivant si besoin
-    while (d.getDay() !== 1) d.setDate(d.getDate() - 1 + (d.getDay() === 0 ? 1 : 0));
-    // Correction: simplement avancer jusqu'à ce qu'on soit au bon endroit
+      sessions.push({
+        date: d.toISOString().split('T')[0],
+        type: s.type,
+        description: s.desc,
+        target_distance_km: adjustKmForPhase(s.km, w, totalWeeks, isRecupWeek),
+        target_duration_minutes: Math.round(adjustKmForPhase(s.km, w, totalWeeks, isRecupWeek) * getPaceForType(s.type)),
+        intensity_zone: s.zone,
+        week_phase: phase,
+        priority: s.type === 'Récup' ? 2 : 1
+      });
+    });
   }
 
-  return sessions;
+  sessions.sort((a, b) => a.date.localeCompare(b.date));
+  // Deduplicate: only one session per day (keep first)
+  const seen = new Set();
+  return sessions.filter(s => {
+    if (seen.has(s.date)) return false;
+    seen.add(s.date);
+    return true;
+  });
 }
 
 function getPhase(week, total, race15, today) {
@@ -1508,9 +1624,7 @@ function getSessionsForPhase(phase, week) {
   return plans[phase] || plans['base'];
 }
 
-function adjustKmForPhase(km, week, total) {
-  // Progression linéaire + semaines de récup toutes les 4 semaines
-  const isRecupWeek = (week + 1) % 4 === 0;
+function adjustKmForPhase(km, week, total, isRecupWeek) {
   const multiplier = isRecupWeek ? 0.75 : 1 + (week / total) * 0.25;
   return Math.round(km * multiplier * 10) / 10;
 }
@@ -1600,6 +1714,18 @@ function selectDay(dateStr) {
         <div><span style="color:var(--muted);">Effort:</span> ${done.perceived_effort || '—'}/5</div>
         <div><span style="color:var(--muted);">Douleur:</span> ${done.pain_level || 0}/5${done.pain_location ? ' · '+done.pain_location : ''}</div>
         ${done.notes ? `<div style="margin-top:0.5rem;color:var(--muted);">${done.notes}</div>` : ''}
+        ${done.intervals && done.intervals.length ? `
+          <div style="margin-top:0.75rem;">
+            <div style="color:var(--muted);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">Intervalles</div>
+            ${done.intervals.map(iv => `
+              <div style="display:flex;gap:1rem;padding:0.25rem 0;border-bottom:1px solid var(--border);">
+                <span style="color:var(--muted);">#${iv.num}</span>
+                <span>${iv.duration || ''}</span>
+                <span style="color:var(--accent);">${iv.pace || ''}</span>
+                <span style="color:var(--muted);font-size:0.65rem;">${iv.feel || ''}</span>
+              </div>
+            `).join('')}
+          </div>` : ''}
       </div>
     `;
   } else if (planned) {
@@ -1689,7 +1815,8 @@ async function saveSession() {
     avg_pace_seconds: paceSeconds, avg_hr: hr,
     perceived_effort: selectedEffort, pain_level: selectedPain,
     pain_location: selectedPain >= 2 ? painLoc : null,
-    notes, completed: true
+    notes, completed: true,
+    intervals: (type === 'VMA' || type === 'Seuil') ? getIntervals() : null
   };
 
   try {
@@ -1789,9 +1916,112 @@ function clearLog() {
   setRating('effort', 3);
   setRating('pain', 0);
   document.getElementById('log-ai-response').style.display = 'none';
+  document.getElementById('intervals-section').style.display = 'none';
+  intervalCount = 0;
+  document.getElementById('intervals-list').innerHTML = '';
 }
 
-// ==================== HISTORY ====================
+// ==================== INTERVALS ====================
+let intervalCount = 0;
+
+function onTypeChange() {
+  const type = document.getElementById('log-type').value;
+  const section = document.getElementById('intervals-section');
+  const badge = document.getElementById('intervals-badge');
+  const hint = document.getElementById('intervals-hint');
+
+  if (type === 'VMA' || type === 'Seuil') {
+    section.style.display = 'block';
+    badge.textContent = type;
+    if (type === 'VMA') {
+      hint.textContent = 'Fractionné VMA — entre le temps et l\'allure de chaque répétition';
+    } else {
+      hint.textContent = 'Séance seuil — entre la durée et l\'allure de chaque bloc';
+    }
+    if (intervalCount === 0) initIntervals(type);
+  } else {
+    section.style.display = 'none';
+  }
+}
+
+function initIntervals(type) {
+  intervalCount = 0;
+  document.getElementById('intervals-list').innerHTML = '';
+  // Pre-fill typical structure
+  const defaults = {
+    'VMA': { reps: 6, label: '6\' VMA', distOrDur: '6min', pace: '' },
+    'Seuil': { reps: 3, label: '10\' seuil', distOrDur: '10min', pace: '' },
+  };
+  const d = defaults[type] || defaults['VMA'];
+  for (let i = 0; i < d.reps; i++) addInterval(d.distOrDur, d.pace);
+}
+
+function addInterval(distOrDur = '', pace = '') {
+  intervalCount++;
+  const n = intervalCount;
+  const list = document.getElementById('intervals-list');
+  const row = document.createElement('div');
+  row.id = `interval-${n}`;
+  row.style.cssText = 'display:grid;grid-template-columns:40px 1fr 1fr 1fr;gap:0.5rem;align-items:center;';
+  row.innerHTML = `
+    <div style="font-family:var(--font-display);font-size:1.1rem;color:var(--muted);text-align:center;">${n}</div>
+    <div class="form-group" style="margin:0;">
+      <label>Durée ou dist.</label>
+      <input type="text" id="int-dur-${n}" placeholder="6min / 2km" value="${distOrDur}" oninput="updateIntervalSummary()">
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>Allure (min:sec)</label>
+      <input type="text" id="int-pace-${n}" placeholder="3'45&quot;" value="${pace}" oninput="updateIntervalSummary()">
+    </div>
+    <div class="form-group" style="margin:0;">
+      <label>Ressenti</label>
+      <select id="int-feel-${n}">
+        <option value="facile">Facile</option>
+        <option value="ok" selected>OK</option>
+        <option value="dur">Dur</option>
+        <option value="trop_dur">Trop dur</option>
+      </select>
+    </div>
+  `;
+  list.appendChild(row);
+  updateIntervalSummary();
+}
+
+function removeInterval() {
+  if (intervalCount <= 1) return;
+  const el = document.getElementById(`interval-${intervalCount}`);
+  if (el) el.remove();
+  intervalCount--;
+  updateIntervalSummary();
+}
+
+function updateIntervalSummary() {
+  const paces = [];
+  for (let i = 1; i <= intervalCount; i++) {
+    const p = document.getElementById(`int-pace-${i}`)?.value;
+    if (p) {
+      const sec = minSecToSec(p);
+      if (sec > 0) paces.push(sec);
+    }
+  }
+  const el = document.getElementById('intervals-summary');
+  if (paces.length === 0) { el.textContent = ''; return; }
+  const avg = Math.round(paces.reduce((a,b) => a+b,0) / paces.length);
+  const best = Math.min(...paces);
+  const worst = Math.max(...paces);
+  el.textContent = `Allure moy: ${secToAllure(avg)}/km · Meilleure: ${secToAllure(best)}/km · Pire: ${secToAllure(worst)}/km`;
+}
+
+function getIntervals() {
+  const intervals = [];
+  for (let i = 1; i <= intervalCount; i++) {
+    const dur = document.getElementById(`int-dur-${i}`)?.value;
+    const pace = document.getElementById(`int-pace-${i}`)?.value;
+    const feel = document.getElementById(`int-feel-${i}`)?.value;
+    if (dur || pace) intervals.push({ num: i, duration: dur, pace, feel, pace_seconds: minSecToSec(pace) || null });
+  }
+  return intervals;
+}
 function renderHistory() {
   const el = document.getElementById('history-list');
   if (!allSessions.length) {
