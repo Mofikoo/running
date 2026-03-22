@@ -3,679 +3,181 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RunCoach — Tableau de bord</title>
+<title>RunCoach</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root {
-    --bg: #0a0a0f;
-    --surface: #12121a;
-    --surface2: #1a1a26;
-    --border: #2a2a3a;
-    --accent: #e8ff47;
-    --accent2: #47b8ff;
-    --danger: #ff4757;
-    --warn: #ffa502;
-    --success: #2ed573;
-    --text: #f0f0f8;
-    --muted: #6b6b8a;
-    --font-display: 'Bebas Neue', sans-serif;
-    --font-mono: 'DM Mono', monospace;
-    --font-body: 'DM Sans', sans-serif;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-body);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* Grid noise texture */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: 
-      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(232,255,71,0.06) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(71,184,255,0.05) 0%, transparent 60%);
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  /* NAV */
-  nav {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: rgba(10,10,15,0.92);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 2rem;
-    height: 60px;
-  }
-
-  .nav-logo {
-    font-family: var(--font-display);
-    font-size: 1.6rem;
-    letter-spacing: 0.1em;
-    color: var(--accent);
-  }
-
-  .nav-logo span { color: var(--text); }
-
-  .nav-tabs {
-    display: flex;
-    gap: 0.25rem;
-  }
-
-  .nav-tab {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 0.4rem 0.9rem;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s;
-  }
-
-  .nav-tab:hover { color: var(--text); background: var(--surface); }
-  .nav-tab.active { color: var(--accent); background: rgba(232,255,71,0.1); }
-
-  .nav-status {
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    color: var(--muted);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--success);
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  /* PAGES */
-  .page { display: none; padding: 2rem; position: relative; z-index: 1; }
-  .page.active { display: block; animation: fadeIn 0.3s ease; }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* HERO STATS */
-  .hero-stats {
-    display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 2rem;
-  }
-
-  .stat-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.5rem;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.2s;
-  }
-
-  .stat-card:hover { border-color: rgba(232,255,71,0.3); }
-
-  .stat-card.main {
-    background: linear-gradient(135deg, var(--surface) 0%, rgba(232,255,71,0.05) 100%);
-    border-color: rgba(232,255,71,0.2);
-  }
-
-  .stat-label {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--muted);
-    margin-bottom: 0.5rem;
-  }
-
-  .stat-value {
-    font-family: var(--font-display);
-    font-size: 2.8rem;
-    line-height: 1;
-    color: var(--accent);
-    letter-spacing: 0.02em;
-  }
-
-  .stat-value.big { font-size: 4rem; }
-  .stat-sub { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); margin-top: 0.4rem; }
-
-  .progress-bar-wrap {
-    margin-top: 1rem;
-    background: var(--border);
-    border-radius: 4px;
-    height: 4px;
-    overflow: hidden;
-  }
-
-  .progress-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 4px;
-    transition: width 1s ease;
-  }
-
-  /* GRID LAYOUT */
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-
-  /* CARDS */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.5rem;
-  }
-
-  .card-title {
-    font-family: var(--font-display);
-    font-size: 1.1rem;
-    letter-spacing: 0.08em;
-    color: var(--text);
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .card-title .badge {
-    font-family: var(--font-mono);
-    font-size: 0.6rem;
-    background: rgba(232,255,71,0.15);
-    color: var(--accent);
-    padding: 0.2rem 0.5rem;
-    border-radius: 20px;
-    letter-spacing: 0.08em;
-  }
-
-  /* PLANNING */
-  .week-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .day-cell {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.75rem 0.5rem;
-    text-align: center;
-    min-height: 90px;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-  }
-
-  .day-cell:hover { border-color: var(--accent); transform: translateY(-2px); }
-  .day-cell.today { border-color: var(--accent); background: rgba(232,255,71,0.05); }
-  .day-cell.completed { border-color: var(--success); }
-  .day-cell.skipped { opacity: 0.5; }
-  .day-cell.rest { opacity: 0.6; }
-
-  .day-name {
-    font-family: var(--font-mono);
-    font-size: 0.6rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--muted);
-    margin-bottom: 0.3rem;
-  }
-
-  .day-num {
-    font-family: var(--font-display);
-    font-size: 1.4rem;
-    line-height: 1;
-    margin-bottom: 0.4rem;
-  }
-
-  .day-type {
-    font-family: var(--font-mono);
-    font-size: 0.58rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 0.15rem 0.4rem;
-    border-radius: 3px;
-    display: inline-block;
-  }
-
-  .type-EF { background: rgba(71,184,255,0.15); color: var(--accent2); }
-  .type-AérobieZ3, .type-Aérobie { background: rgba(46,213,115,0.15); color: var(--success); }
-  .type-VMA { background: rgba(255,71,87,0.15); color: var(--danger); }
-  .type-Seuil { background: rgba(255,165,2,0.15); color: var(--warn); }
-  .type-Long { background: rgba(232,255,71,0.15); color: var(--accent); }
-  .type-Récup { background: rgba(107,107,138,0.15); color: var(--muted); }
-  .type-Repos { background: transparent; color: var(--border); }
-  .type-Compét { background: rgba(255,71,87,0.25); color: var(--danger); }
-
-  /* ZONES */
-  .zones-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .zone-row {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-  }
-
-  .zone-label {
-    width: 50px;
-    color: var(--muted);
-    font-size: 0.65rem;
-    text-transform: uppercase;
-  }
-
-  .zone-bar {
-    flex: 1;
-    height: 8px;
-    background: var(--border);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  .zone-fill {
-    height: 100%;
-    border-radius: 4px;
-  }
-
-  .zone-range { color: var(--muted); font-size: 0.68rem; min-width: 80px; text-align: right; }
-  .zone-pace { color: var(--text); font-size: 0.7rem; min-width: 100px; text-align: right; }
-
-  /* SESSION LOG FORM */
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-
-  .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-  .form-group.full { grid-column: span 2; }
-
-  label {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--muted);
-  }
-
-  input, select, textarea {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    padding: 0.6rem 0.8rem;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-
-  input:focus, select:focus, textarea:focus {
-    border-color: var(--accent);
-  }
-
-  select option { background: var(--surface); }
-
-  /* EFFORT & PAIN BUTTONS */
-  .rating-group { display: flex; gap: 0.4rem; }
-
-  .rating-btn {
-    flex: 1;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    padding: 0.5rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: center;
-  }
-
-  .rating-btn:hover { border-color: var(--accent); color: var(--text); }
-  .rating-btn.selected-effort { background: rgba(232,255,71,0.15); border-color: var(--accent); color: var(--accent); }
-  .rating-btn.selected-pain-0 { background: rgba(46,213,115,0.15); border-color: var(--success); color: var(--success); }
-  .rating-btn.selected-pain-1 { background: rgba(46,213,115,0.1); border-color: var(--success); color: var(--success); }
-  .rating-btn.selected-pain-2 { background: rgba(255,165,2,0.15); border-color: var(--warn); color: var(--warn); }
-  .rating-btn.selected-pain-3 { background: rgba(255,71,87,0.1); border-color: var(--danger); color: var(--danger); }
-  .rating-btn.selected-pain-4 { background: rgba(255,71,87,0.2); border-color: var(--danger); color: var(--danger); }
-  .rating-btn.selected-pain-5 { background: rgba(255,71,87,0.3); border-color: var(--danger); color: var(--danger); }
-
-  /* BUTTONS */
-  .btn {
-    background: var(--accent);
-    border: none;
-    border-radius: 6px;
-    color: #0a0a0f;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 0.75rem 1.5rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn:hover { background: #f5ff70; transform: translateY(-1px); }
-  .btn:active { transform: translateY(0); }
-
-  .btn-ghost {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--muted);
-  }
-
-  .btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--text); }
-
-  .btn-danger {
-    background: transparent;
-    border: 1px solid var(--danger);
-    color: var(--danger);
-  }
-
-  .btn-danger:hover { background: rgba(255,71,87,0.1); }
-
-  /* ALERTS */
-  .alert {
-    border-radius: 8px;
-    padding: 1rem 1.2rem;
-    margin-bottom: 1rem;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    line-height: 1.6;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-
-  .alert-warn { background: rgba(255,165,2,0.1); border: 1px solid rgba(255,165,2,0.3); color: var(--warn); }
-  .alert-danger { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.3); color: var(--danger); }
-  .alert-success { background: rgba(46,213,115,0.1); border: 1px solid rgba(46,213,115,0.3); color: var(--success); }
-  .alert-info { background: rgba(71,184,255,0.1); border: 1px solid rgba(71,184,255,0.3); color: var(--accent2); }
-
-  /* SESSIONS LIST */
-  .session-item {
-    display: grid;
-    grid-template-columns: 80px 80px 1fr auto auto;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.85rem 1rem;
-    border-bottom: 1px solid var(--border);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    transition: background 0.15s;
-  }
-
-  .session-item:hover { background: var(--surface2); }
-  .session-item:last-child { border-bottom: none; }
-
-  .session-date { color: var(--muted); }
-  .session-dist { font-size: 0.9rem; font-weight: 500; }
-  .session-pace { color: var(--accent); }
-  .session-effort { display: flex; gap: 2px; }
-  .effort-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
-  .effort-dot.filled { background: var(--accent); }
-
-  /* AI COACH */
-  .ai-panel {
-    background: var(--surface);
-    border: 1px solid rgba(232,255,71,0.2);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .ai-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-  }
-
-  .ai-avatar {
-    width: 36px; height: 36px;
-    background: rgba(232,255,71,0.15);
-    border: 1px solid rgba(232,255,71,0.3);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-  }
-
-  .ai-name { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0.05em; }
-  .ai-sub { font-family: var(--font-mono); font-size: 0.62rem; color: var(--muted); }
-
-  .ai-message {
-    font-family: var(--font-body);
-    font-size: 0.88rem;
-    line-height: 1.7;
-    color: var(--text);
-    white-space: pre-wrap;
-  }
-
-  .ai-loading {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    padding: 0.5rem 0;
-  }
-
-  .ai-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    animation: bounce 1.2s infinite;
-  }
-
-  .ai-dot:nth-child(2) { animation-delay: 0.2s; }
-  .ai-dot:nth-child(3) { animation-delay: 0.4s; }
-
-  @keyframes bounce {
-    0%, 100% { transform: translateY(0); opacity: 0.4; }
-    50% { transform: translateY(-4px); opacity: 1; }
-  }
-
-  /* WEEKS NAV */
-  .weeks-nav {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .week-label {
-    font-family: var(--font-display);
-    font-size: 1.3rem;
-    letter-spacing: 0.05em;
-    flex: 1;
-    text-align: center;
-  }
-
-  .icon-btn {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    width: 36px; height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: all 0.2s;
-  }
-
-  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-  /* MODAL */
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    backdrop-filter: blur(4px);
-    z-index: 1000;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .modal-overlay.open { display: flex; }
-
-  .modal {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 2rem;
-    width: 90%;
-    max-width: 560px;
-    max-height: 90vh;
-    overflow-y: auto;
-    animation: modalIn 0.2s ease;
-  }
-
-  @keyframes modalIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
-  }
-
-  .modal-title {
-    font-family: var(--font-display);
-    font-size: 1.4rem;
-    letter-spacing: 0.06em;
-    margin-bottom: 1.5rem;
-  }
-
-  .modal-footer {
-    display: flex;
-    gap: 0.75rem;
-    justify-content: flex-end;
-    margin-top: 1.5rem;
-  }
-
-  /* SECTION HEADER */
-  .section-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
-  }
-
-  .section-title {
-    font-family: var(--font-display);
-    font-size: 2rem;
-    letter-spacing: 0.06em;
-  }
-
-  .section-sub {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
-
-  /* TOAST */
-  .toast {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1rem 1.5rem;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    z-index: 9999;
-    transform: translateY(100px);
-    opacity: 0;
-    transition: all 0.3s;
-  }
-
-  .toast.show { transform: translateY(0); opacity: 1; }
-  .toast.success { border-color: var(--success); color: var(--success); }
-  .toast.error { border-color: var(--danger); color: var(--danger); }
-
-  /* SCROLLBAR */
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  /* RESPONSIVE */
-  @media (max-width: 900px) {
-    .hero-stats { grid-template-columns: 1fr 1fr; }
-    .grid-2, .grid-3 { grid-template-columns: 1fr; }
-    .week-grid { grid-template-columns: repeat(4, 1fr); }
-    nav { padding: 0 1rem; }
-    .nav-status { display: none; }
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 3rem;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-  }
-
-  .tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-family: var(--font-mono);
-    font-size: 0.62rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    border: 1px solid;
-  }
-
-  .divider {
-    height: 1px;
-    background: var(--border);
-    margin: 1.5rem 0;
-  }
-
-  .pace-display {
-    font-family: var(--font-display);
-    font-size: 1.6rem;
-    color: var(--accent);
-    letter-spacing: 0.05em;
-  }
+:root {
+  --bg:#0a0a0f; --surface:#12121a; --surface2:#1a1a26; --border:#2a2a3a;
+  --accent:#e8ff47; --accent2:#47b8ff; --danger:#ff4757; --warn:#ffa502;
+  --success:#2ed573; --text:#f0f0f8; --muted:#6b6b8a;
+  --fd:'Bebas Neue',sans-serif; --fm:'DM Mono',monospace; --fb:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--fb);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 20% -10%,rgba(232,255,71,.06),transparent 60%),radial-gradient(ellipse 60% 40% at 80% 110%,rgba(71,184,255,.05),transparent 60%);pointer-events:none;z-index:0;}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:60px;}
+.nav-logo{font-family:var(--fd);font-size:1.6rem;letter-spacing:.1em;color:var(--accent);}
+.nav-logo span{color:var(--text);}
+.nav-tabs{display:flex;gap:.25rem;}
+.nav-tab{background:none;border:none;color:var(--muted);font-family:var(--fm);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;padding:.4rem .9rem;cursor:pointer;border-radius:4px;transition:all .2s;}
+.nav-tab:hover{color:var(--text);background:var(--surface);}
+.nav-tab.active{color:var(--accent);background:rgba(232,255,71,.1);}
+.nav-status{font-family:var(--fm);font-size:.68rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* PAGES */
+.page{display:none;padding:2rem;position:relative;z-index:1;}
+.page.active{display:block;animation:fadeIn .3s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+/* TYPE BADGES — couleurs normalisées */
+.tb{display:inline-block;font-family:var(--fm);font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;padding:.15rem .4rem;border-radius:3px;}
+.tb-EF       {background:rgba(71,184,255,.15);color:var(--accent2);}
+.tb-Z3       {background:rgba(46,213,115,.15);color:var(--success);}
+.tb-Seuil    {background:rgba(255,165,2,.15);color:var(--warn);}
+.tb-VMA      {background:rgba(255,71,87,.15);color:var(--danger);}
+.tb-Long     {background:rgba(232,255,71,.15);color:var(--accent);}
+.tb-Récup    {background:rgba(107,107,138,.15);color:var(--muted);}
+.tb-Compét   {background:rgba(255,71,87,.25);color:var(--danger);}
+.tb-Repos    {background:transparent;color:var(--border);}
+.tb-done     {background:rgba(46,213,115,.2);color:var(--success);}
+
+/* CARDS & GRID */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;}
+.card:hover{border-color:rgba(232,255,71,.2);}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem;}
+
+/* HERO STATS */
+.hero-stats{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1rem;margin-bottom:2rem;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.2rem;}
+.stat-card.accent{border-color:rgba(232,255,71,.2);background:linear-gradient(135deg,var(--surface),rgba(232,255,71,.04));}
+.stat-label{font-family:var(--fm);font-size:.65rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:.4rem;}
+.stat-value{font-family:var(--fd);font-size:2.2rem;line-height:1;color:var(--accent);letter-spacing:.02em;}
+.stat-sub{font-family:var(--fm);font-size:.72rem;color:var(--muted);margin-top:.3rem;}
+.progress-wrap{margin-top:.75rem;background:var(--border);border-radius:4px;height:3px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px;transition:width 1s ease;}
+
+/* NEXT SESSIONS — gros bloc */
+.next-session-item{display:flex;align-items:center;gap:1rem;padding:.9rem 0;border-bottom:1px solid var(--border);}
+.next-session-item:last-child{border-bottom:none;}
+.ns-date{font-family:var(--fm);font-size:.7rem;color:var(--muted);min-width:55px;}
+.ns-type{min-width:80px;}
+.ns-desc{font-family:var(--fb);font-size:.88rem;flex:1;}
+.ns-km{font-family:var(--fd);font-size:1.3rem;color:var(--accent);letter-spacing:.05em;min-width:50px;text-align:right;}
+
+/* SECTION HEADER */
+.section-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:1.5rem;}
+.section-title{font-family:var(--fd);font-size:2rem;letter-spacing:.06em;}
+.section-sub{font-family:var(--fm);font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;}
+
+/* CARD TITLE */
+.card-title{font-family:var(--fd);font-size:1.1rem;letter-spacing:.08em;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;}
+.badge{font-family:var(--fm);font-size:.6rem;background:rgba(232,255,71,.15);color:var(--accent);padding:.2rem .5rem;border-radius:20px;}
+
+/* WEEK GRID */
+.week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.5rem;margin-bottom:1rem;}
+.day-cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.75rem .5rem;text-align:center;min-height:90px;cursor:pointer;transition:all .2s;}
+.day-cell:hover{border-color:var(--accent);transform:translateY(-2px);}
+.day-cell.today{border-color:var(--accent);background:rgba(232,255,71,.05);}
+.day-cell.done{border-color:var(--success);}
+.day-cell.rest{opacity:.6;}
+.day-name{font-family:var(--fm);font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.3rem;}
+.day-num{font-family:var(--fd);font-size:1.4rem;line-height:1;margin-bottom:.4rem;}
+.day-km{font-family:var(--fm);font-size:.55rem;color:var(--muted);margin-top:.3rem;}
+
+/* WEEKS NAV */
+.weeks-nav{display:flex;align-items:center;gap:1rem;margin-bottom:1rem;}
+.week-label{font-family:var(--fd);font-size:1.3rem;letter-spacing:.05em;flex:1;text-align:center;}
+.icon-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ZONES */
+.zone-row{display:flex;align-items:center;gap:1rem;font-family:var(--fm);font-size:.75rem;padding:.3rem 0;}
+.zone-label{width:50px;color:var(--muted);font-size:.65rem;text-transform:uppercase;}
+.zone-bar{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
+.zone-fill{height:100%;border-radius:4px;}
+.zone-range{color:var(--muted);font-size:.68rem;min-width:90px;text-align:right;}
+.zone-pace{font-size:.7rem;min-width:110px;text-align:right;}
+
+/* FORMS */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.form-group{display:flex;flex-direction:column;gap:.4rem;}
+.form-group.full{grid-column:span 2;}
+label{font-family:var(--fm);font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);}
+input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--fm);font-size:.85rem;padding:.6rem .8rem;outline:none;transition:border-color .2s;}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+select option{background:var(--surface);}
+
+/* RATINGS */
+.rating-group{display:flex;gap:.4rem;}
+.rating-btn{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:var(--fm);font-size:.75rem;padding:.5rem;cursor:pointer;transition:all .15s;text-align:center;}
+.rating-btn:hover{border-color:var(--accent);color:var(--text);}
+.sel-effort{background:rgba(232,255,71,.15);border-color:var(--accent);color:var(--accent);}
+.sel-pain-0,.sel-pain-1{background:rgba(46,213,115,.1);border-color:var(--success);color:var(--success);}
+.sel-pain-2{background:rgba(255,165,2,.15);border-color:var(--warn);color:var(--warn);}
+.sel-pain-3,.sel-pain-4,.sel-pain-5{background:rgba(255,71,87,.15);border-color:var(--danger);color:var(--danger);}
+
+/* BUTTONS */
+.btn{background:var(--accent);border:none;border-radius:6px;color:#0a0a0f;font-family:var(--fm);font-size:.78rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:.75rem 1.5rem;cursor:pointer;transition:all .2s;}
+.btn:hover{background:#f5ff70;transform:translateY(-1px);}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}
+.btn-ghost:hover{background:var(--surface2);color:var(--text);border-color:var(--text);}
+
+/* SESSION LIST */
+.session-item{display:grid;grid-template-columns:70px 90px 1fr auto auto;align-items:center;gap:1rem;padding:.85rem 1rem;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;transition:background .15s;}
+.session-item:hover{background:var(--surface2);}
+.session-item:last-child{border-bottom:none;}
+.session-date{color:var(--muted);}
+.session-pace{color:var(--accent);}
+.effort-dots{display:flex;gap:2px;}
+.effort-dot{width:6px;height:6px;border-radius:50%;background:var(--border);}
+.effort-dot.on{background:var(--accent);}
+
+/* AI PANEL */
+.ai-panel{background:var(--surface);border:1px solid rgba(232,255,71,.2);border-radius:12px;padding:1.5rem;}
+.ai-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;}
+.ai-avatar{width:36px;height:36px;background:rgba(232,255,71,.15);border:1px solid rgba(232,255,71,.3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;}
+.ai-name{font-family:var(--fd);font-size:1rem;letter-spacing:.05em;}
+.ai-sub{font-family:var(--fm);font-size:.62rem;color:var(--muted);}
+.ai-message{font-family:var(--fb);font-size:.88rem;line-height:1.7;white-space:pre-wrap;}
+.ai-loading{display:flex;gap:4px;align-items:center;padding:.5rem 0;}
+.ai-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce 1.2s infinite;}
+.ai-dot:nth-child(2){animation-delay:.2s;}
+.ai-dot:nth-child(3){animation-delay:.4s;}
+@keyframes bounce{0%,100%{transform:translateY(0);opacity:.4;}50%{transform:translateY(-4px);opacity:1;}}
+
+/* ALERTS */
+.alert{border-radius:8px;padding:1rem 1.2rem;margin-bottom:1rem;font-family:var(--fm);font-size:.78rem;line-height:1.6;}
+.alert-warn{background:rgba(255,165,2,.1);border:1px solid rgba(255,165,2,.3);color:var(--warn);}
+.alert-danger{background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.3);color:var(--danger);}
+.alert-success{background:rgba(46,213,115,.1);border:1px solid rgba(46,213,115,.3);color:var(--success);}
+.alert-info{background:rgba(71,184,255,.1);border:1px solid rgba(71,184,255,.3);color:var(--accent2);}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;width:90%;max-width:560px;max-height:90vh;overflow-y:auto;animation:modalIn .2s ease;}
+@keyframes modalIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);}}
+.modal-title{font-family:var(--fd);font-size:1.4rem;letter-spacing:.06em;margin-bottom:1.5rem;}
+.modal-footer{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem;}
+
+/* MISC */
+.toast{position:fixed;bottom:2rem;right:2rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem 1.5rem;font-family:var(--fm);font-size:.78rem;z-index:9999;transform:translateY(100px);opacity:0;transition:all .3s;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.success{border-color:var(--success);color:var(--success);}
+.toast.error{border-color:var(--danger);color:var(--danger);}
+.empty-state{text-align:center;padding:3rem;color:var(--muted);font-family:var(--fm);font-size:.8rem;}
+.divider{height:1px;background:var(--border);margin:1.5rem 0;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+@media(max-width:900px){.hero-stats{grid-template-columns:1fr 1fr;}.grid-2,.grid-3{grid-template-columns:1fr;}.week-grid{grid-template-columns:repeat(4,1fr);}nav{padding:0 1rem;}.nav-status{display:none;}}
 </style>
 </head>
 <body>
@@ -690,38 +192,23 @@
     <button class="nav-tab" onclick="showPage('coach')">Coach IA</button>
     <button class="nav-tab" onclick="showPage('profil')">Profil</button>
   </div>
-  <div class="nav-status">
-    <div class="status-dot"></div>
-    <span id="nav-db-status">Connexion...</span>
-  </div>
+  <div class="nav-status"><div class="status-dot" id="sdot"></div><span id="db-status">Connexion...</span></div>
 </nav>
 
 <!-- DASHBOARD -->
 <div id="page-dashboard" class="page active">
   <div class="section-header">
-    <div>
-      <div class="section-title">TABLEAU DE BORD</div>
-      <div class="section-sub" id="dash-date">Chargement...</div>
-    </div>
+    <div><div class="section-title">DASHBOARD</div><div class="section-sub" id="dash-date"></div></div>
     <button class="btn" onclick="showPage('log')">+ Log séance</button>
   </div>
-
   <div id="alerts-zone"></div>
 
+  <!-- Stats row -->
   <div class="hero-stats">
-    <div class="stat-card main">
-      <div class="stat-label">Progression sub-37</div>
-      <div class="stat-value big" id="stat-pb">40'30"</div>
-      <div class="stat-sub" id="stat-pb-sub">→ Objectif 37'00" · Jan 2027</div>
-      <div class="progress-bar-wrap">
-        <div class="progress-bar-fill" id="stat-progress" style="width: 0%"></div>
-      </div>
-      <div class="stat-sub" style="margin-top:0.4rem;" id="stat-progress-label">Calcul en cours...</div>
-    </div>
     <div class="stat-card">
       <div class="stat-label">Km cette semaine</div>
       <div class="stat-value" id="stat-km">—</div>
-      <div class="stat-sub" id="stat-km-sub">séances cette semaine</div>
+      <div class="stat-sub" id="stat-km-sub">—</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Jours avant 10km</div>
@@ -729,31 +216,33 @@
       <div class="stat-sub">Mi-janvier 2027</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Charge (ATL/CTL)</div>
+      <div class="stat-label">Charge 7j (km)</div>
       <div class="stat-value" id="stat-tsb">—</div>
-      <div class="stat-sub" id="stat-tsb-sub">Fraîcheur</div>
+      <div class="stat-sub" id="stat-tsb-sub">—</div>
     </div>
+    <div class="stat-card accent">
+      <div class="stat-label">Progression sub-37</div>
+      <div class="stat-value" id="stat-pb" style="font-size:1.6rem;">40'30"</div>
+      <div class="stat-sub">→ 37'00" · Jan 2027</div>
+      <div class="progress-wrap"><div class="progress-fill" id="stat-prog" style="width:0%"></div></div>
+      <div class="stat-sub" style="margin-top:.4rem;" id="stat-prog-label"></div>
+    </div>
+  </div>
+
+  <!-- Prochaines séances — gros -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-title">Prochaines séances <span class="badge">PLANNING</span></div>
+    <div id="next-sessions"><div class="empty-state">Chargement...</div></div>
   </div>
 
   <div class="grid-2">
     <div class="card">
-      <div class="card-title">Prochaines séances <span class="badge">PLANNING</span></div>
-      <div id="next-sessions">
-        <div class="empty-state">Chargement du planning...</div>
-      </div>
+      <div class="card-title">Dernières séances</div>
+      <div id="last-sessions"><div class="empty-state">Aucune séance</div></div>
     </div>
     <div class="card">
-      <div class="card-title">Dernières séances <span class="badge">LOG</span></div>
-      <div id="last-sessions">
-        <div class="empty-state">Aucune séance enregistrée</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:1rem;">
-    <div class="card-title">Tes zones d'entraînement <span class="badge">PERSONNALISÉES</span></div>
-    <div class="zones-grid" id="zones-grid">
-      <!-- Générées par JS -->
+      <div class="card-title">Zones d'entraînement <span class="badge">PERSO</span></div>
+      <div id="zones-grid"></div>
     </div>
   </div>
 </div>
@@ -761,254 +250,143 @@
 <!-- PLANNING -->
 <div id="page-planning" class="page">
   <div class="section-header">
-    <div>
-      <div class="section-title">PLANNING</div>
-      <div class="section-sub">Adaptatif · Dynamique · Personnel</div>
-    </div>
-    <div style="display:flex;gap:0.5rem;">
+    <div><div class="section-title">PLANNING</div><div class="section-sub">Adaptatif · Dynamique · Personnel</div></div>
+    <div style="display:flex;gap:.5rem;">
       <button class="btn btn-ghost" onclick="generatePlan()">Régénérer</button>
       <button class="btn" onclick="openModal('modal-skip')">Signaler absence</button>
     </div>
   </div>
-
   <div class="weeks-nav">
     <button class="icon-btn" onclick="changeWeek(-1)">←</button>
-    <div class="week-label" id="week-label">Semaine du ...</div>
+    <div class="week-label" id="week-label">—</div>
     <button class="icon-btn" onclick="changeWeek(1)">→</button>
   </div>
+  <div class="week-grid" id="week-grid"></div>
 
-  <div class="week-grid" id="week-grid">
-    <!-- Jours générés par JS -->
-  </div>
-
-  <!-- COACH IA PLANNING -->
-  <div class="card" style="margin-top:1rem;border-color:rgba(232,255,71,0.2);">
-    <div class="card-title">🧠 Modifie ton planning en langage naturel <span class="badge">COACH IA</span></div>
-    <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);margin-bottom:0.75rem;">
-      Ex: "Mets une sortie longue aujourd'hui" · "Décale le VMA de mardi à jeudi" · "J'ai mal au genou, adapte la semaine" · "Je veux courir samedi et dimanche"
-    </div>
-    <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem;">
-      <input type="text" id="plan-coach-input" placeholder="Dis au coach ce que tu veux changer..." style="flex:1;" onkeydown="if(event.key==='Enter') askPlanCoach()">
+  <!-- Coach IA planning -->
+  <div class="card" style="margin-top:1rem;border-color:rgba(232,255,71,.2);">
+    <div class="card-title">🧠 Modifie ton planning <span class="badge">COACH IA</span></div>
+    <div style="font-family:var(--fm);font-size:.7rem;color:var(--muted);margin-bottom:.75rem;">Ex: "Mets une sortie longue samedi" · "Adapte la semaine, genou douloureux" · "Décale le VMA à jeudi"</div>
+    <div style="display:flex;gap:.75rem;margin-bottom:.75rem;">
+      <input type="text" id="plan-coach-input" placeholder="Dis au coach ce que tu veux changer..." style="flex:1;" onkeydown="if(event.key==='Enter')askPlanCoach()">
       <button class="btn" onclick="askPlanCoach()" id="plan-coach-btn">Modifier</button>
     </div>
     <div id="plan-coach-response" style="display:none;">
       <div class="ai-panel" style="margin:0;padding:1rem;">
-        <div class="ai-header" style="margin-bottom:0.75rem;">
-          <div class="ai-avatar" style="width:28px;height:28px;font-size:0.8rem;">⚡</div>
-          <div>
-            <div class="ai-name" style="font-size:0.85rem;">COACH</div>
-          </div>
-        </div>
-        <div class="ai-message" id="plan-coach-text" style="font-size:0.85rem;"></div>
-        <div id="plan-coach-actions" style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;"></div>
+        <div class="ai-message" id="plan-coach-text" style="font-size:.85rem;"></div>
+        <div id="plan-coach-actions" style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;"></div>
       </div>
     </div>
   </div>
 
   <div class="grid-2" style="margin-top:1rem;">
     <div class="card">
-      <div class="card-title">Détail de la séance sélectionnée</div>
-      <div id="session-detail">
-        <div class="empty-state">Clique sur un jour pour voir le détail</div>
-      </div>
+      <div class="card-title">Détail séance sélectionnée</div>
+      <div id="session-detail"><div class="empty-state">Clique sur un jour</div></div>
     </div>
     <div class="card">
-      <div class="card-title">Vue d'ensemble · Objectifs</div>
-      <div style="font-family:var(--font-mono);font-size:0.75rem;line-height:2;">
-        <div style="display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--border);">
-          <span style="color:var(--muted);">15km fun</span>
-          <span>~20 Sept 2026</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--border);">
-          <span style="color:var(--muted);">10km OBJECTIF</span>
-          <span style="color:var(--accent);">Mi-Jan 2027</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--border);">
-          <span style="color:var(--muted);">PB actuel</span>
-          <span>40'30"</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:0.3rem 0;">
-          <span style="color:var(--muted);">Objectif</span>
-          <span style="color:var(--accent);">Sub-37'00"</span>
-        </div>
-      </div>
-      <div class="divider"></div>
       <div class="card-title">Phase actuelle</div>
-      <div id="current-phase" style="font-family:var(--font-mono);font-size:0.8rem;color:var(--accent2);">
-        Calcul en cours...
-      </div>
-    </div>
-  </div>
-
-  <!-- COACH PLANNING CHAT -->
-  <div style="margin-top:1rem;" class="card">
-    <div class="card-title">🧠 Modifier le planning avec le Coach <span class="badge">IA</span></div>
-    <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);margin-bottom:1rem;">
-      Parle-lui en langage naturel — il modifie directement ton planning dans la base de données.
-    </div>
-
-    <!-- Suggestions rapides -->
-    <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem;">
-      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Aujourd\'hui c\'est ma sortie longue, place-la au 22 mars')">📅 Sortie longue aujourd'hui</button>
-      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Décale ma prochaine séance VMA à demain')">⏭ Décaler VMA</button>
-      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('J\'ai mal au genou, adapte les 2 prochaines semaines')">🦵 Douleur genou</button>
-      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Je veux courir samedi et dimanche cette semaine, réorganise')">📆 Week-end running</button>
-      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Je suis fatigué cette semaine, allège le planning')">😴 Semaine allégée</button>
-      <button class="btn btn-ghost" style="font-size:0.65rem;padding:0.3rem 0.7rem;" onclick="setCoachInput('Je me sens très bien, augmente un peu la charge cette semaine')">🔥 Semaine chargée</button>
-    </div>
-
-    <div style="display:flex;gap:0.75rem;margin-bottom:1rem;">
-      <input type="text" id="planning-coach-input" 
-        placeholder="Ex: mets ma sortie longue samedi et la VMA jeudi..." 
-        style="flex:1;"
-        onkeydown="if(event.key==='Enter') askPlanningCoach()">
-      <button class="btn" onclick="askPlanningCoach()">Modifier</button>
-    </div>
-
-    <div id="planning-coach-response" style="display:none;">
-      <div class="ai-panel" style="margin:0;">
-        <div class="ai-header">
-          <div class="ai-avatar">⚡</div>
-          <div>
-            <div class="ai-name">COACH — MODIFICATION PLANNING</div>
-            <div class="ai-sub" id="planning-coach-sub">Analyse en cours...</div>
-          </div>
-        </div>
-        <div class="ai-message" id="planning-coach-text"></div>
-        <div id="planning-coach-actions" style="margin-top:1rem;display:none;">
-          <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);margin-bottom:0.5rem;">MODIFICATIONS PROPOSÉES :</div>
-          <div id="planning-coach-changes" style="font-family:var(--font-mono);font-size:0.75rem;margin-bottom:1rem;"></div>
-          <div style="display:flex;gap:0.75rem;">
-            <button class="btn" id="btn-apply-changes" onclick="applyPlanningChanges()">✓ Appliquer les modifications</button>
-            <button class="btn btn-ghost" onclick="cancelPlanningChanges()">✗ Annuler</button>
-          </div>
-        </div>
+      <div id="current-phase" style="font-family:var(--fm);font-size:.8rem;color:var(--accent2);margin-bottom:1rem;"></div>
+      <div style="font-family:var(--fm);font-size:.75rem;line-height:2.2;">
+        <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);"><span style="color:var(--muted);">15km fun</span><span>~20 Sept 2026</span></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);"><span style="color:var(--muted);">10km OBJECTIF</span><span style="color:var(--accent);">Mi-Jan 2027</span></div>
+        <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);"><span style="color:var(--muted);">PB actuel</span><span id="prof-pb-display">40'30"</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Objectif</span><span style="color:var(--accent);">Sub-37'00"</span></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- LOG SEANCE -->
+<!-- LOG -->
 <div id="page-log" class="page">
   <div class="section-header">
-    <div>
-      <div class="section-title">LOG SÉANCE</div>
-      <div class="section-sub">Enregistre ta sortie</div>
-    </div>
+    <div><div class="section-title">LOG SÉANCE</div><div class="section-sub">Enregistre ta sortie</div></div>
   </div>
-
   <div class="grid-2">
     <div class="card">
       <div class="card-title">Infos générales</div>
       <div class="form-grid">
-        <div class="form-group">
-          <label>Date</label>
-          <input type="date" id="log-date">
-        </div>
-        <div class="form-group">
-          <label>Type de séance</label>
+        <div class="form-group"><label>Date</label><input type="date" id="log-date"></div>
+        <div class="form-group"><label>Type</label>
           <select id="log-type" onchange="onTypeChange()">
-            <option value="EF">Endurance fondamentale (Z1-Z2)</option>
+            <option value="EF">EF — Endurance fondamentale (Z1-Z2)</option>
             <option value="Aérobie Z3">Aérobie Z3</option>
             <option value="Seuil">Seuil (Z4)</option>
-            <option value="VMA">Fractionné VMA (Z5)</option>
+            <option value="VMA">VMA — Fractionné (Z5)</option>
             <option value="Long">Sortie longue</option>
             <option value="Récup">Récupération</option>
             <option value="Compét">Compétition</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Distance (km)</label>
-          <input type="number" id="log-dist" placeholder="10.5" step="0.1">
-        </div>
-        <div class="form-group">
-          <label>Durée (minutes)</label>
-          <input type="number" id="log-duration" placeholder="55">
-        </div>
-        <div class="form-group">
-          <label>Allure moy. (min/km)</label>
-          <input type="text" id="log-pace" placeholder="5'30&quot;" oninput="parsePace(this)">
-        </div>
-        <div class="form-group">
-          <label>FC moyenne (bpm)</label>
-          <input type="number" id="log-hr" placeholder="148">
-        </div>
+        <div class="form-group"><label>Distance (km)</label><input type="number" id="log-dist" placeholder="10.5" step="0.1"></div>
+        <div class="form-group"><label>Durée (min)</label><input type="number" id="log-duration" placeholder="55"></div>
+        <div class="form-group"><label>Allure moy (min:sec)</label><input type="text" id="log-pace" placeholder="5'30&quot;"></div>
+        <div class="form-group"><label>FC moyenne (bpm)</label><input type="number" id="log-hr" placeholder="148"></div>
       </div>
     </div>
-
     <div class="card">
       <div class="card-title">Ressenti & Santé</div>
       <div style="display:flex;flex-direction:column;gap:1.2rem;">
         <div>
-          <label style="display:block;margin-bottom:0.5rem;">Effort perçu (1 = très facile · 5 = max)</label>
+          <label style="display:block;margin-bottom:.5rem;">Effort (1=très facile · 5=max)</label>
           <div class="rating-group" id="effort-group">
-            <button class="rating-btn" onclick="setRating('effort', 1)">1</button>
-            <button class="rating-btn" onclick="setRating('effort', 2)">2</button>
-            <button class="rating-btn" onclick="setRating('effort', 3)">3</button>
-            <button class="rating-btn" onclick="setRating('effort', 4)">4</button>
-            <button class="rating-btn" onclick="setRating('effort', 5)">5</button>
+            <button class="rating-btn" onclick="setRating('effort',1)">1</button>
+            <button class="rating-btn" onclick="setRating('effort',2)">2</button>
+            <button class="rating-btn" onclick="setRating('effort',3)">3</button>
+            <button class="rating-btn" onclick="setRating('effort',4)">4</button>
+            <button class="rating-btn" onclick="setRating('effort',5)">5</button>
           </div>
         </div>
         <div>
-          <label style="display:block;margin-bottom:0.5rem;">Douleur (0 = aucune · 5 = intense)</label>
+          <label style="display:block;margin-bottom:.5rem;">Douleur (0=aucune · 5=intense)</label>
           <div class="rating-group" id="pain-group">
-            <button class="rating-btn" onclick="setRating('pain', 0)">0</button>
-            <button class="rating-btn" onclick="setRating('pain', 1)">1</button>
-            <button class="rating-btn" onclick="setRating('pain', 2)">2</button>
-            <button class="rating-btn" onclick="setRating('pain', 3)">3</button>
-            <button class="rating-btn" onclick="setRating('pain', 4)">4</button>
-            <button class="rating-btn" onclick="setRating('pain', 5)">5</button>
+            <button class="rating-btn" onclick="setRating('pain',0)">0</button>
+            <button class="rating-btn" onclick="setRating('pain',1)">1</button>
+            <button class="rating-btn" onclick="setRating('pain',2)">2</button>
+            <button class="rating-btn" onclick="setRating('pain',3)">3</button>
+            <button class="rating-btn" onclick="setRating('pain',4)">4</button>
+            <button class="rating-btn" onclick="setRating('pain',5)">5</button>
           </div>
         </div>
-        <div class="form-group" id="pain-location-group" style="display:none;">
-          <label>Localisation de la douleur</label>
-          <select id="log-pain-location">
+        <div class="form-group" id="pain-loc-group" style="display:none;">
+          <label>Localisation</label>
+          <select id="log-pain-loc">
             <option value="">Choisir...</option>
             <option value="périoste">Périoste (tibia)</option>
             <option value="genou">Genou</option>
             <option value="tendon achille">Tendon d'Achille</option>
-            <option value="fascia plantaire">Fascia plantaire</option>
+            <option value="fascia">Fascia plantaire</option>
             <option value="hanche">Hanche / IT Band</option>
             <option value="dos">Dos / lombaires</option>
             <option value="autre">Autre</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Notes libres</label>
-          <textarea id="log-notes" rows="3" placeholder="Comment s'est passée la séance ? Conditions, sensations..."></textarea>
-        </div>
+        <div class="form-group"><label>Notes</label><textarea id="log-notes" rows="3" placeholder="Sensations, conditions..."></textarea></div>
       </div>
     </div>
   </div>
 
-  <!-- SECTION FRACTIONNÉ -->
+  <!-- Intervalles -->
   <div id="intervals-section" style="display:none;margin-top:1rem;">
     <div class="card">
       <div class="card-title">Détail des intervalles <span class="badge" id="intervals-badge">VMA</span></div>
-      <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--muted);margin-bottom:1rem;" id="intervals-hint"></div>
-      <div id="intervals-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;"></div>
-      <div style="display:flex;gap:0.75rem;">
-        <button class="btn btn-ghost" onclick="addInterval()" style="flex:1;">+ Ajouter un intervalle</button>
-        <button class="btn btn-ghost" onclick="removeInterval()" style="padding:0.75rem 1rem;">−</button>
+      <div style="font-family:var(--fm);font-size:.72rem;color:var(--muted);margin-bottom:1rem;" id="intervals-hint"></div>
+      <div id="intervals-list" style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:1rem;"></div>
+      <div style="display:flex;gap:.75rem;">
+        <button class="btn btn-ghost" onclick="addInterval()" style="flex:1;">+ Intervalle</button>
+        <button class="btn btn-ghost" onclick="removeInterval()" style="padding:.75rem 1rem;">−</button>
       </div>
-      <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);margin-top:0.75rem;" id="intervals-summary"></div>
+      <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);margin-top:.75rem;" id="intervals-summary"></div>
     </div>
   </div>
 
   <div style="display:flex;gap:1rem;margin-top:1rem;justify-content:flex-end;">
     <button class="btn btn-ghost" onclick="clearLog()">Effacer</button>
-    <button class="btn" onclick="saveSession()">Enregistrer la séance</button>
+    <button class="btn" onclick="saveSession()">Enregistrer</button>
   </div>
-
   <div id="log-ai-response" style="margin-top:1.5rem;display:none;">
     <div class="ai-panel">
-      <div class="ai-header">
-        <div class="ai-avatar">⚡</div>
-        <div>
-          <div class="ai-name">ANALYSE COACH</div>
-          <div class="ai-sub">Basée sur ta séance + historique</div>
-        </div>
-      </div>
+      <div class="ai-header"><div class="ai-avatar">⚡</div><div><div class="ai-name">ANALYSE COACH</div><div class="ai-sub">Basée sur ta séance</div></div></div>
       <div class="ai-message" id="log-ai-text"></div>
     </div>
   </div>
@@ -1017,52 +395,28 @@
 <!-- HISTORIQUE -->
 <div id="page-history" class="page">
   <div class="section-header">
-    <div>
-      <div class="section-title">HISTORIQUE</div>
-      <div class="section-sub" id="history-sub">Toutes tes séances</div>
-    </div>
+    <div><div class="section-title">HISTORIQUE</div><div class="section-sub" id="history-sub">—</div></div>
   </div>
-
-  <div class="card">
-    <div id="history-list">
-      <div class="empty-state">Chargement de l'historique...</div>
-    </div>
-  </div>
+  <div class="card"><div id="history-list"><div class="empty-state">Chargement...</div></div></div>
 </div>
 
 <!-- COACH IA -->
 <div id="page-coach" class="page">
-  <div class="section-header">
-    <div>
-      <div class="section-title">COACH IA</div>
-      <div class="section-sub">Analyse · Conseils · Adaptation</div>
-    </div>
+  <div class="section-header"><div><div class="section-title">COACH IA</div><div class="section-sub">Analyse · Conseils · Adaptation</div></div></div>
+  <div class="ai-panel" style="margin-bottom:1rem;">
+    <div class="ai-header"><div class="ai-avatar">🧠</div><div><div class="ai-name">TON COACH PERSONNEL</div><div class="ai-sub">Gemini Flash · OpenRouter</div></div></div>
+    <div class="ai-message" id="coach-text" style="color:var(--muted);font-family:var(--fm);font-size:.78rem;">Clique sur un bouton pour commencer.</div>
   </div>
-
-  <div class="ai-panel" id="coach-main">
-    <div class="ai-header">
-      <div class="ai-avatar">🧠</div>
-      <div>
-        <div class="ai-name">TON COACH PERSONNEL</div>
-        <div class="ai-sub">Analyse complète de ta situation</div>
-      </div>
-    </div>
-    <div class="ai-message" id="coach-text" style="color:var(--muted);font-family:var(--font-mono);font-size:0.78rem;">
-      Clique sur un bouton ci-dessous ou pose une question pour commencer.
-    </div>
-  </div>
-
-  <div class="grid-2" style="margin-top:1rem;">
-    <button class="btn btn-ghost" onclick="askCoach('bilan')">📊 Bilan de la semaine</button>
-    <button class="btn btn-ghost" onclick="askCoach('planning')">📅 Justifie mon planning</button>
+  <div class="grid-2" style="margin-bottom:1rem;">
+    <button class="btn btn-ghost" onclick="askCoach('bilan')">📊 Bilan semaine</button>
+    <button class="btn btn-ghost" onclick="askCoach('planning')">📅 Explique mon planning</button>
     <button class="btn btn-ghost" onclick="askCoach('perio')">⚠️ Risque périostite</button>
     <button class="btn btn-ghost" onclick="askCoach('sub37')">🎯 Route vers sub-37</button>
   </div>
-
-  <div style="margin-top:1rem;" class="card">
-    <div class="card-title">Poser une question personnalisée</div>
-    <div style="display:flex;gap:0.75rem;margin-top:0.5rem;">
-      <input type="text" id="coach-question" placeholder="Ex: j'ai mal au genou depuis 2 jours, que faire ?" style="flex:1;">
+  <div class="card">
+    <div class="card-title">Question personnalisée</div>
+    <div style="display:flex;gap:.75rem;margin-top:.5rem;">
+      <input type="text" id="coach-question" placeholder="Ex: j'ai mal au genou depuis 2 jours..." style="flex:1;" onkeydown="if(event.key==='Enter')askCoachCustom()">
       <button class="btn" onclick="askCoachCustom()">Demander</button>
     </div>
   </div>
@@ -1071,62 +425,28 @@
 <!-- PROFIL -->
 <div id="page-profil" class="page">
   <div class="section-header">
-    <div>
-      <div class="section-title">MON PROFIL</div>
-      <div class="section-sub">Paramètres & objectifs</div>
-    </div>
+    <div><div class="section-title">MON PROFIL</div><div class="section-sub">Paramètres & objectifs</div></div>
     <button class="btn" onclick="saveProfile()">Sauvegarder</button>
   </div>
-
   <div class="grid-2">
     <div class="card">
       <div class="card-title">Identité coureur</div>
       <div class="form-grid">
-        <div class="form-group full">
-          <label>Nom</label>
-          <input type="text" id="prof-name" value="Coureur">
-        </div>
-        <div class="form-group">
-          <label>PB 10km actuel (min:sec)</label>
-          <input type="text" id="prof-pb" placeholder="40:30" value="40:30">
-        </div>
-        <div class="form-group">
-          <label>Objectif 10km (min:sec)</label>
-          <input type="text" id="prof-target" placeholder="37:00" value="37:00">
-        </div>
-        <div class="form-group">
-          <label>FC Max (bpm)</label>
-          <input type="number" id="prof-fcmax" value="208">
-        </div>
-        <div class="form-group">
-          <label>FC Repos (bpm)</label>
-          <input type="number" id="prof-fcrep" value="55">
-        </div>
+        <div class="form-group full"><label>Nom</label><input type="text" id="prof-name" value="Coureur"></div>
+        <div class="form-group"><label>PB 10km (min:sec)</label><input type="text" id="prof-pb" value="40:30"></div>
+        <div class="form-group"><label>Objectif 10km (min:sec)</label><input type="text" id="prof-target" value="37:00"></div>
+        <div class="form-group"><label>FC Max</label><input type="number" id="prof-fcmax" value="208"></div>
+        <div class="form-group"><label>FC Repos</label><input type="number" id="prof-fcrep" value="55"></div>
       </div>
     </div>
     <div class="card">
-      <div class="card-title">Compétitions cibles</div>
+      <div class="card-title">Compétitions</div>
       <div class="form-grid">
-        <div class="form-group full">
-          <label>Date 15km (fun)</label>
-          <input type="date" id="prof-race15">
-        </div>
-        <div class="form-group full">
-          <label>Date 10km (objectif principal)</label>
-          <input type="date" id="prof-race10">
-        </div>
-        <div class="form-group">
-          <label>Séances/semaine actuelles</label>
-          <input type="number" id="prof-sessions" value="4" min="1" max="7">
-        </div>
-        <div class="form-group">
-          <label>Séances/semaine visées</label>
-          <input type="number" id="prof-sessions-target" value="5" min="1" max="7">
-        </div>
-        <div class="form-group full">
-          <label>Fragilités / notes médicales</label>
-          <textarea id="prof-fragility" rows="3">Périostite si charge augmente trop vite. Genou (guéri).</textarea>
-        </div>
+        <div class="form-group full"><label>15km (fun)</label><input type="date" id="prof-race15" value="2026-09-20"></div>
+        <div class="form-group full"><label>10km (objectif)</label><input type="date" id="prof-race10" value="2027-01-15"></div>
+        <div class="form-group"><label>Séances/sem actuelles</label><input type="number" id="prof-sessions" value="4" min="1" max="7"></div>
+        <div class="form-group"><label>Séances/sem visées</label><input type="number" id="prof-sessions-target" value="5" min="1" max="7"></div>
+        <div class="form-group full"><label>Fragilités</label><textarea id="prof-fragility" rows="2">Périostite si charge trop rapide. Genou (guéri).</textarea></div>
       </div>
     </div>
   </div>
@@ -1135,235 +455,145 @@
 <!-- MODAL ABSENCE -->
 <div class="modal-overlay" id="modal-skip">
   <div class="modal">
-    <div class="modal-title">Signaler une absence / ajustement</div>
-    <div class="form-group" style="margin-bottom:1rem;">
-      <label>Date concernée</label>
-      <input type="date" id="skip-date">
-    </div>
-    <div class="form-group" style="margin-bottom:1rem;">
-      <label>Raison</label>
+    <div class="modal-title">Signaler une absence</div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Date</label><input type="date" id="skip-date"></div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Raison</label>
       <select id="skip-reason">
-        <option value="fatigue">Fatigue / récup nécessaire</option>
+        <option value="fatigue">Fatigue / récup</option>
         <option value="douleur">Douleur / blessure</option>
-        <option value="agenda">Contrainte agenda</option>
+        <option value="agenda">Agenda</option>
         <option value="maladie">Maladie</option>
         <option value="autre">Autre</option>
       </select>
     </div>
-    <div class="form-group" style="margin-bottom:1rem;">
-      <label>Détails</label>
-      <textarea id="skip-notes" rows="2" placeholder="Optionnel..."></textarea>
-    </div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>Notes</label><textarea id="skip-notes" rows="2" placeholder="Optionnel..."></textarea></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-skip')">Annuler</button>
       <button class="btn" onclick="saveSkip()">Signaler & Adapter</button>
     </div>
   </div>
 </div>
-
-<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
 <script>
-// ==================== CONFIG ====================
+// ═══════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════
 const SUPABASE_URL = 'https://hqnwygpfbceyymkwtccg.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbnd5Z3BmYmNleXlta3d0Y2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTE3MjIsImV4cCI6MjA4OTc2NzcyMn0.Po75hhyCegnNVVihqfQIHJkw20jUeGI1MD95Jqpn-3A';
-const CLAUDE_KEY = null; // handled by proxy
-
+const PROXY_URL = 'https://runcoach-proxy.landelleleo.workers.dev';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ==================== STATE ====================
-let profile = {
-  name: 'Coureur',
-  pb_10k_seconds: 2430,
-  target_10k_seconds: 2220,
-  vma_kmh: 16.5,
-  fc_max: 208,
-  fc_repos: 55,
-  race_15k_date: '2026-09-20',
-  race_10k_date: '2027-01-15',
-  weekly_sessions: 4,
-  target_weekly_sessions: 5,
-  fragility_notes: 'Périostite si charge augmente trop vite. Genou (guéri).'
+// ═══════════════════════════════════════════
+// TYPE SYSTEM — normalisé partout
+// ═══════════════════════════════════════════
+const TYPE_CONFIG = {
+  'EF':         { cls:'tb-EF',    label:'EF' },
+  'Aérobie Z3': { cls:'tb-Z3',    label:'Z3' },
+  'Seuil':      { cls:'tb-Seuil', label:'Seuil' },
+  'VMA':        { cls:'tb-VMA',   label:'VMA' },
+  'Long':       { cls:'tb-Long',  label:'Long' },
+  'Récup':      { cls:'tb-Récup', label:'Récup' },
+  'Compét':     { cls:'tb-Compét',label:'Compét' },
+  'Repos':      { cls:'tb-Repos', label:'Repos' },
 };
 
-let selectedEffort = 3;
-let selectedPain = 0;
-let currentWeekOffset = 0;
-let allSessions = [];
-let plannedSessions = [];
+function typeBadge(type, done=false) {
+  if (done) return `<span class="tb tb-done">✓ ${type}</span>`;
+  const cfg = TYPE_CONFIG[type] || { cls:'tb-Repos', label: type };
+  return `<span class="tb ${cfg.cls}">${cfg.label}</span>`;
+}
 
-// ==================== INIT ====================
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let profile = {
+  name:'Coureur', pb_10k_seconds:2430, target_10k_seconds:2220,
+  vma_kmh:16.5, fc_max:208, fc_repos:55,
+  race_15k_date:'2026-09-20', race_10k_date:'2027-01-15',
+  weekly_sessions:4, target_weekly_sessions:5,
+  fragility_notes:'Périostite si charge trop rapide. Genou (guéri).'
+};
+let selectedEffort = 3, selectedPain = 0;
+let currentWeekOffset = 0;
+let allSessions = [], plannedSessions = [];
+let intervalCount = 0;
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
 async function init() {
   const today = new Date();
-  document.getElementById('dash-date').textContent = today.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  document.getElementById('dash-date').textContent = today.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('log-date').value = today.toISOString().split('T')[0];
   document.getElementById('skip-date').value = today.toISOString().split('T')[0];
-
-  // Dates compét
-  document.getElementById('prof-race15').value = '2026-09-20';
-  document.getElementById('prof-race10').value = '2027-01-15';
-
+  setRating('effort',3); setRating('pain',0);
   await testConnection();
   await loadProfile();
   await loadSessions();
   await loadPlannedSessions();
-
   renderDashboard();
   renderZones();
   renderWeek();
   renderHistory();
-
-  // Auto coach on coach tab load
-  setRating('effort', 3);
-  setRating('pain', 0);
 }
 
 async function testConnection() {
   try {
-    const { data, error } = await db.from('profile').select('id').limit(1);
-    if (error) {
-      // Tables might not exist yet — try to create them
-      if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        document.getElementById('nav-db-status').textContent = '⚠ Tables manquantes';
-        showDbSetupAlert();
-      } else {
-        throw error;
-      }
-      return;
-    }
-    document.getElementById('nav-db-status').textContent = 'Connecté ✓';
-    document.querySelector('.status-dot').style.background = 'var(--success)';
+    const { error } = await db.from('profile').select('id').limit(1);
+    if (error) throw error;
+    document.getElementById('db-status').textContent = 'Connecté ✓';
   } catch(e) {
-    document.getElementById('nav-db-status').textContent = 'Erreur DB';
-    document.querySelector('.status-dot').style.background = 'var(--danger)';
-    document.querySelector('.status-dot').style.animation = 'none';
-    console.error('DB Error:', e);
+    document.getElementById('db-status').textContent = 'Erreur DB';
+    document.getElementById('sdot').style.background = 'var(--danger)';
+    document.getElementById('sdot').style.animation = 'none';
+    console.error('DB:', e);
+    showDbSetupAlert();
   }
 }
 
 function showDbSetupAlert() {
-  const zone = document.getElementById('alerts-zone');
-  zone.innerHTML = `
-    <div class="alert alert-danger" style="flex-direction:column;gap:0.75rem;">
-      <div><strong>⚠️ Tables Supabase manquantes</strong> — L'app ne peut pas fonctionner sans elles.</div>
-      <div>Va dans ton projet Supabase → <strong>SQL Editor</strong> → colle et exécute ce script :</div>
-      <textarea readonly style="width:100%;height:280px;font-size:0.65rem;background:#0a0a0f;border:1px solid var(--danger);border-radius:6px;padding:0.75rem;color:var(--text);font-family:var(--font-mono);">${getSQLSchema()}</textarea>
-      <button class="btn" onclick="copySQL()">Copier le SQL</button>
-    </div>
-  `;
+  document.getElementById('alerts-zone').innerHTML = `
+    <div class="alert alert-danger">
+      ⚠️ <strong>Tables Supabase manquantes</strong> — Exécute le SQL dans Supabase SQL Editor.<br>
+      <button class="btn" style="margin-top:.75rem;" onclick="copySQL()">Copier le SQL</button>
+    </div>`;
 }
 
 function copySQL() {
-  navigator.clipboard.writeText(getSQLSchema());
-  showToast('SQL copié ✓ — Colle-le dans Supabase SQL Editor', 'success');
+  const sql = `create table if not exists profile (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), name text default 'Coureur', pb_10k_seconds integer default 2430, target_10k_seconds integer default 2220, vma_kmh numeric default 16.5, fc_max integer default 208, fc_repos integer default 55, race_15k_date date default '2026-09-20', race_10k_date date default '2027-01-15', weekly_sessions integer default 4, target_weekly_sessions integer default 5, fragility_notes text);
+create table if not exists sessions (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), date date not null, type text not null, distance_km numeric, duration_minutes integer, avg_pace_seconds integer, avg_hr integer, perceived_effort integer, pain_level integer default 0, pain_location text, notes text, intervals jsonb, completed boolean default true, garmin_activity_id bigint, import_id text unique, training_effect numeric, vo2max numeric, cadence_avg integer, elevation_gain numeric);
+create table if not exists planned_sessions (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), date date not null, type text not null, description text, target_distance_km numeric, target_duration_minutes integer, intensity_zone integer, week_phase text, priority integer default 1, skipped boolean default false, skip_reason text);
+create table if not exists health_logs (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), date date not null, location text, severity integer, notes text, resolved boolean default false);`;
+  navigator.clipboard.writeText(sql);
+  showToast('SQL copié ✓', 'success');
 }
 
-function getSQLSchema() {
-  return `create table if not exists profile (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp default now(),
-  name text default 'Coureur',
-  pb_10k_seconds integer default 2430,
-  target_10k_seconds integer default 2220,
-  vma_kmh numeric default 16.5,
-  fc_max integer default 208,
-  fc_repos integer default 55,
-  race_15k_date date default '2026-09-20',
-  race_10k_date date default '2027-01-15',
-  weekly_sessions integer default 4,
-  target_weekly_sessions integer default 5,
-  fragility_notes text default 'Périostite si charge augmente trop vite.'
-);
-
-create table if not exists sessions (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp default now(),
-  date date not null,
-  type text not null,
-  distance_km numeric,
-  duration_minutes integer,
-  avg_pace_seconds integer,
-  avg_hr integer,
-  perceived_effort integer check (perceived_effort between 1 and 5),
-  pain_level integer default 0 check (pain_level between 0 and 5),
-  pain_location text,
-  notes text,
-  intervals jsonb,
-  completed boolean default true,
-  garmin_id text
-);
-
-create table if not exists planned_sessions (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp default now(),
-  date date not null,
-  type text not null,
-  description text,
-  target_distance_km numeric,
-  target_duration_minutes integer,
-  target_pace_seconds integer,
-  intensity_zone integer check (intensity_zone between 1 and 5),
-  week_phase text,
-  priority integer default 1,
-  skipped boolean default false,
-  skip_reason text
-);
-
-create table if not exists health_logs (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp default now(),
-  date date not null,
-  location text not null,
-  severity integer check (severity between 1 and 5),
-  notes text,
-  resolved boolean default false
-);
-
-create index if not exists idx_sessions_date on sessions(date desc);
-create index if not exists idx_planned_date on planned_sessions(date asc);`;
-}
-
-// ==================== PROFILE ====================
+// ═══════════════════════════════════════════
+// PROFILE
+// ═══════════════════════════════════════════
 async function loadProfile() {
   try {
     const { data, error } = await db.from('profile').select('*').limit(1).single();
     if (error && error.code !== 'PGRST116') throw error;
-    if (data) {
-      profile = { ...profile, ...data };
-      applyProfileToForm();
-    } else {
-      // Créer profil par défaut
-      await db.from('profile').insert([profile]);
-    }
-  } catch(e) { console.error('loadProfile:', e); }
+    if (data) { profile = {...profile,...data}; applyProfileToForm(); }
+    else await db.from('profile').insert([profile]);
+  } catch(e) { console.error('loadProfile:',e); }
 }
 
 function applyProfileToForm() {
-  document.getElementById('prof-name').value = profile.name || '';
-  document.getElementById('prof-pb').value = secToMinSec(profile.pb_10k_seconds || 2430);
-  document.getElementById('prof-target').value = secToMinSec(profile.target_10k_seconds || 2220);
-  document.getElementById('prof-fcmax').value = profile.fc_max || 208;
-  document.getElementById('prof-fcrep').value = profile.fc_repos || 55;
-  document.getElementById('prof-race15').value = profile.race_15k_date || '2026-09-20';
-  document.getElementById('prof-race10').value = profile.race_10k_date || '2027-01-15';
-  document.getElementById('prof-sessions').value = profile.weekly_sessions || 4;
-  document.getElementById('prof-sessions-target').value = profile.target_weekly_sessions || 5;
-  document.getElementById('prof-fragility').value = profile.fragility_notes || '';
-}
-
-function secToMinSec(sec) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${s.toString().padStart(2,'0')}`;
-}
-
-function minSecToSec(str) {
-  if (!str) return 0;
-  const parts = str.replace("'", ':').replace('"', '').split(':');
-  if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-  return parseInt(str) || 0;
+  document.getElementById('prof-name').value = profile.name||'';
+  document.getElementById('prof-pb').value = secToMinSec(profile.pb_10k_seconds||2430);
+  document.getElementById('prof-target').value = secToMinSec(profile.target_10k_seconds||2220);
+  document.getElementById('prof-fcmax').value = profile.fc_max||208;
+  document.getElementById('prof-fcrep').value = profile.fc_repos||55;
+  document.getElementById('prof-race15').value = profile.race_15k_date||'2026-09-20';
+  document.getElementById('prof-race10').value = profile.race_10k_date||'2027-01-15';
+  document.getElementById('prof-sessions').value = profile.weekly_sessions||4;
+  document.getElementById('prof-sessions-target').value = profile.target_weekly_sessions||5;
+  document.getElementById('prof-fragility').value = profile.fragility_notes||'';
+  document.getElementById('prof-pb-display').textContent = secToTime(profile.pb_10k_seconds||2430);
 }
 
 async function saveProfile() {
@@ -1377,1085 +607,725 @@ async function saveProfile() {
   profile.weekly_sessions = parseInt(document.getElementById('prof-sessions').value);
   profile.target_weekly_sessions = parseInt(document.getElementById('prof-sessions-target').value);
   profile.fragility_notes = document.getElementById('prof-fragility').value;
-
   try {
-    const { data } = await db.from('profile').select('id').limit(1).single();
-    if (data) {
-      await db.from('profile').update(profile).eq('id', data.id);
-    } else {
-      await db.from('profile').insert([profile]);
-    }
-    showToast('Profil sauvegardé', 'success');
-    renderZones();
-    renderDashboard();
-  } catch(e) {
-    showToast('Erreur sauvegarde', 'error');
-  }
+    const {data} = await db.from('profile').select('id').limit(1).single();
+    if (data) await db.from('profile').update(profile).eq('id',data.id);
+    else await db.from('profile').insert([profile]);
+    showToast('Profil sauvegardé ✓','success');
+    renderZones(); renderDashboard();
+  } catch(e) { showToast('Erreur sauvegarde','error'); }
 }
 
-// ==================== SESSIONS ====================
+// ═══════════════════════════════════════════
+// SESSIONS
+// ═══════════════════════════════════════════
 async function loadSessions() {
   try {
-    const { data, error } = await db.from('sessions').select('*').order('date', { ascending: false }).limit(500);
+    const {data,error} = await db.from('sessions').select('*').order('date',{ascending:false}).limit(500);
     if (error) throw error;
-    allSessions = data || [];
-  } catch(e) { console.error('loadSessions:', e); }
+    allSessions = data||[];
+  } catch(e) { console.error('loadSessions:',e); }
 }
 
 async function loadPlannedSessions() {
   try {
-    const { data, error } = await db.from('planned_sessions').select('*').order('date', { ascending: true });
+    const {data,error} = await db.from('planned_sessions').select('*').order('date',{ascending:true});
     if (error) throw error;
-    plannedSessions = data || [];
-    if (plannedSessions.length === 0) await generatePlan();
-  } catch(e) { console.error('loadPlanned:', e); }
+    plannedSessions = data||[];
+    if (plannedSessions.length===0) await generatePlan();
+  } catch(e) { console.error('loadPlanned:',e); }
 }
 
-// ==================== ZONES ====================
+// ═══════════════════════════════════════════
+// ZONES
+// ═══════════════════════════════════════════
 function calcZones() {
-  const fcMax = profile.fc_max || 208;
-  const fcRep = profile.fc_repos || 55;
-  const vma = profile.vma_kmh || 16.5;
-
-  // FC zones (% FC max)
-  const zones = [
-    { name: 'Z1', label: 'Récup / EF douce', pct: [60, 70], color: '#2ed573' },
-    { name: 'Z2', label: 'Endurance fondamentale', pct: [70, 80], color: '#47b8ff' },
-    { name: 'Z3', label: 'Aérobie modéré', pct: [80, 88], color: '#ffa502' },
-    { name: 'Z4', label: 'Seuil anaérobie', pct: [88, 93], color: '#ff6b47' },
-    { name: 'Z5', label: 'VMA / VO2max', pct: [93, 100], color: '#ff4757' },
+  const fm = profile.fc_max||208, vma = profile.vma_kmh||16.5;
+  const defs = [
+    {name:'Z1',label:'Récup / EF douce',pct:[60,70],color:'#6b6b8a',vmaPct:[.60,.68]},
+    {name:'Z2',label:'EF — Endurance fondamentale',pct:[70,80],color:'#47b8ff',vmaPct:[.68,.76]},
+    {name:'Z3',label:'Aérobie Z3',pct:[80,88],color:'#2ed573',vmaPct:[.76,.83]},
+    {name:'Z4',label:'Seuil anaérobie',pct:[88,93],color:'#ffa502',vmaPct:[.83,.90]},
+    {name:'Z5',label:'VMA / VO2max',pct:[93,100],color:'#ff4757',vmaPct:[.90,1.00]},
   ];
-
-  return zones.map(z => {
-    const fcLow = Math.round(fcMax * z.pct[0] / 100);
-    const fcHigh = Math.round(fcMax * z.pct[1] / 100);
-    // Allure estimée depuis VMA (zone = % VMA en vitesse inversée en allure)
-    const vPct = [z.pct[0] * 0.7, z.pct[1] * 0.7]; // approximation allure/FC
-    // Meilleure approximation : Z2 EF = 65-75% VMA, Z4 seuil = 80-90% VMA, Z5 = 90-100%
-    const vmaZonePct = {
-      'Z1': [0.60, 0.68], 'Z2': [0.68, 0.76], 'Z3': [0.76, 0.83],
-      'Z4': [0.83, 0.90], 'Z5': [0.90, 1.00]
-    };
-    const vp = vmaZonePct[z.name];
-    const paceLow = secToAllure(3600 / (vma * vp[1]));
-    const paceHigh = secToAllure(3600 / (vma * vp[0]));
-    return { ...z, fcLow, fcHigh, paceLow, paceHigh };
-  });
+  return defs.map(z=>({...z,
+    fcLow:Math.round(fm*z.pct[0]/100), fcHigh:Math.round(fm*z.pct[1]/100),
+    paceLow:secToAllure(3600/(vma*z.vmaPct[1])), paceHigh:secToAllure(3600/(vma*z.vmaPct[0]))
+  }));
 }
 
 function renderZones() {
   const zones = calcZones();
-  const grid = document.getElementById('zones-grid');
-  grid.innerHTML = zones.map(z => `
+  document.getElementById('zones-grid').innerHTML = zones.map(z=>`
     <div class="zone-row">
       <div class="zone-label">${z.name}</div>
-      <div class="zone-bar">
-        <div class="zone-fill" style="width:${z.pct[1]}%;background:${z.color};opacity:0.7;"></div>
-      </div>
-      <div class="zone-range" style="color:${z.color};">${z.fcLow}–${z.fcHigh} bpm</div>
+      <div class="zone-bar"><div class="zone-fill" style="width:${z.pct[1]}%;background:${z.color};opacity:.7;"></div></div>
+      <div class="zone-range" style="color:${z.color};">${z.fcLow}–${z.fcHigh}</div>
       <div class="zone-pace">${z.paceHigh}–${z.paceLow}/km</div>
-      <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--muted);min-width:130px;">${z.label}</div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
-// ==================== DASHBOARD ====================
+function getZoneForType(type) {
+  const zones = calcZones();
+  const m = {'EF':zones[1],'Aérobie Z3':zones[2],'Seuil':zones[3],'VMA':zones[4],'Long':zones[1],'Récup':zones[0]};
+  return m[type]||null;
+}
+
+// ═══════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════
 function renderDashboard() {
-  // PB & progression
-  const pbSec = profile.pb_10k_seconds || 2430;
-  const targetSec = profile.target_10k_seconds || 2220;
-  const startSec = 2430; // initial PB
+  // PB & progress
+  const pbSec=profile.pb_10k_seconds||2430, tgtSec=profile.target_10k_seconds||2220, startSec=2430;
   document.getElementById('stat-pb').textContent = secToTime(pbSec);
+  const prog = Math.min(100,Math.max(0,((startSec-pbSec)/(startSec-tgtSec))*100));
+  document.getElementById('stat-prog').style.width = prog+'%';
+  document.getElementById('stat-prog-label').textContent = `${prog.toFixed(0)}% · objectif ${secToTime(tgtSec)}`;
+  document.getElementById('prof-pb-display').textContent = secToTime(pbSec);
 
-  const progress = Math.min(100, Math.max(0, ((startSec - pbSec) / (startSec - targetSec)) * 100));
-  document.getElementById('stat-progress').style.width = progress + '%';
-  document.getElementById('stat-progress-label').textContent = `${progress.toFixed(0)}% du chemin parcouru · ${secToTime(targetSec)} visé`;
+  // Days
+  const race10 = new Date(profile.race_10k_date||'2027-01-15');
+  document.getElementById('stat-days').textContent = Math.ceil((race10-new Date())/86400000);
 
-  // Jours avant 10km
-  const race10 = new Date(profile.race_10k_date || '2027-01-15');
-  const today = new Date();
-  const daysLeft = Math.ceil((race10 - today) / 86400000);
-  document.getElementById('stat-days').textContent = daysLeft;
+  // Week km
+  const ws=getWeekStart(new Date()), we=new Date(ws); we.setDate(we.getDate()+7);
+  const wSess=allSessions.filter(s=>{const d=new Date(s.date);return d>=ws&&d<we;});
+  const wKm=wSess.reduce((a,s)=>a+(s.distance_km||0),0);
+  document.getElementById('stat-km').textContent=wKm.toFixed(1);
+  document.getElementById('stat-km-sub').textContent=`${wSess.length} séance(s) cette semaine`;
 
-  // Km cette semaine
-  const weekStart = getWeekStart(new Date());
-  const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
-  const weekSessions = allSessions.filter(s => {
-    const d = new Date(s.date);
-    return d >= weekStart && d < weekEnd;
+  // Charge 7j
+  const r7=allSessions.slice(0,14).filter(s=>{
+    const d=new Date(s.date),n=new Date();n.setDate(n.getDate()-7);return d>=n;
   });
-  const weekKm = weekSessions.reduce((acc, s) => acc + (s.distance_km || 0), 0);
-  document.getElementById('stat-km').textContent = weekKm.toFixed(1);
-  document.getElementById('stat-km-sub').textContent = `${weekSessions.length} séance(s) cette semaine`;
+  const r7km=r7.reduce((a,s)=>a+(s.distance_km||0),0);
+  const lbl=r7km>60?'⚠️ Chargé':r7km>40?'↗ Modéré':'✓ Frais';
+  document.getElementById('stat-tsb').textContent=r7km.toFixed(0);
+  document.getElementById('stat-tsb-sub').textContent=lbl;
 
-  // TSB simplifié (fraîcheur)
-  const recentLoad = allSessions.slice(0, 7).reduce((acc, s) => acc + (s.distance_km || 0), 0);
-  const tsbLabel = recentLoad > 60 ? '⚠️ Chargé' : recentLoad > 40 ? '↗ Modéré' : '✓ Frais';
-  document.getElementById('stat-tsb').textContent = recentLoad.toFixed(0);
-  document.getElementById('stat-tsb-sub').textContent = `km/7j · ${tsbLabel}`;
-
-  // Alertes
-  renderAlerts(weekKm, weekSessions);
-
-  // Prochaines séances
+  renderAlerts(wKm,wSess);
   renderNextSessions();
   renderLastSessions();
 }
 
-function renderAlerts(weekKm, weekSessions) {
-  const zone = document.getElementById('alerts-zone');
-  const alerts = [];
-
-  // Alerte périoste : augmentation charge > 10% semaine précédente
-  const prevWeekStart = getWeekStart(new Date());
-  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-  const prevWeekEnd = getWeekStart(new Date());
-  const prevSessions = allSessions.filter(s => {
-    const d = new Date(s.date);
-    return d >= prevWeekStart && d < prevWeekEnd;
-  });
-  const prevKm = prevSessions.reduce((acc, s) => acc + (s.distance_km || 0), 0);
-
-  if (prevKm > 0 && weekKm > prevKm * 1.12) {
-    alerts.push(`<div class="alert alert-warn">⚠️ Charge cette semaine +${Math.round((weekKm/prevKm-1)*100)}% vs semaine passée. Risque périostite — reste vigilant sur l'augmentation.</div>`);
-  }
-
-  // Douleur récente ?
-  const recentPain = allSessions.filter(s => s.pain_level >= 2).slice(0, 3);
-  if (recentPain.length > 0) {
-    alerts.push(`<div class="alert alert-danger">🚨 Douleur signalée récemment (${recentPain[0].pain_location || 'localisation inconnue'}, niveau ${recentPain[0].pain_level}/5). Le planning a été ajusté pour ménager la récupération.</div>`);
-  }
-
-  zone.innerHTML = alerts.join('');
+function renderAlerts(wKm,wSess) {
+  const alerts=[];
+  const pws=getWeekStart(new Date()); pws.setDate(pws.getDate()-7);
+  const pwe=getWeekStart(new Date());
+  const prev=allSessions.filter(s=>{const d=new Date(s.date);return d>=pws&&d<pwe;});
+  const pKm=prev.reduce((a,s)=>a+(s.distance_km||0),0);
+  if(pKm>0&&wKm>pKm*1.12) alerts.push(`<div class="alert alert-warn">⚠️ Charge +${Math.round((wKm/pKm-1)*100)}% vs semaine passée. Surveille le périoste.</div>`);
+  const pain=allSessions.filter(s=>s.pain_level>=2).slice(0,1);
+  if(pain.length) alerts.push(`<div class="alert alert-danger">🚨 Douleur récente (${pain[0].pain_location||'?'}, ${pain[0].pain_level}/5). Planning adapté.</div>`);
+  document.getElementById('alerts-zone').innerHTML=alerts.join('');
 }
 
 function renderNextSessions() {
-  const today = new Date().toISOString().split('T')[0];
-  const next = plannedSessions.filter(s => s.date >= today && !s.skipped).slice(0, 4);
-  const el = document.getElementById('next-sessions');
-  if (!next.length) { el.innerHTML = '<div class="empty-state">Génère un planning pour commencer</div>'; return; }
-  el.innerHTML = next.map(s => `
-    <div class="session-item">
-      <div class="session-date">${formatDate(s.date)}</div>
-      <div><span class="${typeClass(s.type)}">${s.type}</span></div>
-      <div style="font-family:var(--font-mono);font-size:0.72rem;">${s.description || ''}</div>
-      <div class="session-pace">${s.target_distance_km ? s.target_distance_km+'km' : ''}</div>
-    </div>
-  `).join('');
+  const today=new Date().toISOString().split('T')[0];
+  const next=plannedSessions.filter(s=>s.date>=today&&!s.skipped).slice(0,5);
+  const el=document.getElementById('next-sessions');
+  if(!next.length){el.innerHTML='<div class="empty-state">Génère un planning pour commencer</div>';return;}
+  el.innerHTML=next.map(s=>`
+    <div class="next-session-item">
+      <div class="ns-date">${formatDate(s.date)}</div>
+      <div class="ns-type">${typeBadge(s.type)}</div>
+      <div class="ns-desc">${s.description||''}</div>
+      <div class="ns-km">${s.target_distance_km||'?'}<span style="font-family:var(--fm);font-size:.6rem;color:var(--muted);">km</span></div>
+    </div>`).join('');
 }
 
 function renderLastSessions() {
-  const el = document.getElementById('last-sessions');
-  const last = allSessions.slice(0, 5);
-  if (!last.length) { el.innerHTML = '<div class="empty-state">Aucune séance enregistrée</div>'; return; }
-  el.innerHTML = last.map(s => `
+  const el=document.getElementById('last-sessions');
+  const last=allSessions.slice(0,5);
+  if(!last.length){el.innerHTML='<div class="empty-state">Aucune séance</div>';return;}
+  el.innerHTML=last.map(s=>`
     <div class="session-item">
       <div class="session-date">${formatDate(s.date)}</div>
-      <div><span class="${typeClass(s.type)}">${s.type}</span></div>
-      <div class="session-pace">${s.avg_pace_seconds ? secToAllure(s.avg_pace_seconds)+'/km' : ''}</div>
-      <div class="session-dist">${s.distance_km ? s.distance_km+'km' : ''}</div>
-      <div class="session-effort">
-        ${[1,2,3,4,5].map(i => `<div class="effort-dot${i <= (s.perceived_effort||0) ? ' filled' : ''}"></div>`).join('')}
-      </div>
-    </div>
-  `).join('');
+      <div>${typeBadge(s.type)}</div>
+      <div style="font-family:var(--fb);font-size:.8rem;">${s.distance_km?s.distance_km+'km':''} ${s.duration_minutes?s.duration_minutes+'min':''}</div>
+      <div class="session-pace">${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'—'}</div>
+      <div class="effort-dots">${[1,2,3,4,5].map(i=>`<div class="effort-dot${i<=(s.perceived_effort||0)?' on':''}"></div>`).join('')}</div>
+    </div>`).join('');
 }
 
-// ==================== PLANNING ====================
+// ═══════════════════════════════════════════
+// PLANNING
+// ═══════════════════════════════════════════
 async function generatePlan() {
-  showToast('Génération du planning...', 'success');
-
-  // Supprimer le planning futur
-  const today = new Date().toISOString().split('T')[0];
-  await db.from('planned_sessions').delete().gte('date', today);
-
-  const sessions = buildPlan();
-  if (sessions.length > 0) {
-    await db.from('planned_sessions').insert(sessions);
-    plannedSessions = (await db.from('planned_sessions').select('*').order('date')).data || [];
-    renderWeek();
-    renderNextSessions();
-    showToast('Planning régénéré ✓', 'success');
+  showToast('Génération du planning...','success');
+  const today=new Date().toISOString().split('T')[0];
+  await db.from('planned_sessions').delete().gte('date',today);
+  const sessions=buildPlan();
+  if(sessions.length>0){
+    // Insert in batches of 50
+    for(let i=0;i<sessions.length;i+=50){
+      await db.from('planned_sessions').insert(sessions.slice(i,i+50));
+    }
+    const {data}=await db.from('planned_sessions').select('*').order('date');
+    plannedSessions=data||[];
+    renderWeek(); renderNextSessions();
+    showToast(`Planning généré ✓ (${sessions.length} séances)`,'success');
   }
 }
 
 function buildPlan() {
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const race10 = new Date(profile.race_10k_date || '2027-01-15');
-  const race15 = new Date(profile.race_15k_date || '2026-09-20');
-  const sessions = [];
-  const totalWeeks = Math.ceil((race10 - today) / (7 * 86400000));
+  const today=new Date(); today.setHours(0,0,0,0);
+  const race10=new Date(profile.race_10k_date||'2027-01-15');
+  const race15=new Date(profile.race_15k_date||'2026-09-20');
+  const totalWeeks=Math.ceil((race10-today)/(7*86400000));
+  const sessions=[];
 
-  // Day offsets from Monday: 0=Mon,1=Tue,2=Wed,3=Thu,4=Fri,5=Sat,6=Sun
-  // Séances placées: Mardi, Jeudi (intensité), Mercredi (EF), Samedi, Dimanche
-  const dayPrefs = {
-    'base':          [1, 3, 2, 5],       // Mar, Jeu, Mer, Sam
-    'développement': [1, 3, 2, 5, 6],   // + Dim
-    'spécifique':    [1, 3, 2, 5, 6],
-    'affûtage_15k':  [1, 3, 6],
-    'bloc_final':    [1, 3, 2, 5, 6],
-    'affûtage_10k':  [1, 3, 6],
+  // Day offsets from Monday (0=Mon..6=Sun)
+  const dayPrefs={
+    'base':         [1,3,2,5],
+    'développement':[1,3,2,5,6],
+    'spécifique':   [1,3,2,5,6],
+    'affûtage_15k': [1,3,6],
+    'bloc_final':   [1,3,2,5,6],
+    'affûtage_10k': [1,3,6],
   };
 
-  const monday = getWeekStart(new Date(today));
-  // If today is Thu or later, start next week to avoid cramming
-  const startMonday = new Date(monday);
-  if (today.getDay() >= 4) startMonday.setDate(startMonday.getDate() + 7);
+  const monday=getWeekStart(new Date(today));
+  const startMonday=new Date(monday);
+  if(today.getDay()>=4) startMonday.setDate(startMonday.getDate()+7);
 
-  for (let w = 0; w < Math.min(totalWeeks, 43); w++) {
-    const weekMonday = new Date(startMonday);
-    weekMonday.setDate(weekMonday.getDate() + w * 7);
+  for(let w=0;w<Math.min(totalWeeks,43);w++){
+    const wMon=new Date(startMonday); wMon.setDate(wMon.getDate()+w*7);
+    const phase=getPhase(w,totalWeeks,race15,today);
+    const sThisWeek=getSessionsForPhase(phase,w);
+    const isRecup=(w+1)%4===0;
+    const prefs=dayPrefs[phase]||dayPrefs['base'];
 
-    const phase = getPhase(w, totalWeeks, race15, today);
-    const sessionsThisWeek = getSessionsForPhase(phase, w);
-    const isRecupWeek = (w + 1) % 4 === 0;
-    const prefs = dayPrefs[phase] || dayPrefs['base'];
-
-    sessionsThisWeek.forEach((s, i) => {
-      if (i >= prefs.length) return;
-      const d = new Date(weekMonday);
-      d.setDate(d.getDate() + prefs[i]); // offset from Monday
-      if (d < today) return;
-
+    sThisWeek.forEach((s,i)=>{
+      if(i>=prefs.length) return;
+      const d=new Date(wMon); d.setDate(d.getDate()+prefs[i]);
+      if(d<today) return;
       sessions.push({
-        date: d.toISOString().split('T')[0],
-        type: s.type,
-        description: s.desc,
-        target_distance_km: adjustKmForPhase(s.km, w, totalWeeks, isRecupWeek),
-        target_duration_minutes: Math.round(adjustKmForPhase(s.km, w, totalWeeks, isRecupWeek) * getPaceForType(s.type)),
-        intensity_zone: s.zone,
-        week_phase: phase,
-        priority: s.type === 'Récup' ? 2 : 1
+        date:d.toISOString().split('T')[0],
+        type:s.type, description:s.desc,
+        target_distance_km:adjustKm(s.km,w,totalWeeks,isRecup),
+        target_duration_minutes:Math.round(adjustKm(s.km,w,totalWeeks,isRecup)*paceForType(s.type)),
+        intensity_zone:s.zone, week_phase:phase, priority:s.type==='Récup'?2:1
       });
     });
   }
 
-  sessions.sort((a, b) => a.date.localeCompare(b.date));
-  // Deduplicate: only one session per day (keep first)
-  const seen = new Set();
-  return sessions.filter(s => {
-    if (seen.has(s.date)) return false;
-    seen.add(s.date);
-    return true;
-  });
+  sessions.sort((a,b)=>a.date.localeCompare(b.date));
+  const seen=new Set();
+  return sessions.filter(s=>{if(seen.has(s.date))return false;seen.add(s.date);return true;});
 }
 
-function getPhase(week, total, race15, today) {
-  const weeksTo15k = Math.ceil((race15 - today) / (7 * 86400000));
-  if (week < 5) return 'base';
-  if (week < 15) return 'développement';
-  if (week < weeksTo15k - 2) return 'spécifique';
-  if (week < weeksTo15k + 1) return 'affûtage_15k';
-  if (week < total - 3) return 'bloc_final';
+function getPhase(w,total,race15,today) {
+  const w15=Math.ceil((race15-today)/(7*86400000));
+  if(w<5) return 'base';
+  if(w<15) return 'développement';
+  if(w<w15-2) return 'spécifique';
+  if(w<w15+1) return 'affûtage_15k';
+  if(w<total-3) return 'bloc_final';
   return 'affûtage_10k';
 }
 
-function getSessionsForPhase(phase, week) {
-  const plans = {
-    'base': [
-      { type: 'EF', km: 8, desc: 'EF douce — construire la base', zone: 2 },
-      { type: 'Seuil', km: 9, desc: '2×15\' tempo confortable', zone: 3 },
-      { type: 'EF', km: 10, desc: 'EF avec 6×100m de foulées vives', zone: 2 },
-      { type: 'Long', km: 13, desc: 'Sortie longue Z2 — allure conversationnelle', zone: 2 },
+function getSessionsForPhase(phase) {
+  const plans={
+    'base':[
+      {type:'EF',km:8,desc:'EF douce — construire la base aérobie',zone:2},
+      {type:'Seuil',km:9,desc:'2×15\' tempo confortable',zone:3},
+      {type:'EF',km:10,desc:'EF + 6×100m foulées vives',zone:2},
+      {type:'Long',km:13,desc:'Sortie longue Z2 — allure conversationnelle',zone:2},
     ],
-    'développement': [
-      { type: 'EF', km: 9, desc: 'EF progressive — derniers 2km à allure seuil', zone: 2 },
-      { type: 'VMA', km: 10, desc: '6×6\' à 90-95% VMA — récup 3\'', zone: 5 },
-      { type: 'Seuil', km: 11, desc: '4×8\' seuil + 10\' continu seuil', zone: 4 },
-      { type: 'Long', km: 16, desc: 'Sortie longue — derniers 4km à allure marathon', zone: 2 },
-      { type: 'Récup', km: 6, desc: 'Footing récup — très lent, écoute le corps', zone: 1 },
+    'développement':[
+      {type:'EF',km:9,desc:'EF progressive — derniers 2km à allure seuil',zone:2},
+      {type:'VMA',km:10,desc:'6×6\' à 90-95% VMA — récup 3\'',zone:5},
+      {type:'Seuil',km:11,desc:'4×8\' seuil + 10\' continu',zone:4},
+      {type:'Long',km:16,desc:'Sortie longue — derniers 4km allure marathon',zone:2},
+      {type:'Récup',km:6,desc:'Footing récup — très lent',zone:1},
     ],
-    'spécifique': [
-      { type: 'EF', km: 10, desc: 'EF + striders 8×100m', zone: 2 },
-      { type: 'VMA', km: 11, desc: '3×2000m à allure 10km objectif', zone: 5 },
-      { type: 'Seuil', km: 12, desc: '30\' continu au seuil anaérobie', zone: 4 },
-      { type: 'Long', km: 18, desc: 'Sortie longue — milieu à allure semi', zone: 2 },
-      { type: 'Récup', km: 7, desc: 'Récupération active — légèreté', zone: 1 },
+    'spécifique':[
+      {type:'EF',km:10,desc:'EF + striders 8×100m',zone:2},
+      {type:'VMA',km:11,desc:'3×2000m allure objectif 10km',zone:5},
+      {type:'Seuil',km:12,desc:'30\' continu au seuil',zone:4},
+      {type:'Long',km:18,desc:'Sortie longue — milieu à allure semi',zone:2},
+      {type:'Récup',km:7,desc:'Récupération active',zone:1},
     ],
-    'affûtage_15k': [
-      { type: 'EF', km: 8, desc: 'EF légère + quelques accélérations', zone: 2 },
-      { type: 'VMA', km: 8, desc: '5×1000m allure 10km — affûtage', zone: 5 },
-      { type: 'Récup', km: 6, desc: 'Footing récup pré-course', zone: 1 },
+    'affûtage_15k':[
+      {type:'EF',km:8,desc:'EF légère + accélérations',zone:2},
+      {type:'VMA',km:8,desc:'5×1000m allure 10km',zone:5},
+      {type:'Récup',km:6,desc:'Footing récup pré-15km',zone:1},
     ],
-    'bloc_final': [
-      { type: 'EF', km: 10, desc: 'EF solide — bonne base', zone: 2 },
-      { type: 'VMA', km: 11, desc: '4×1500m allure objectif 10km', zone: 5 },
-      { type: 'Seuil', km: 12, desc: '3×10\' seuil + 5\' récup — qualité', zone: 4 },
-      { type: 'Long', km: 17, desc: 'Sortie longue progressive', zone: 2 },
-      { type: 'Récup', km: 6, desc: 'Récup active entre les blocs durs', zone: 1 },
+    'bloc_final':[
+      {type:'EF',km:10,desc:'EF solide',zone:2},
+      {type:'VMA',km:11,desc:'4×1500m allure objectif 10km',zone:5},
+      {type:'Seuil',km:12,desc:'3×10\' seuil — qualité',zone:4},
+      {type:'Long',km:17,desc:'Sortie longue progressive',zone:2},
+      {type:'Récup',km:6,desc:'Récup active',zone:1},
     ],
-    'affûtage_10k': [
-      { type: 'EF', km: 7, desc: 'EF légère + 4×100m vifs', zone: 2 },
-      { type: 'VMA', km: 7, desc: '4×800m allure objectif — se rappeler le rythme', zone: 5 },
-      { type: 'Récup', km: 5, desc: 'Footing très léger avant J-2', zone: 1 },
+    'affûtage_10k':[
+      {type:'EF',km:7,desc:'EF légère + 4×100m vifs',zone:2},
+      {type:'VMA',km:7,desc:'4×800m allure objectif',zone:5},
+      {type:'Récup',km:5,desc:'Footing très léger J-2',zone:1},
     ],
   };
-  return plans[phase] || plans['base'];
+  return plans[phase]||plans['base'];
 }
 
-function adjustKmForPhase(km, week, total, isRecupWeek) {
-  const multiplier = isRecupWeek ? 0.75 : 1 + (week / total) * 0.25;
-  return Math.round(km * multiplier * 10) / 10;
+function adjustKm(km,w,total,isRecup) {
+  const mult=isRecup?.75:1+(w/total)*.25;
+  return Math.round(km*mult*10)/10;
 }
 
-function getPaceForType(type) {
-  // minutes par km approximatif pour calcul durée
-  const paces = { 'EF': 6, 'Seuil': 4.5, 'VMA': 4.2, 'Long': 5.8, 'Récup': 6.5 };
-  return paces[type] || 6;
+function paceForType(type) {
+  return {'EF':6,'Aérobie Z3':5.5,'Seuil':4.5,'VMA':4.2,'Long':5.8,'Récup':6.5}[type]||6;
 }
 
-// ==================== WEEK VIEW ====================
+// ═══════════════════════════════════════════
+// WEEK VIEW
+// ═══════════════════════════════════════════
 function renderWeek() {
-  const today = new Date();
-  const weekStart = getWeekStart(new Date());
-  weekStart.setDate(weekStart.getDate() + currentWeekOffset * 7);
+  const today=new Date();
+  const ws=getWeekStart(new Date()); ws.setDate(ws.getDate()+currentWeekOffset*7);
+  const we=new Date(ws); we.setDate(we.getDate()+6);
+  document.getElementById('week-label').textContent=`${formatDateShort(ws)} — ${formatDateShort(we)}`;
 
-  const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-  const grid = document.getElementById('week-grid');
-  const label = document.getElementById('week-label');
-
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
-  label.textContent = `${formatDateShort(weekStart)} — ${formatDateShort(weekEnd)}`;
-
-  // Phase actuelle
-  const weeksFromNow = currentWeekOffset;
-  const totalWeeks = Math.ceil((new Date(profile.race_10k_date || '2027-01-15') - new Date()) / (7 * 86400000));
-  const phase = getPhase(weeksFromNow, totalWeeks, new Date(profile.race_15k_date || '2026-09-20'), new Date());
-  const phaseLabels = {
-    'base': '🏗 Phase BASE AÉROBIE — construire les fondations',
-    'développement': '📈 Phase DÉVELOPPEMENT — volume + intensité progressive',
-    'spécifique': '🎯 Phase SPÉCIFIQUE — travail au seuil et VMA 10km',
-    'affûtage_15k': '🏃 AFFÛTAGE 15km — réduire et affûter',
-    'bloc_final': '🔥 BLOC FINAL — pic de forme pour le 10km',
-    'affûtage_10k': '✨ AFFÛTAGE 10km — fraîcheur et confiance',
+  const totalWeeks=Math.ceil((new Date(profile.race_10k_date||'2027-01-15')-new Date())/(7*86400000));
+  const phase=getPhase(currentWeekOffset,totalWeeks,new Date(profile.race_15k_date||'2026-09-20'),new Date());
+  const phaseLabels={
+    'base':'🏗 BASE AÉROBIE','développement':'📈 DÉVELOPPEMENT',
+    'spécifique':'🎯 SPÉCIFIQUE','affûtage_15k':'🏃 AFFÛTAGE 15km',
+    'bloc_final':'🔥 BLOC FINAL','affûtage_10k':'✨ AFFÛTAGE 10km'
   };
-  document.getElementById('current-phase').textContent = phaseLabels[phase] || phase;
+  document.getElementById('current-phase').textContent=phaseLabels[phase]||phase;
 
-  grid.innerHTML = days.map((dayName, i) => {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() + i);
-    const dateStr = d.toISOString().split('T')[0];
-    const isToday = dateStr === today.toISOString().split('T')[0];
-
-    const planned = plannedSessions.find(s => s.date === dateStr);
-    const completed = allSessions.find(s => s.date === dateStr);
-
-    let cellClass = 'day-cell';
-    if (isToday) cellClass += ' today';
-    if (completed) cellClass += ' completed';
-    else if (planned?.skipped) cellClass += ' skipped';
-    else if (!planned) cellClass += ' rest';
-
-    const typeClass = planned ? `type-${planned.type === 'Long' ? 'Long' : planned.type}` : 'type-Repos';
-    const typeLabel = completed ? completed.type : (planned ? planned.type : 'Repos');
-    const tClass = typeClass(typeLabel);
-
-    return `
-      <div class="${cellClass}" onclick="selectDay('${dateStr}')">
-        <div class="day-name">${dayName}</div>
-        <div class="day-num" style="${isToday ? 'color:var(--accent)' : ''}">${d.getDate()}</div>
-        ${completed ? `<span class="day-type" style="background:rgba(46,213,115,0.2);color:var(--success);">✓ ${completed.type}</span>` :
-          `<span class="day-type ${tClass}">${typeLabel}</span>`}
-        ${planned && !completed ? `<div style="font-family:var(--font-mono);font-size:0.55rem;color:var(--muted);margin-top:0.3rem;">${planned.target_distance_km || ''}km</div>` : ''}
-      </div>
-    `;
+  const days=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  document.getElementById('week-grid').innerHTML=days.map((dn,i)=>{
+    const d=new Date(ws); d.setDate(d.getDate()+i);
+    const ds=d.toISOString().split('T')[0];
+    const isToday=ds===today.toISOString().split('T')[0];
+    const planned=plannedSessions.find(s=>s.date===ds);
+    const done=allSessions.find(s=>s.date===ds);
+    let cls='day-cell';
+    if(isToday) cls+=' today';
+    if(done) cls+=' done';
+    else if(!planned) cls+=' rest';
+    const type=done?done.type:(planned?planned.type:'Repos');
+    return `<div class="${cls}" onclick="selectDay('${ds}')">
+      <div class="day-name">${dn}</div>
+      <div class="day-num" style="${isToday?'color:var(--accent)':''}">${d.getDate()}</div>
+      ${typeBadge(type,!!done)}
+      ${planned&&!done?`<div class="day-km">${planned.target_distance_km||''}km</div>`:''}
+    </div>`;
   }).join('');
 }
 
-function changeWeek(dir) {
-  currentWeekOffset += dir;
-  renderWeek();
-}
+function changeWeek(dir) { currentWeekOffset+=dir; renderWeek(); }
 
 function selectDay(dateStr) {
-  const planned = plannedSessions.find(s => s.date === dateStr);
-  const done = allSessions.find(s => s.date === dateStr);
-  const el = document.getElementById('session-detail');
-
-  if (done) {
-    el.innerHTML = `
-      <div style="font-family:var(--font-mono);font-size:0.78rem;line-height:2;">
-        <div style="color:var(--success);font-size:0.85rem;margin-bottom:0.5rem;">✓ RÉALISÉE</div>
-        <div><span style="color:var(--muted);">Type:</span> ${done.type}</div>
-        <div><span style="color:var(--muted);">Distance:</span> ${done.distance_km || '—'} km</div>
-        <div><span style="color:var(--muted);">Allure:</span> ${done.avg_pace_seconds ? secToAllure(done.avg_pace_seconds)+'/km' : '—'}</div>
-        <div><span style="color:var(--muted);">FC moy:</span> ${done.avg_hr || '—'} bpm</div>
-        <div><span style="color:var(--muted);">Effort:</span> ${done.perceived_effort || '—'}/5</div>
-        <div><span style="color:var(--muted);">Douleur:</span> ${done.pain_level || 0}/5${done.pain_location ? ' · '+done.pain_location : ''}</div>
-        ${done.notes ? `<div style="margin-top:0.5rem;color:var(--muted);">${done.notes}</div>` : ''}
-        ${done.intervals && done.intervals.length ? `
-          <div style="margin-top:0.75rem;">
-            <div style="color:var(--muted);font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.4rem;">Intervalles</div>
-            ${done.intervals.map(iv => `
-              <div style="display:flex;gap:1rem;padding:0.25rem 0;border-bottom:1px solid var(--border);">
-                <span style="color:var(--muted);">#${iv.num}</span>
-                <span>${iv.duration || ''}</span>
-                <span style="color:var(--accent);">${iv.pace || ''}</span>
-                <span style="color:var(--muted);font-size:0.65rem;">${iv.feel || ''}</span>
-              </div>
-            `).join('')}
-          </div>` : ''}
-      </div>
-    `;
-  } else if (planned) {
-    el.innerHTML = `
-      <div style="font-family:var(--font-mono);font-size:0.78rem;line-height:2;">
-        <div><span class="${typeClass(planned.type)}">${planned.type}</span> <span style="color:var(--muted);margin-left:0.5rem;">${planned.week_phase}</span></div>
-        <div style="margin:0.5rem 0;font-family:var(--font-body);font-size:0.9rem;">${planned.description || ''}</div>
-        <div><span style="color:var(--muted);">Distance:</span> ~${planned.target_distance_km || '?'} km</div>
-        <div><span style="color:var(--muted);">Durée:</span> ~${planned.target_duration_minutes || '?'} min</div>
-        <div><span style="color:var(--muted);">Zone:</span> Z${planned.intensity_zone || '?'}</div>
-        ${getZoneAllures(planned.type)}
-        <div style="margin-top:1rem;display:flex;gap:0.5rem;">
-          <button class="btn" style="flex:1;padding:0.5rem;" onclick="prefillLog('${dateStr}')">Loguer cette séance</button>
-        </div>
-      </div>
-    `;
+  const done=allSessions.find(s=>s.date===dateStr);
+  const planned=plannedSessions.find(s=>s.date===dateStr);
+  const el=document.getElementById('session-detail');
+  if(done) {
+    const ivs=done.intervals&&done.intervals.length?`
+      <div style="margin-top:.75rem;">
+        <div style="color:var(--muted);font-size:.65rem;text-transform:uppercase;margin-bottom:.4rem;">Intervalles</div>
+        ${done.intervals.map(iv=>`<div style="display:flex;gap:1rem;padding:.25rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.72rem;">
+          <span style="color:var(--muted);">#${iv.num}</span><span>${iv.duration||''}</span>
+          <span style="color:var(--accent);">${iv.pace||''}</span><span style="color:var(--muted);">${iv.feel||''}</span>
+        </div>`).join('')}
+      </div>`:'';
+    el.innerHTML=`<div style="font-family:var(--fm);font-size:.78rem;line-height:2.2;">
+      <div style="color:var(--success);margin-bottom:.5rem;">✓ RÉALISÉE</div>
+      <div><span style="color:var(--muted);">Type:</span> ${typeBadge(done.type)}</div>
+      <div><span style="color:var(--muted);">Distance:</span> ${done.distance_km||'—'}km</div>
+      <div><span style="color:var(--muted);">Allure:</span> ${done.avg_pace_seconds?secToAllure(done.avg_pace_seconds)+'/km':'—'}</div>
+      <div><span style="color:var(--muted);">FC moy:</span> ${done.avg_hr||'—'} bpm</div>
+      <div><span style="color:var(--muted);">Effort:</span> ${done.perceived_effort||'—'}/5</div>
+      ${done.notes?`<div style="margin-top:.5rem;color:var(--muted);">${done.notes}</div>`:''}${ivs}
+    </div>`;
+  } else if(planned) {
+    const z=getZoneForType(planned.type);
+    el.innerHTML=`<div style="font-family:var(--fm);font-size:.78rem;line-height:2.2;">
+      <div style="margin-bottom:.5rem;">${typeBadge(planned.type)} <span style="color:var(--muted);margin-left:.5rem;">${planned.week_phase}</span></div>
+      <div style="font-family:var(--fb);font-size:.9rem;margin:.5rem 0;">${planned.description||''}</div>
+      <div><span style="color:var(--muted);">Distance:</span> ~${planned.target_distance_km||'?'}km</div>
+      ${z?`<div><span style="color:var(--muted);">Allure cible:</span> <span style="color:var(--accent);">${z.paceHigh}–${z.paceLow}/km</span></div>
+      <div><span style="color:var(--muted);">FC cible:</span> ${z.fcLow}–${z.fcHigh} bpm</div>`:''}
+      <div style="margin-top:1rem;"><button class="btn" style="width:100%;padding:.5rem;" onclick="prefillLog('${dateStr}','${planned.type}')">Loguer cette séance</button></div>
+    </div>`;
   } else {
-    el.innerHTML = `<div class="empty-state">Jour de repos prévu<br><small>Pas de séance planifiée</small></div>`;
+    el.innerHTML='<div class="empty-state">Repos — aucune séance planifiée</div>';
   }
 }
 
-function getZoneAllures(type) {
-  const zones = calcZones();
-  const zoneMap = { 'EF': zones[1], 'Long': zones[1], 'Récup': zones[0], 'Seuil': zones[3], 'VMA': zones[4] };
-  const z = zoneMap[type];
-  if (!z) return '';
-  return `<div><span style="color:var(--muted);">Allure cible:</span> <span style="color:var(--accent);">${z.paceHigh}–${z.paceLow}/km</span></div>
-          <div><span style="color:var(--muted);">FC cible:</span> ${z.fcLow}–${z.fcHigh} bpm</div>`;
-}
-
-function prefillLog(dateStr) {
-  document.getElementById('log-date').value = dateStr;
+function prefillLog(dateStr,type) {
+  document.getElementById('log-date').value=dateStr;
+  document.getElementById('log-type').value=type||'EF';
+  onTypeChange();
   showPage('log');
 }
 
-// ==================== LOG SESSION ====================
-function setRating(type, val) {
-  if (type === 'effort') {
-    selectedEffort = val;
-    document.querySelectorAll('#effort-group .rating-btn').forEach((btn, i) => {
-      btn.className = 'rating-btn' + (i + 1 === val ? ' selected-effort' : '');
-    });
-  } else {
-    selectedPain = val;
-    document.querySelectorAll('#pain-group .rating-btn').forEach((btn, i) => {
-      btn.className = `rating-btn${i === val ? ` selected-pain-${val}` : ''}`;
-    });
-    document.getElementById('pain-location-group').style.display = val >= 2 ? 'flex' : 'none';
-  }
-}
-
-function parsePace(el) {
-  // Auto-format: 5'30" ou 530 → 5'30"
-  const val = el.value.replace(/['"]/g, '').replace("'", ':');
-}
-
-function getPaceSeconds() {
-  const raw = document.getElementById('log-pace').value;
-  if (!raw) return null;
-  // Formats: "5'30"", "5:30", "5.5", "330"
-  const match = raw.match(/(\d+)[':'](\d+)/);
-  if (match) return parseInt(match[1]) * 60 + parseInt(match[2]);
-  const mins = parseFloat(raw);
-  if (!isNaN(mins)) return Math.round(mins * 60);
-  return null;
-}
-
-async function saveSession() {
-  const date = document.getElementById('log-date').value;
-  const type = document.getElementById('log-type').value;
-  const dist = parseFloat(document.getElementById('log-dist').value) || null;
-  const duration = parseInt(document.getElementById('log-duration').value) || null;
-  const hr = parseInt(document.getElementById('log-hr').value) || null;
-  const notes = document.getElementById('log-notes').value;
-  const painLoc = document.getElementById('log-pain-location').value;
-
-  if (!date || !type) { showToast('Date et type requis', 'error'); return; }
-
-  // Calcul allure si distance + durée
-  let paceSeconds = getPaceSeconds();
-  if (!paceSeconds && dist && duration) {
-    paceSeconds = Math.round((duration * 60) / dist);
-  }
-
-  const session = {
-    date, type, distance_km: dist, duration_minutes: duration,
-    avg_pace_seconds: paceSeconds, avg_hr: hr,
-    perceived_effort: selectedEffort, pain_level: selectedPain,
-    pain_location: selectedPain >= 2 ? painLoc : null,
-    notes, completed: true,
-    intervals: (type === 'VMA' || type === 'Seuil') ? getIntervals() : null
-  };
-
-  try {
-    const { error } = await db.from('sessions').insert([session]);
-    if (error) throw error;
-    showToast('Séance enregistrée ✓', 'success');
-    await loadSessions();
-    renderDashboard();
-    renderWeek();
-    renderHistory();
-
-    // Analyse IA post-séance
-    await analyzeSession(session);
-
-    // Adapter le planning si douleur
-    if (selectedPain >= 3) await adaptPlanForPain(session);
-
-  } catch(e) {
-    showToast('Erreur: ' + e.message, 'error');
-  }
-}
-
-async function adaptPlanForPain(session) {
-  showToast('Douleur signalée — adaptation du planning...', 'success');
-  // Remplacer les 3 prochaines séances intenses par EF/Récup
-  const today = new Date().toISOString().split('T')[0];
-  const next3 = plannedSessions.filter(s => s.date > today && !s.skipped && (s.type === 'VMA' || s.type === 'Seuil')).slice(0, 3);
-  for (const s of next3) {
-    await db.from('planned_sessions').update({
-      type: 'Récup',
-      description: `[Adapté suite douleur ${session.pain_location || ''}] Footing très léger — priorité récupération`,
-      intensity_zone: 1,
-      target_distance_km: 6
-    }).eq('id', s.id);
-  }
-  await loadPlannedSessions();
-  renderWeek();
-  renderNextSessions();
-}
-
-async function analyzeSession(session) {
-  const logAI = document.getElementById('log-ai-response');
-  const logText = document.getElementById('log-ai-text');
-  logAI.style.display = 'block';
-  logText.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
-
-  const recentStr = allSessions.slice(0, 5).map(s =>
-    `- ${s.date}: ${s.type} ${s.distance_km || '?'}km allure ${s.avg_pace_seconds ? secToAllure(s.avg_pace_seconds)+'/km' : '?'} effort ${s.perceived_effort}/5 douleur ${s.pain_level}/5`
-  ).join('\n');
-
-  const prompt = `Tu es un coach running expert. Voici le profil de l'athlète:
-- PB 10km: 40'30" | Objectif: sub-37 en janvier 2027
-- VMA estimée: 16.5 km/h | FC max: 208 bpm
-- Fragilité: périostite si charge augmente trop vite
-- Zones EF: ${secToAllure(calcZones()[1].paceLow*60 || 340)}-${secToAllure(calcZones()[1].paceHigh*60 || 380)}/km
-
-Séance qui vient d'être loguée:
-- Type: ${session.type} | Distance: ${session.distance_km || '?'}km | Durée: ${session.duration_minutes || '?'}min
-- Allure: ${session.avg_pace_seconds ? secToAllure(session.avg_pace_seconds)+'/km' : '?'} | FC: ${session.avg_hr || '?'} bpm
-- Effort perçu: ${session.perceived_effort}/5 | Douleur: ${session.pain_level}/5${session.pain_location ? ' ('+session.pain_location+')' : ''}
-- Notes: ${session.notes || 'aucune'}
-
-Dernières séances:
-${recentStr}
-
-Donne une analyse concise de la séance (2-3 paragraphes max):
-1. Qualité de la séance par rapport aux objectifs
-2. Point de vigilance sur la santé/charge si nécessaire
-3. Conseil concret pour la prochaine séance
-
-Sois direct, technique, bienveillant. Pas de bla-bla.`;
-
-  try {
-    const res = await fetch('https://runcoach-proxy.landelleleo.workers.dev', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.[0]?.text || 'Analyse indisponible.';
-    logText.textContent = text;
-  } catch(e) {
-    logText.textContent = 'Analyse IA temporairement indisponible.';
-  }
-}
-
-function clearLog() {
-  document.getElementById('log-dist').value = '';
-  document.getElementById('log-duration').value = '';
-  document.getElementById('log-pace').value = '';
-  document.getElementById('log-hr').value = '';
-  document.getElementById('log-notes').value = '';
-  setRating('effort', 3);
-  setRating('pain', 0);
-  document.getElementById('log-ai-response').style.display = 'none';
-  document.getElementById('intervals-section').style.display = 'none';
-  intervalCount = 0;
-  document.getElementById('intervals-list').innerHTML = '';
-}
-
-// ==================== COACH IA PLANNING ====================
+// ═══════════════════════════════════════════
+// COACH IA PLANNING
+// ═══════════════════════════════════════════
 async function askPlanCoach() {
-  const input = document.getElementById('plan-coach-input');
-  const userMsg = input.value.trim();
-  if (!userMsg) return;
+  const input=document.getElementById('plan-coach-input');
+  const msg=input.value.trim(); if(!msg) return;
+  const btn=document.getElementById('plan-coach-btn');
+  btn.textContent='...'; btn.disabled=true;
+  const resp=document.getElementById('plan-coach-response');
+  const textEl=document.getElementById('plan-coach-text');
+  const actEl=document.getElementById('plan-coach-actions');
+  resp.style.display='block';
+  textEl.innerHTML='<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+  actEl.innerHTML='';
 
-  const btn = document.getElementById('plan-coach-btn');
-  btn.textContent = '...';
-  btn.disabled = true;
+  const today=new Date().toISOString().split('T')[0];
+  const todayFr=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const upcoming=plannedSessions.filter(s=>s.date>=today).slice(0,14)
+    .map(s=>`- ${s.date} (${getDayFr(s.date)}): ${s.type} ~${s.target_distance_km}km — "${s.description}" [id:${s.id}]`).join('\n')||'Aucune';
+  const recent=allSessions.slice(0,5)
+    .map(s=>`- ${s.date}: ${s.type} ${s.distance_km||'?'}km effort ${s.perceived_effort}/5`).join('\n')||'Aucune';
 
-  const responseDiv = document.getElementById('plan-coach-response');
-  const textEl = document.getElementById('plan-coach-text');
-  const actionsEl = document.getElementById('plan-coach-actions');
-  responseDiv.style.display = 'block';
-  textEl.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
-  actionsEl.innerHTML = '';
-
-  // Contexte planning
-  const today = new Date().toISOString().split('T')[0];
-  const todayFr = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
-  const upcoming = plannedSessions
-    .filter(s => s.date >= today)
-    .slice(0, 14)
-    .map(s => `- ${s.date} (${getDayFr(s.date)}): ${s.type} ~${s.target_distance_km}km — "${s.description}" [id:${s.id}]`)
-    .join('\n') || 'Aucune séance planifiée';
-
-  const recent = allSessions.slice(0, 5)
-    .map(s => `- ${s.date}: ${s.type} ${s.distance_km||'?'}km effort ${s.perceived_effort}/5 douleur ${s.pain_level}/5`)
-    .join('\n') || 'Aucune';
-
-  const prompt = `Tu es un coach running expert qui gère le planning d'entraînement d'un athlète.
-
-CONTEXTE ATHLÈTE:
+  const prompt=`Tu es un coach running expert. Profil:
 - Aujourd'hui: ${today} (${todayFr})
-- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37 | Race 10km: ${profile.race_10k_date}
+- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif sub-37 | Race: ${profile.race_10k_date}
 - Fragilité: périostite si charge monte trop vite
-- Préférences: sortie longue le week-end, intensité en semaine
+- Types: EF (Z1-Z2), Aérobie Z3, Seuil (Z4), VMA (Z5), Long, Récup
 
-PLANNING ACTUEL (prochaines 2 semaines):
+Planning actuel:
 ${upcoming}
 
-SÉANCES RÉCENTES:
+Séances récentes:
 ${recent}
 
-DEMANDE DE L'ATHLÈTE: "${userMsg}"
+Demande: "${msg}"
 
-Tu dois analyser la demande et retourner un JSON UNIQUEMENT (pas de texte avant ou après) avec cette structure exacte:
-{
-  "message": "explication courte de ce que tu fais (2-3 phrases max, ton direct de coach)",
-  "modifications": [
-    {
-      "action": "update" | "delete" | "insert",
-      "id": "uuid de la séance existante (pour update/delete)",
-      "data": {
-        "date": "YYYY-MM-DD",
-        "type": "EF|VMA|Seuil|Long|Récup|Compét",
-        "description": "description courte",
-        "target_distance_km": 10,
-        "target_duration_minutes": 60,
-        "intensity_zone": 2,
-        "week_phase": "base|développement|spécifique|affûtage_15k|bloc_final|affûtage_10k",
-        "priority": 1
-      }
-    }
-  ],
-  "warning": "message d'alerte si risque santé (optionnel, null sinon)"
-}
-
-Règles:
-- Pour déplacer une séance: update l'id existant avec la nouvelle date
-- Pour ajouter une séance: insert avec data complète (pas d'id)
-- Pour supprimer: delete avec l'id, pas besoin de data
-- Respecte toujours la règle des 10% de charge max par semaine pour éviter la périostite
-- Si la demande est risquée pour la santé, ajoute un warning mais applique quand même si raisonnable`;
+Réponds UNIQUEMENT en JSON:
+{"message":"explication courte","modifications":[{"action":"update"|"delete"|"insert","id":"uuid si update/delete","data":{"date":"YYYY-MM-DD","type":"EF|Aérobie Z3|Seuil|VMA|Long|Récup","description":"...","target_distance_km":10,"intensity_zone":2,"week_phase":"base|développement|spécifique|affûtage_15k|bloc_final|affûtage_10k","priority":1}}],"warning":null}`;
 
   try {
-    const res = await fetch('https://runcoach-proxy.landelleleo.workers.dev', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    const raw = data.content?.[0]?.text || '{}';
-
-    // Parse JSON response
+    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'google/gemini-2.5-flash-preview',max_tokens:1500,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();
+    const raw=data.content?.[0]?.text||'{}';
     let parsed;
-    try {
-      const clean = raw.replace(/```json|```/g, '').trim();
-      parsed = JSON.parse(clean);
-    } catch(e) {
-      textEl.textContent = 'Le coach n\'a pas pu analyser ta demande. Reformule différemment.';
-      btn.textContent = 'Modifier'; btn.disabled = false;
-      return;
+    try { parsed=JSON.parse(raw.replace(/```json|```/g,'').trim()); }
+    catch(e) { textEl.textContent='Le coach n\'a pas pu analyser ta demande. Reformule.'; btn.textContent='Modifier'; btn.disabled=false; return; }
+    textEl.textContent=parsed.message||'';
+    if(parsed.warning) textEl.innerHTML+=`<div class="alert alert-warn" style="margin-top:.75rem;">${parsed.warning}</div>`;
+    if(parsed.modifications&&parsed.modifications.length>0) {
+      const sum=parsed.modifications.map(m=>m.action==='update'?`✏️ ${m.data?.date} → ${m.data?.type}`:m.action==='insert'?`➕ ${m.data?.type} le ${m.data?.date}`:`🗑 Supprimer`).join('<br>');
+      const modsJson=JSON.stringify(parsed.modifications).replace(/"/g,'&quot;');
+      actEl.innerHTML=`<div style="font-family:var(--fm);font-size:.7rem;color:var(--muted);width:100%;margin-bottom:.5rem;">${sum}</div>
+        <button class="btn" onclick="applyPlanMods('${modsJson}')">✓ Appliquer</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('plan-coach-response').style.display='none'">Annuler</button>`;
     }
+    input.value='';
+  } catch(e) { textEl.textContent='Erreur de connexion au coach IA: '+e.message; }
+  btn.textContent='Modifier'; btn.disabled=false;
+}
 
-    // Affiche le message du coach
-    textEl.textContent = parsed.message || '';
-
-    // Affiche warning si présent
-    if (parsed.warning) {
-      textEl.innerHTML += `<div class="alert alert-warn" style="margin-top:0.75rem;">${parsed.warning}</div>`;
-    }
-
-    // Affiche les modifications proposées avec bouton de confirmation
-    if (parsed.modifications && parsed.modifications.length > 0) {
-      const summary = parsed.modifications.map(m => {
-        if (m.action === 'update') return `✏️ Modifier séance du ${m.data?.date || '?'} → ${m.data?.type} ${m.data?.target_distance_km||'?'}km`;
-        if (m.action === 'insert') return `➕ Ajouter ${m.data?.type} le ${m.data?.date} (~${m.data?.target_distance_km||'?'}km)`;
-        if (m.action === 'delete') return `🗑 Supprimer séance`;
-        return m.action;
-      }).join('<br>');
-
-      actionsEl.innerHTML = `
-        <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);width:100%;margin-bottom:0.5rem;">${summary}</div>
-        <button class="btn" onclick="applyPlanModifications(${JSON.stringify(parsed.modifications).replace(/"/g,'&quot;')})">✓ Appliquer les modifications</button>
-        <button class="btn btn-ghost" onclick="document.getElementById('plan-coach-response').style.display='none'">Annuler</button>
-      `;
-    }
-
-    input.value = '';
-  } catch(e) {
-    textEl.textContent = 'Erreur de connexion au coach IA.';
+async function applyPlanMods(modsJson) {
+  const mods=JSON.parse(modsJson.replace(/&quot;/g,'"'));
+  document.getElementById('plan-coach-actions').innerHTML='<div style="font-family:var(--fm);font-size:.75rem;color:var(--muted);">Application...</div>';
+  for(const m of mods) {
+    if(m.action==='update'&&m.id) await db.from('planned_sessions').update(m.data).eq('id',m.id);
+    else if(m.action==='insert'&&m.data) await db.from('planned_sessions').insert([m.data]);
+    else if(m.action==='delete'&&m.id) await db.from('planned_sessions').delete().eq('id',m.id);
   }
-
-  btn.textContent = 'Modifier';
-  btn.disabled = false;
+  const {data}=await db.from('planned_sessions').select('*').order('date');
+  plannedSessions=data||[];
+  renderWeek(); renderNextSessions();
+  document.getElementById('plan-coach-response').style.display='none';
+  showToast('Planning modifié ✓','success');
 }
 
-async function applyPlanModifications(modifications) {
-  const actionsEl = document.getElementById('plan-coach-actions');
-  actionsEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--muted);">Application en cours...</div>';
-
-  try {
-    for (const mod of modifications) {
-      if (mod.action === 'update' && mod.id) {
-        await db.from('planned_sessions').update(mod.data).eq('id', mod.id);
-      } else if (mod.action === 'insert' && mod.data) {
-        await db.from('planned_sessions').insert([mod.data]);
-      } else if (mod.action === 'delete' && mod.id) {
-        await db.from('planned_sessions').delete().eq('id', mod.id);
-      }
-    }
-
-    // Reload planning
-    await loadPlannedSessions();
-    renderWeek();
-    renderNextSessions();
-
-    actionsEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--success);">✓ Planning mis à jour !</div>';
-    setTimeout(() => {
-      document.getElementById('plan-coach-response').style.display = 'none';
-    }, 2000);
-
-    showToast('Planning modifié par le coach ✓', 'success');
-  } catch(e) {
-    actionsEl.innerHTML = `<div style="color:var(--danger);font-family:var(--font-mono);font-size:0.75rem;">Erreur: ${e.message}</div>`;
-  }
-}
-
-function typeClass(type) {
-  const map = {
-    'EF': 'EF', 'Aérobie Z3': 'AérobieZ3', 'Seuil': 'Seuil',
-    'VMA': 'VMA', 'Long': 'Long', 'Récup': 'Récup',
-    'Compét': 'Compét', 'Repos': 'Repos'
-  };
-  return 'type-' + (map[type] || type.replace(/\s+/g,''));
-}
-
-function getDayFr(dateStr) {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long'});
-}
-
-// ==================== INTERVALS ====================
-let intervalCount = 0;
-
+// ═══════════════════════════════════════════
+// LOG SESSION
+// ═══════════════════════════════════════════
 function onTypeChange() {
-  const type = document.getElementById('log-type').value;
-  const section = document.getElementById('intervals-section');
-  const badge = document.getElementById('intervals-badge');
-  const hint = document.getElementById('intervals-hint');
-
-  if (type === 'VMA' || type === 'Seuil') {
-    section.style.display = 'block';
-    badge.textContent = type;
-    if (type === 'VMA') {
-      hint.textContent = 'Fractionné VMA — entre le temps et l\'allure de chaque répétition';
-    } else {
-      hint.textContent = 'Séance seuil — entre la durée et l\'allure de chaque bloc';
-    }
-    if (intervalCount === 0) initIntervals(type);
-  } else {
-    section.style.display = 'none';
-  }
+  const type=document.getElementById('log-type').value;
+  const sec=document.getElementById('intervals-section');
+  if(type==='VMA'||type==='Seuil') {
+    sec.style.display='block';
+    document.getElementById('intervals-badge').textContent=type;
+    document.getElementById('intervals-hint').textContent=type==='VMA'?'Fractionné — entre le temps et allure de chaque répétition':'Seuil — entre durée et allure de chaque bloc';
+    if(intervalCount===0) initIntervals(type);
+  } else { sec.style.display='none'; }
 }
 
 function initIntervals(type) {
-  intervalCount = 0;
-  document.getElementById('intervals-list').innerHTML = '';
-  // Pre-fill typical structure
-  const defaults = {
-    'VMA': { reps: 6, label: '6\' VMA', distOrDur: '6min', pace: '' },
-    'Seuil': { reps: 3, label: '10\' seuil', distOrDur: '10min', pace: '' },
-  };
-  const d = defaults[type] || defaults['VMA'];
-  for (let i = 0; i < d.reps; i++) addInterval(d.distOrDur, d.pace);
+  intervalCount=0; document.getElementById('intervals-list').innerHTML='';
+  const n=type==='VMA'?6:3;
+  for(let i=0;i<n;i++) addInterval(type==='VMA'?'6min':'10min','');
 }
 
-function addInterval(distOrDur = '', pace = '') {
+function addInterval(dur='',pace='') {
   intervalCount++;
-  const n = intervalCount;
-  const list = document.getElementById('intervals-list');
-  const row = document.createElement('div');
-  row.id = `interval-${n}`;
-  row.style.cssText = 'display:grid;grid-template-columns:40px 1fr 1fr 1fr;gap:0.5rem;align-items:center;';
-  row.innerHTML = `
-    <div style="font-family:var(--font-display);font-size:1.1rem;color:var(--muted);text-align:center;">${n}</div>
-    <div class="form-group" style="margin:0;">
-      <label>Durée ou dist.</label>
-      <input type="text" id="int-dur-${n}" placeholder="6min / 2km" value="${distOrDur}" oninput="updateIntervalSummary()">
-    </div>
-    <div class="form-group" style="margin:0;">
-      <label>Allure (min:sec)</label>
-      <input type="text" id="int-pace-${n}" placeholder="3'45&quot;" value="${pace}" oninput="updateIntervalSummary()">
-    </div>
-    <div class="form-group" style="margin:0;">
-      <label>Ressenti</label>
-      <select id="int-feel-${n}">
-        <option value="facile">Facile</option>
-        <option value="ok" selected>OK</option>
-        <option value="dur">Dur</option>
-        <option value="trop_dur">Trop dur</option>
-      </select>
-    </div>
-  `;
-  list.appendChild(row);
-  updateIntervalSummary();
+  const n=intervalCount;
+  const row=document.createElement('div');
+  row.id=`interval-${n}`;
+  row.style.cssText='display:grid;grid-template-columns:40px 1fr 1fr 1fr;gap:.5rem;align-items:center;';
+  row.innerHTML=`<div style="font-family:var(--fd);font-size:1.1rem;color:var(--muted);text-align:center;">${n}</div>
+    <div class="form-group" style="margin:0;"><label>Durée/dist</label><input type="text" id="int-dur-${n}" placeholder="6min / 2km" value="${dur}" oninput="updateIntSummary()"></div>
+    <div class="form-group" style="margin:0;"><label>Allure (min:sec)</label><input type="text" id="int-pace-${n}" placeholder="3'45&quot;" value="${pace}" oninput="updateIntSummary()"></div>
+    <div class="form-group" style="margin:0;"><label>Ressenti</label><select id="int-feel-${n}"><option value="facile">Facile</option><option value="ok" selected>OK</option><option value="dur">Dur</option><option value="trop_dur">Trop dur</option></select></div>`;
+  document.getElementById('intervals-list').appendChild(row);
+  updateIntSummary();
 }
 
 function removeInterval() {
-  if (intervalCount <= 1) return;
-  const el = document.getElementById(`interval-${intervalCount}`);
-  if (el) el.remove();
-  intervalCount--;
-  updateIntervalSummary();
+  if(intervalCount<=1) return;
+  document.getElementById(`interval-${intervalCount}`)?.remove();
+  intervalCount--; updateIntSummary();
 }
 
-function updateIntervalSummary() {
-  const paces = [];
-  for (let i = 1; i <= intervalCount; i++) {
-    const p = document.getElementById(`int-pace-${i}`)?.value;
-    if (p) {
-      const sec = minSecToSec(p);
-      if (sec > 0) paces.push(sec);
-    }
-  }
-  const el = document.getElementById('intervals-summary');
-  if (paces.length === 0) { el.textContent = ''; return; }
-  const avg = Math.round(paces.reduce((a,b) => a+b,0) / paces.length);
-  const best = Math.min(...paces);
-  const worst = Math.max(...paces);
-  el.textContent = `Allure moy: ${secToAllure(avg)}/km · Meilleure: ${secToAllure(best)}/km · Pire: ${secToAllure(worst)}/km`;
+function updateIntSummary() {
+  const paces=[];
+  for(let i=1;i<=intervalCount;i++){const p=document.getElementById(`int-pace-${i}`)?.value;if(p){const s=minSecToSec(p);if(s>0)paces.push(s);}}
+  const el=document.getElementById('intervals-summary');
+  if(!paces.length){el.textContent='';return;}
+  const avg=Math.round(paces.reduce((a,b)=>a+b,0)/paces.length);
+  el.textContent=`Moy: ${secToAllure(avg)}/km · Meilleure: ${secToAllure(Math.min(...paces))}/km · Pire: ${secToAllure(Math.max(...paces))}/km`;
 }
 
 function getIntervals() {
-  const intervals = [];
-  for (let i = 1; i <= intervalCount; i++) {
-    const dur = document.getElementById(`int-dur-${i}`)?.value;
-    const pace = document.getElementById(`int-pace-${i}`)?.value;
-    const feel = document.getElementById(`int-feel-${i}`)?.value;
-    if (dur || pace) intervals.push({ num: i, duration: dur, pace, feel, pace_seconds: minSecToSec(pace) || null });
+  const ivs=[];
+  for(let i=1;i<=intervalCount;i++){
+    const dur=document.getElementById(`int-dur-${i}`)?.value;
+    const pace=document.getElementById(`int-pace-${i}`)?.value;
+    const feel=document.getElementById(`int-feel-${i}`)?.value;
+    if(dur||pace) ivs.push({num:i,duration:dur,pace,feel,pace_seconds:minSecToSec(pace)||null});
   }
-  return intervals;
+  return ivs;
 }
-function renderHistory() {
-  const el = document.getElementById('history-list');
-  if (!allSessions.length) {
-    el.innerHTML = '<div class="empty-state">Aucune séance enregistrée pour l\'instant</div>';
-    return;
+
+function setRating(type,val) {
+  if(type==='effort'){
+    selectedEffort=val;
+    document.querySelectorAll('#effort-group .rating-btn').forEach((b,i)=>{b.className='rating-btn'+(i+1===val?' sel-effort':'');});
+  } else {
+    selectedPain=val;
+    document.querySelectorAll('#pain-group .rating-btn').forEach((b,i)=>{b.className=`rating-btn${i===val?` sel-pain-${val}`:''}`;});
+    document.getElementById('pain-loc-group').style.display=val>=2?'flex':'none';
   }
-
-  document.getElementById('history-sub').textContent = `${allSessions.length} séances enregistrées`;
-
-  el.innerHTML = `
-    <div class="session-item" style="border-bottom:1px solid var(--border);opacity:0.5;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em;">
-      <div>Date</div><div>Type</div><div>Détail</div><div>Allure</div><div>Effort</div>
-    </div>
-    ${allSessions.map(s => `
-      <div class="session-item">
-        <div class="session-date">${formatDate(s.date)}</div>
-        <div><span class="${typeClass(s.type)}">${s.type}</span></div>
-        <div style="font-family:var(--font-body);font-size:0.8rem;">${s.distance_km ? s.distance_km+'km' : ''} ${s.duration_minutes ? s.duration_minutes+'min' : ''} ${s.avg_hr ? '· '+s.avg_hr+'bpm' : ''}</div>
-        <div class="session-pace">${s.avg_pace_seconds ? secToAllure(s.avg_pace_seconds)+'/km' : '—'}</div>
-        <div class="session-effort">
-          ${[1,2,3,4,5].map(i => `<div class="effort-dot${i <= (s.perceived_effort||0) ? ' filled' : ''}"></div>`).join('')}
-          ${s.pain_level >= 2 ? `<span style="color:var(--danger);margin-left:4px;font-size:0.6rem;">⚠️${s.pain_level}</span>` : ''}
-        </div>
-      </div>
-    `).join('')}
-  `;
 }
 
-// ==================== COACH IA ====================
-async function loadCoach() {
-  const el = document.getElementById('coach-text');
-  el.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
-  await askCoach('bilan');
+function getPaceSeconds() {
+  const raw=document.getElementById('log-pace').value;
+  if(!raw) return null;
+  return minSecToSec(raw);
 }
 
-async function askCoach(type) {
-  const el = document.getElementById('coach-text');
-  el.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
-
-  const today = new Date();
-  const race10 = new Date(profile.race_10k_date || '2027-01-15');
-  const daysLeft = Math.ceil((race10 - today) / 86400000);
-
-  const recentStr = allSessions.slice(0, 7).map(s =>
-    `- ${s.date}: ${s.type} ${s.distance_km || '?'}km @ ${s.avg_pace_seconds ? secToAllure(s.avg_pace_seconds)+'/km' : '?'} effort ${s.perceived_effort}/5 douleur ${s.pain_level}/5`
-  ).join('\n') || 'Aucune séance enregistrée';
-
-  const nextStr = plannedSessions.filter(s => s.date >= today.toISOString().split('T')[0]).slice(0, 5).map(s =>
-    `- ${s.date}: ${s.type} ~${s.target_distance_km}km (${s.week_phase})`
-  ).join('\n') || 'Planning non généré';
-
-  const prompts = {
-    'bilan': `Fais un bilan coach complet de la semaine et donne les priorités pour la semaine à venir. Inclus un rappel de la progression vers sub-37.`,
-    'planning': `Explique le planning prévu (prochaines séances) et pourquoi ces choix sont adaptés au profil et aux objectifs.`,
-    'perio': `Analyse le risque de périostite en ce moment basé sur l'historique. Donne des conseils concrets de prévention.`,
-    'sub37': `Trace la route réaliste vers le sub-37 en janvier 2027. Qu'est-ce qui va déterminer si c'est faisable ?`,
+async function saveSession() {
+  const date=document.getElementById('log-date').value;
+  const type=document.getElementById('log-type').value;
+  const dist=parseFloat(document.getElementById('log-dist').value)||null;
+  const dur=parseInt(document.getElementById('log-duration').value)||null;
+  const hr=parseInt(document.getElementById('log-hr').value)||null;
+  const notes=document.getElementById('log-notes').value;
+  const painLoc=document.getElementById('log-pain-loc').value;
+  if(!date||!type){showToast('Date et type requis','error');return;}
+  let paceSeconds=getPaceSeconds();
+  if(!paceSeconds&&dist&&dur) paceSeconds=Math.round((dur*60)/dist);
+  const session={
+    date,type,distance_km:dist,duration_minutes:dur,avg_pace_seconds:paceSeconds,avg_hr:hr,
+    perceived_effort:selectedEffort,pain_level:selectedPain,
+    pain_location:selectedPain>=2?painLoc:null,notes,completed:true,
+    intervals:(type==='VMA'||type==='Seuil')?getIntervals():null
   };
-
-  const prompt = `Tu es un coach running expert et exigeant. Profil athlète:
-- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37 | ${daysLeft} jours restants
-- VMA estimée: 16.5 km/h | FC max: ${profile.fc_max} bpm
-- Fragilité: périostite si charge augmente trop vite (historique genou guéri)
-- Séances visées: ${profile.weekly_sessions}→${profile.target_weekly_sessions}/semaine
-
-Historique récent:
-${recentStr}
-
-Prochaines séances planifiées:
-${nextStr}
-
-Demande: ${prompts[type] || type}
-
-Réponds en français, de manière directe et personnalisée. 3-4 paragraphes max. Pas de bla-bla générique.`;
-
   try {
-    const res = await fetch('https://runcoach-proxy.landelleleo.workers.dev', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    el.textContent = data.content?.[0]?.text || 'Indisponible.';
-  } catch(e) {
-    el.textContent = 'Coach IA temporairement indisponible.';
-  }
+    const {error}=await db.from('sessions').insert([session]);
+    if(error) throw error;
+    showToast('Séance enregistrée ✓','success');
+    await loadSessions(); renderDashboard(); renderWeek(); renderHistory();
+    await analyzeSession(session);
+    if(selectedPain>=3) await adaptPlanForPain(session);
+  } catch(e){showToast('Erreur: '+e.message,'error');}
+}
+
+async function adaptPlanForPain(session) {
+  const today=new Date().toISOString().split('T')[0];
+  const next=plannedSessions.filter(s=>s.date>today&&!s.skipped&&['VMA','Seuil'].includes(s.type)).slice(0,3);
+  for(const s of next) await db.from('planned_sessions').update({type:'Récup',description:`[Adapté douleur ${session.pain_location||''}] Footing léger`,intensity_zone:1,target_distance_km:6}).eq('id',s.id);
+  const {data}=await db.from('planned_sessions').select('*').order('date');
+  plannedSessions=data||[]; renderWeek(); renderNextSessions();
+}
+
+async function analyzeSession(session) {
+  const el=document.getElementById('log-ai-response');
+  const textEl=document.getElementById('log-ai-text');
+  el.style.display='block';
+  textEl.innerHTML='<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+  const recent=allSessions.slice(0,5).map(s=>`- ${s.date}: ${s.type} ${s.distance_km||'?'}km effort ${s.perceived_effort}/5 douleur ${s.pain_level}/5`).join('\n');
+  const prompt=`Coach running expert. Analyse cette séance:
+- Type: ${session.type} | Distance: ${session.distance_km||'?'}km | Durée: ${session.duration_minutes||'?'}min
+- Allure: ${session.avg_pace_seconds?secToAllure(session.avg_pace_seconds)+'/km':'?'} | FC: ${session.avg_hr||'?'} bpm
+- Effort: ${session.perceived_effort}/5 | Douleur: ${session.pain_level}/5${session.pain_location?' ('+session.pain_location+')':''}
+- Notes: ${session.notes||'aucune'}
+- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif sub-37
+
+Historique récent:\n${recent}
+
+Donne analyse concise (2-3 para): qualité, vigilance santé si nécessaire, conseil pour la prochaine. Direct, technique, bienveillant.`;
+  try {
+    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'google/gemini-2.5-flash-preview',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();
+    textEl.textContent=data.content?.[0]?.text||'Analyse indisponible.';
+  } catch(e){textEl.textContent='Coach IA indisponible.';}
+}
+
+function clearLog() {
+  document.getElementById('log-dist').value='';
+  document.getElementById('log-duration').value='';
+  document.getElementById('log-pace').value='';
+  document.getElementById('log-hr').value='';
+  document.getElementById('log-notes').value='';
+  setRating('effort',3); setRating('pain',0);
+  document.getElementById('log-ai-response').style.display='none';
+  document.getElementById('intervals-section').style.display='none';
+  intervalCount=0; document.getElementById('intervals-list').innerHTML='';
+}
+
+// ═══════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════
+function renderHistory() {
+  const el=document.getElementById('history-list');
+  if(!allSessions.length){el.innerHTML='<div class="empty-state">Aucune séance enregistrée</div>';return;}
+  document.getElementById('history-sub').textContent=`${allSessions.length} séances`;
+  el.innerHTML=`<div class="session-item" style="opacity:.5;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;">
+    <div>Date</div><div>Type</div><div>Détail</div><div>Allure</div><div>Effort</div>
+  </div>`+allSessions.map(s=>`
+    <div class="session-item">
+      <div class="session-date">${formatDate(s.date)}</div>
+      <div>${typeBadge(s.type)}</div>
+      <div style="font-family:var(--fb);font-size:.8rem;">${s.distance_km?s.distance_km+'km':''} ${s.duration_minutes?s.duration_minutes+'min':''} ${s.avg_hr?'· '+s.avg_hr+'bpm':''}</div>
+      <div class="session-pace">${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'—'}</div>
+      <div class="effort-dots">
+        ${[1,2,3,4,5].map(i=>`<div class="effort-dot${i<=(s.perceived_effort||0)?' on':''}"></div>`).join('')}
+        ${s.pain_level>=2?`<span style="color:var(--danger);margin-left:4px;font-size:.6rem;">⚠️${s.pain_level}</span>`:''}
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════
+// COACH IA
+// ═══════════════════════════════════════════
+async function askCoach(type) {
+  const el=document.getElementById('coach-text');
+  el.innerHTML='<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+  const today=new Date(), race10=new Date(profile.race_10k_date||'2027-01-15');
+  const daysLeft=Math.ceil((race10-today)/86400000);
+  const recent=allSessions.slice(0,7).map(s=>`- ${s.date}: ${s.type} ${s.distance_km||'?'}km @ ${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'?'} effort ${s.perceived_effort}/5 douleur ${s.pain_level}/5`).join('\n')||'Aucune';
+  const next=plannedSessions.filter(s=>s.date>=today.toISOString().split('T')[0]).slice(0,5).map(s=>`- ${s.date}: ${s.type} ~${s.target_distance_km}km`).join('\n')||'Non généré';
+  const prompts={
+    'bilan':'Fais un bilan de la semaine et donne les priorités pour la semaine à venir.',
+    'planning':'Explique le planning prévu et pourquoi ces choix sont adaptés.',
+    'perio':'Analyse le risque de périostite. Donne des conseils concrets de prévention.',
+    'sub37':`Trace la route réaliste vers le sub-37 en janvier 2027. ${daysLeft} jours restants.`,
+  };
+  const prompt=`Coach running expert. Profil:
+- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37 | ${daysLeft} jours restants
+- FC max: ${profile.fc_max} | Fragilité: périostite si charge monte trop vite
+- Types utilisés: EF (Z1-Z2), Aérobie Z3, Seuil (Z4), VMA (Z5), Long, Récup
+
+Historique récent:\n${recent}
+
+Prochaines séances:\n${next}
+
+Demande: ${prompts[type]||type}
+
+Réponds en français, direct et personnalisé. 3-4 paragraphes max.`;
+  try {
+    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'google/gemini-2.5-flash-preview',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();
+    el.textContent=data.content?.[0]?.text||'Indisponible.';
+  } catch(e){el.textContent='Erreur: '+e.message;}
 }
 
 async function askCoachCustom() {
-  const q = document.getElementById('coach-question').value.trim();
-  if (!q) return;
+  const q=document.getElementById('coach-question').value.trim();
+  if(!q) return;
   await askCoach(q);
-  document.getElementById('coach-question').value = '';
+  document.getElementById('coach-question').value='';
 }
 
-// ==================== SKIP / ABSENCE ====================
+// ═══════════════════════════════════════════
+// SKIP / ABSENCE
+// ═══════════════════════════════════════════
 async function saveSkip() {
-  const date = document.getElementById('skip-date').value;
-  const reason = document.getElementById('skip-reason').value;
-  const notes = document.getElementById('skip-notes').value;
-
-  // Marquer la séance planifiée comme skippée
-  const planned = plannedSessions.find(s => s.date === date);
-  if (planned) {
-    await db.from('planned_sessions').update({ skipped: true, skip_reason: reason + (notes ? ': ' + notes : '') }).eq('id', planned.id);
+  const date=document.getElementById('skip-date').value;
+  const reason=document.getElementById('skip-reason').value;
+  const notes=document.getElementById('skip-notes').value;
+  const planned=plannedSessions.find(s=>s.date===date);
+  if(planned) await db.from('planned_sessions').update({skipped:true,skip_reason:reason+(notes?': '+notes:'')}).eq('id',planned.id);
+  if(reason==='douleur'){
+    const next=plannedSessions.filter(s=>s.date>date&&!s.skipped&&['VMA','Seuil'].includes(s.type)).slice(0,2);
+    for(const s of next) await db.from('planned_sessions').update({type:'EF',description:'[Adapté douleur] EF modérée',intensity_zone:2}).eq('id',s.id);
   }
-
-  // Adapter si douleur
-  if (reason === 'douleur') {
-    const next2Intense = plannedSessions.filter(s => s.date > date && !s.skipped && ['VMA','Seuil'].includes(s.type)).slice(0, 2);
-    for (const s of next2Intense) {
-      await db.from('planned_sessions').update({
-        type: 'EF',
-        description: '[Adapté suite absence douleur] EF modérée',
-        intensity_zone: 2
-      }).eq('id', s.id);
-    }
-  }
-
-  await loadPlannedSessions();
-  renderWeek();
-  renderNextSessions();
+  const {data}=await db.from('planned_sessions').select('*').order('date');
+  plannedSessions=data||[]; renderWeek(); renderNextSessions();
   closeModal('modal-skip');
-  showToast('Absence signalée — planning adapté ✓', 'success');
+  showToast('Absence signalée — planning adapté ✓','success');
 }
 
-// ==================== UTILS ====================
+// ═══════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════
 function secToTime(sec) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
+  const m=Math.floor(sec/60),s=sec%60;
   return `${m}'${s.toString().padStart(2,'0')}"`;
 }
-
 function secToAllure(sec) {
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
+  const m=Math.floor(sec/60),s=Math.round(sec%60);
   return `${m}'${s.toString().padStart(2,'0')}"`;
 }
-
+function secToMinSec(sec) {
+  const m=Math.floor(sec/60),s=sec%60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+function minSecToSec(str) {
+  if(!str) return 0;
+  const p=str.replace("'",':').replace('"','').split(':');
+  if(p.length===2) return parseInt(p[0])*60+parseInt(p[1]);
+  return parseInt(str)||0;
+}
 function formatDate(str) {
-  if (!str) return '';
-  const d = new Date(str + 'T12:00:00');
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  if(!str) return '';
+  return new Date(str+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
 }
-
 function formatDateShort(d) {
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
 }
-
+function getDayFr(dateStr) {
+  return new Date(dateStr+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long'});
+}
 function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0,0,0,0);
-  return d;
+  const d=new Date(date), day=d.getDay(), diff=day===0?-6:1-day;
+  d.setDate(d.getDate()+diff); d.setHours(0,0,0,0); return d;
 }
-
-function showToast(msg, type = 'success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type} show`;
-  setTimeout(() => t.className = 'toast', 3000);
+function showToast(msg,type='success') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`toast ${type} show`;
+  setTimeout(()=>t.className='toast',3000);
 }
-
 function showPage(name) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-  const tabs = ['dashboard', 'planning', 'log', 'history', 'coach', 'profil'];
-  const idx = tabs.indexOf(name);
-  if (idx >= 0) document.querySelectorAll('.nav-tab')[idx].classList.add('active');
-
-  if (name === 'planning') renderWeek();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const tabs=['dashboard','planning','log','history','coach','profil'];
+  const idx=tabs.indexOf(name);
+  if(idx>=0) document.querySelectorAll('.nav-tab')[idx].classList.add('active');
+  if(name==='planning') renderWeek();
 }
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
 
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-
-document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('open'); });
-});
-
-// ==================== START ====================
+// ═══════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════
 init();
 </script>
 </body>
