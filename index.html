@@ -482,6 +482,7 @@ select option{background:var(--surface);}
 const SUPABASE_URL = 'https://hqnwygpfbceyymkwtccg.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbnd5Z3BmYmNleXlta3d0Y2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTE3MjIsImV4cCI6MjA4OTc2NzcyMn0.Po75hhyCegnNVVihqfQIHJkw20jUeGI1MD95Jqpn-3A';
 const PROXY_URL = 'https://runcoach-proxy.landelleleo.workers.dev';
+const MODEL = 'google/gemini-3-flash-preview';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -1006,7 +1007,7 @@ Réponds UNIQUEMENT en JSON:
 
   try {
     const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'google/gemini-2.5-flash-preview',max_tokens:1500,messages:[{role:'user',content:prompt}]})});
+      body:JSON.stringify({model:MODEL,max_tokens:1500,messages:[{role:'user',content:prompt}]})});
     const data=await res.json();
     const raw=data.content?.[0]?.text||'{}';
     let parsed;
@@ -1173,7 +1174,7 @@ Historique récent:\n${recent}
 Donne analyse concise (2-3 para): qualité, vigilance santé si nécessaire, conseil pour la prochaine. Direct, technique, bienveillant.`;
   try {
     const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'google/gemini-2.5-flash-preview',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+      body:JSON.stringify({model:MODEL,max_tokens:800,messages:[{role:'user',content:prompt}]})});
     const data=await res.json();
     textEl.textContent=data.content?.[0]?.text||'Analyse indisponible.';
   } catch(e){textEl.textContent='Coach IA indisponible.';}
@@ -1243,7 +1244,7 @@ Demande: ${prompts[type]||type}
 Réponds en français, direct et personnalisé. 3-4 paragraphes max.`;
   try {
     const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'google/gemini-2.5-flash-preview',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+      body:JSON.stringify({model:MODEL,max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const data=await res.json();
     el.textContent=data.content?.[0]?.text||'Indisponible.';
   } catch(e){el.textContent='Erreur: '+e.message;}
