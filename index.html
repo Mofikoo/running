@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root {
   --bg:#0a0a0f; --surface:#12121a; --surface2:#1a1a26; --border:#2a2a3a;
@@ -189,6 +190,7 @@ select option{background:var(--surface);}
     <button class="nav-tab" onclick="showPage('planning')">Planning</button>
     <button class="nav-tab" onclick="showPage('log')">Log séance</button>
     <button class="nav-tab" onclick="showPage('history')">Historique</button>
+    <button class="nav-tab" onclick="showPage('graphs')">Graphiques</button>
     <button class="nav-tab" onclick="showPage('coach')">Coach IA</button>
     <button class="nav-tab" onclick="showPage('profil')">Profil</button>
   </div>
@@ -199,7 +201,10 @@ select option{background:var(--surface);}
 <div id="page-dashboard" class="page active">
   <div class="section-header">
     <div><div class="section-title">DASHBOARD</div><div class="section-sub" id="dash-date"></div></div>
-    <button class="btn" onclick="showPage('log')">+ Log séance</button>
+    <div style="display:flex;gap:.5rem;">
+      <button class="btn btn-ghost" onclick="runAdaptationEngine().then(r=>r&&console.log('Adaptation:',r))" title="Analyse tes données et recalibre automatiquement VMA + planning">⚡ Adapter</button>
+      <button class="btn" onclick="showPage('log')">+ Log séance</button>
+    </div>
   </div>
   <div id="alerts-zone"></div>
 
@@ -392,6 +397,44 @@ select option{background:var(--surface);}
   </div>
 </div>
 
+<!-- GRAPHIQUES -->
+<div id="page-graphs" class="page">
+  <div class="section-header">
+    <div><div class="section-title">GRAPHIQUES</div><div class="section-sub">Progression · Charge · Performance</div></div>
+    <select id="graph-period" onchange="renderGraphs()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:var(--fm);font-size:.75rem;padding:.4rem .8rem;border-radius:6px;">
+      <option value="30">30 derniers jours</option>
+      <option value="60">60 derniers jours</option>
+      <option value="90" selected>90 derniers jours</option>
+      <option value="180">6 mois</option>
+      <option value="365">1 an</option>
+    </select>
+  </div>
+  <div class="grid-2" style="margin-bottom:1rem;">
+    <div class="card">
+      <div class="card-title">Volume hebdomadaire (km)</div>
+      <canvas id="chart-volume" height="200"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">Allure EF moyenne — progression</div>
+      <canvas id="chart-pace" height="200"></canvas>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-bottom:1rem;">
+    <div class="card">
+      <div class="card-title">FC moyenne par type de séance</div>
+      <canvas id="chart-hr" height="200"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">Répartition des types de séances</div>
+      <canvas id="chart-types" height="200"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Charge cumulée (km/semaine) + tendance</div>
+    <canvas id="chart-load" height="120"></canvas>
+  </div>
+</div>
+
 <!-- HISTORIQUE -->
 <div id="page-history" class="page">
   <div class="section-header">
@@ -457,6 +500,93 @@ select option{background:var(--surface);}
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ÉDITION ACTIVITÉ -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-title">✏️ Modifier la séance</div>
+    <input type="hidden" id="edit-session-id">
+
+    <div class="form-grid" style="margin-bottom:1rem;">
+      <div class="form-group"><label>Date</label><input type="date" id="edit-date"></div>
+      <div class="form-group"><label>Type</label>
+        <select id="edit-type" onchange="onEditTypeChange()">
+          <option value="EF">EF — Endurance fondamentale</option>
+          <option value="Aérobie Z3">Aérobie Z3</option>
+          <option value="Seuil">Seuil (Z4)</option>
+          <option value="VMA">VMA — Fractionné</option>
+          <option value="Long">Sortie longue</option>
+          <option value="Récup">Récupération</option>
+          <option value="Compét">Compétition</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Distance (km)</label><input type="number" id="edit-dist" step="0.1"></div>
+      <div class="form-group"><label>Durée (min)</label><input type="number" id="edit-duration"></div>
+      <div class="form-group"><label>Allure moy (min:sec)</label><input type="text" id="edit-pace" placeholder="5'30&quot;"></div>
+      <div class="form-group"><label>FC moyenne (bpm)</label><input type="number" id="edit-hr"></div>
+    </div>
+
+    <div style="display:flex;gap:1.5rem;margin-bottom:1rem;">
+      <div style="flex:1;">
+        <label style="display:block;margin-bottom:.5rem;">Effort (1–5)</label>
+        <div class="rating-group" id="edit-effort-group">
+          <button class="rating-btn" onclick="setEditRating('effort',1)">1</button>
+          <button class="rating-btn" onclick="setEditRating('effort',2)">2</button>
+          <button class="rating-btn" onclick="setEditRating('effort',3)">3</button>
+          <button class="rating-btn" onclick="setEditRating('effort',4)">4</button>
+          <button class="rating-btn" onclick="setEditRating('effort',5)">5</button>
+        </div>
+      </div>
+      <div style="flex:1;">
+        <label style="display:block;margin-bottom:.5rem;">Douleur (0–5)</label>
+        <div class="rating-group" id="edit-pain-group">
+          <button class="rating-btn" onclick="setEditRating('pain',0)">0</button>
+          <button class="rating-btn" onclick="setEditRating('pain',1)">1</button>
+          <button class="rating-btn" onclick="setEditRating('pain',2)">2</button>
+          <button class="rating-btn" onclick="setEditRating('pain',3)">3</button>
+          <button class="rating-btn" onclick="setEditRating('pain',4)">4</button>
+          <button class="rating-btn" onclick="setEditRating('pain',5)">5</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:1rem;">
+      <label>Notes</label>
+      <textarea id="edit-notes" rows="2"></textarea>
+    </div>
+
+    <!-- Intervalles édition -->
+    <div id="edit-intervals-section" style="display:none;">
+      <div class="divider"></div>
+      <div class="card-title" style="margin-bottom:.75rem;">Détail des intervalles <span class="badge" id="edit-intervals-badge">VMA</span></div>
+      <div id="edit-intervals-list" style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.75rem;"></div>
+      <div style="display:flex;gap:.75rem;margin-bottom:.75rem;">
+        <button class="btn btn-ghost" onclick="addEditInterval()" style="flex:1;">+ Intervalle</button>
+        <button class="btn btn-ghost" onclick="removeEditInterval()" style="padding:.75rem 1rem;">−</button>
+      </div>
+      <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);" id="edit-intervals-summary"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Analyse prévu vs réalisé -->
+    <div id="edit-analysis-section" style="display:none;margin-bottom:1rem;">
+      <div class="ai-panel" style="padding:1rem;">
+        <div class="ai-header" style="margin-bottom:.75rem;">
+          <div class="ai-avatar" style="width:28px;height:28px;font-size:.8rem;">⚡</div>
+          <div><div class="ai-name" style="font-size:.9rem;">PRÉVU VS RÉALISÉ</div></div>
+        </div>
+        <div class="ai-message" id="edit-analysis-text" style="font-size:.83rem;"></div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit')">Annuler</button>
+      <button class="btn btn-ghost" onclick="analyzeVsPlanned()" id="btn-analyze" style="display:none;">🔍 Analyser vs planning</button>
+      <button class="btn" onclick="saveEditSession()">Sauvegarder</button>
     </div>
   </div>
 </div>
@@ -842,57 +972,165 @@ function getPhase(w,total,race15,today) {
   return 'affûtage_10k';
 }
 
-function getSessionsForPhase(phase) {
-  const plans={
-    'base':[
-      {type:'EF',km:8,desc:'EF douce — construire la base aérobie',zone:2},
-      {type:'Seuil',km:9,desc:'2×15\' tempo confortable',zone:3},
-      {type:'EF',km:10,desc:'EF + 6×100m foulées vives',zone:2},
-      {type:'Long',km:13,desc:'Sortie longue Z2 — allure conversationnelle',zone:2},
+function getSessionsForPhase(phase, w) {
+  // Rotation hebdomadaire pour éviter la redondance
+  const rot = w % 4; // 4 variantes par phase
+
+  const plans = {
+    'base': [
+      [
+        {type:'EF',   km:8,  desc:'EF douce — allure conversationnelle stricte', zone:2},
+        {type:'Seuil',km:9,  desc:'2×15\' tempo Z3 — récup 3\' trot', zone:3},
+        {type:'EF',   km:10, desc:'EF + 8×100m foulées vives (récup 100m marche)', zone:2},
+        {type:'Long', km:13, desc:'Sortie longue Z2 — resiste à l\'envie d\'accélérer', zone:2},
+      ],
+      [
+        {type:'EF',   km:8,  desc:'EF facile — récupération active', zone:2},
+        {type:'Seuil',km:9,  desc:'3×10\' seuil Z3-Z4 — récup 2\' trot', zone:3},
+        {type:'EF',   km:10, desc:'EF progressive — derniers 2km allure seuil', zone:2},
+        {type:'Long', km:13, desc:'Sortie longue — milieu à allure Z2 soutenue', zone:2},
+      ],
+      [
+        {type:'Récup',km:6,  desc:'Footing récupération — très lent, jambes légères', zone:1},
+        {type:'Seuil',km:10, desc:'20\' continu au seuil — focus sur la régularité', zone:4},
+        {type:'EF',   km:9,  desc:'EF + 6×150m accélérations progressives', zone:2},
+        {type:'Long', km:14, desc:'Sortie longue — derniers 3km à allure 10km+30sec', zone:2},
+      ],
+      [
+        {type:'EF',   km:7,  desc:'EF de récup — semaine de décharge', zone:2},
+        {type:'Seuil',km:8,  desc:'2×12\' seuil — semaine allégée · récup 3\'', zone:3},
+        {type:'EF',   km:8,  desc:'EF tranquille avec quelques foulées', zone:2},
+        {type:'Long', km:11, desc:'Sortie longue courte — semaine récup', zone:2},
+      ],
     ],
-    'développement':[
-      {type:'EF',km:9,desc:'EF progressive — derniers 2km à allure seuil',zone:2},
-      {type:'VMA',km:10,desc:'6×6\' à 90-95% VMA — récup 3\'',zone:5},
-      {type:'Seuil',km:11,desc:'4×8\' seuil + 10\' continu',zone:4},
-      {type:'Long',km:16,desc:'Sortie longue — derniers 4km allure marathon',zone:2},
-      {type:'Récup',km:6,desc:'Footing récup — très lent',zone:1},
+    'développement': [
+      [
+        {type:'EF',   km:9,  desc:'EF progressive — derniers 3km allure seuil', zone:2},
+        {type:'VMA',  km:10, desc:'6×5\' à 95% VMA — récup 2\'30 trot', zone:5},
+        {type:'Seuil',km:11, desc:'3×10\' seuil anaérobie — récup 2\' trot', zone:4},
+        {type:'Long', km:16, desc:'Sortie longue — km 8-12 allure marathon', zone:2},
+        {type:'Récup',km:6,  desc:'Footing récup — écoute le corps', zone:1},
+      ],
+      [
+        {type:'EF',   km:10, desc:'EF + 10×100m strides (récup 100m marche)', zone:2},
+        {type:'VMA',  km:10, desc:'8×3\' à 100% VMA — récup 3\' marche/trot', zone:5},
+        {type:'Seuil',km:11, desc:'4×8\' seuil — récup 90sec · focus allure', zone:4},
+        {type:'Long', km:16, desc:'Sortie longue — allure Z2 constante', zone:2},
+        {type:'Récup',km:6,  desc:'Récup active — 45min très léger', zone:1},
+      ],
+      [
+        {type:'EF',   km:9,  desc:'EF + 6×200m allure 10km (récup 200m)', zone:2},
+        {type:'VMA',  km:11, desc:'5×6\' à 92% VMA — récup 3\' trot', zone:5},
+        {type:'Seuil',km:12, desc:'25\' continu au seuil + 2×5\' Z4', zone:4},
+        {type:'Long', km:17, desc:'Sortie longue — 5 derniers km progressifs', zone:2},
+        {type:'Récup',km:6,  desc:'Footing léger récup', zone:1},
+      ],
+      [
+        {type:'EF',   km:8,  desc:'EF allégée — semaine de décharge', zone:2},
+        {type:'VMA',  km:9,  desc:'5×4\' VMA — version courte · récup 3\'', zone:5},
+        {type:'Seuil',km:9,  desc:'2×12\' seuil — récup 3\' · semaine légère', zone:4},
+        {type:'Long', km:13, desc:'Sortie longue courte — décharge active', zone:2},
+        {type:'Récup',km:5,  desc:'Footing très léger', zone:1},
+      ],
     ],
-    'spécifique':[
-      {type:'EF',km:10,desc:'EF + striders 8×100m',zone:2},
-      {type:'VMA',km:11,desc:'3×2000m allure objectif 10km',zone:5},
-      {type:'Seuil',km:12,desc:'30\' continu au seuil',zone:4},
-      {type:'Long',km:18,desc:'Sortie longue — milieu à allure semi',zone:2},
-      {type:'Récup',km:7,desc:'Récupération active',zone:1},
+    'spécifique': [
+      [
+        {type:'EF',   km:10, desc:'EF + 8×150m strides allure 5km', zone:2},
+        {type:'VMA',  km:11, desc:'3×2000m allure objectif 10km — récup 3\' trot', zone:5},
+        {type:'Seuil',km:12, desc:'30\' continu seuil anaérobie — tenu !', zone:4},
+        {type:'Long', km:18, desc:'Sortie longue — km 10-15 allure semi', zone:2},
+        {type:'Récup',km:7,  desc:'Récupération active', zone:1},
+      ],
+      [
+        {type:'EF',   km:10, desc:'EF + 10×100m accélérations progressives', zone:2},
+        {type:'VMA',  km:11, desc:'5×1500m allure objectif 10km — récup 2\'30', zone:5},
+        {type:'Seuil',km:12, desc:'2×15\' seuil + 3×3\' Z5 — récup 3\'', zone:4},
+        {type:'Long', km:18, desc:'Sortie longue — allure croissante Z2→Z3', zone:2},
+        {type:'Récup',km:7,  desc:'Footing récup', zone:1},
+      ],
+      [
+        {type:'EF',   km:11, desc:'EF progressive + 6×200m allure 10km', zone:2},
+        {type:'VMA',  km:12, desc:'6×1000m allure 10km-10sec — récup 2\' trot', zone:5},
+        {type:'Seuil',km:13, desc:'35\' continu seuil — test de résistance', zone:4},
+        {type:'Long', km:19, desc:'Sortie longue — segment central 8km allure marathon', zone:2},
+        {type:'Récup',km:7,  desc:'Récup légère', zone:1},
+      ],
+      [
+        {type:'EF',   km:9,  desc:'EF — décharge semaine', zone:2},
+        {type:'VMA',  km:10, desc:'4×1200m allure 10km — récup 2\' · version courte', zone:5},
+        {type:'Seuil',km:10, desc:'20\' seuil + 2×5\' Z4 — semaine allégée', zone:4},
+        {type:'Long', km:15, desc:'Sortie longue courte — récup active', zone:2},
+        {type:'Récup',km:6,  desc:'Footing léger', zone:1},
+      ],
     ],
-    'affûtage_15k':[
-      {type:'EF',km:8,desc:'EF légère + accélérations',zone:2},
-      {type:'VMA',km:8,desc:'5×1000m allure 10km',zone:5},
-      {type:'Récup',km:6,desc:'Footing récup pré-15km',zone:1},
+    'affûtage_15k': [
+      [
+        {type:'EF',   km:8, desc:'EF légère + 6×100m accélérations vives', zone:2},
+        {type:'VMA',  km:8, desc:'5×1000m allure 10km — récup 2\' · affûtage', zone:5},
+        {type:'Récup',km:5, desc:'Footing récup pré-15km — fraîcheur', zone:1},
+      ],
+      [
+        {type:'EF',   km:8, desc:'EF + quelques foulées vives', zone:2},
+        {type:'Seuil',km:8, desc:'3×8\' seuil — version courte affûtage · récup 2\'', zone:4},
+        {type:'Récup',km:5, desc:'Footing très léger J-2', zone:1},
+      ],
     ],
-    'bloc_final':[
-      {type:'EF',km:10,desc:'EF solide',zone:2},
-      {type:'VMA',km:11,desc:'4×1500m allure objectif 10km',zone:5},
-      {type:'Seuil',km:12,desc:'3×10\' seuil — qualité',zone:4},
-      {type:'Long',km:17,desc:'Sortie longue progressive',zone:2},
-      {type:'Récup',km:6,desc:'Récup active',zone:1},
+    'bloc_final': [
+      [
+        {type:'EF',   km:10, desc:'EF solide + 8×100m strides', zone:2},
+        {type:'VMA',  km:11, desc:'4×1500m allure objectif 10km — récup 3\' trot', zone:5},
+        {type:'Seuil',km:12, desc:'3×10\' seuil + 5\' récup trot — qualité pure', zone:4},
+        {type:'Long', km:17, desc:'Sortie longue progressive Z2→Z3', zone:2},
+        {type:'Récup',km:6,  desc:'Récup active', zone:1},
+      ],
+      [
+        {type:'EF',   km:10, desc:'EF + 6×200m allure 10km (récup 200m)', zone:2},
+        {type:'VMA',  km:12, desc:'3×2000m allure 10km — récup 3\' · qualité', zone:5},
+        {type:'Seuil',km:12, desc:'30\' continu seuil — robustesse', zone:4},
+        {type:'Long', km:17, desc:'Sortie longue — 6km finaux à allure 10km+45sec', zone:2},
+        {type:'Récup',km:6,  desc:'Footing léger', zone:1},
+      ],
+      [
+        {type:'EF',   km:11, desc:'EF + 10×100m strides allure 5km', zone:2},
+        {type:'VMA',  km:11, desc:'5×1200m allure 10km-5sec — récup 2\'30', zone:5},
+        {type:'Seuil',km:13, desc:'2×15\' seuil + 3×3\' Z5 — récup 3\'', zone:4},
+        {type:'Long', km:18, desc:'Sortie longue — segment 8km allure cible', zone:2},
+        {type:'Récup',km:6,  desc:'Récup active', zone:1},
+      ],
+      [
+        {type:'EF',   km:9,  desc:'EF décharge — jambes légères', zone:2},
+        {type:'VMA',  km:10, desc:'4×1000m allure 10km — version allégée · récup 2\'', zone:5},
+        {type:'Seuil',km:10, desc:'20\' seuil + 2×5\' Z5 · semaine récup', zone:4},
+        {type:'Long', km:14, desc:'Sortie longue courte — décharge', zone:2},
+        {type:'Récup',km:5,  desc:'Footing léger', zone:1},
+      ],
     ],
-    'affûtage_10k':[
-      {type:'EF',km:7,desc:'EF légère + 4×100m vifs',zone:2},
-      {type:'VMA',km:7,desc:'4×800m allure objectif',zone:5},
-      {type:'Récup',km:5,desc:'Footing très léger J-2',zone:1},
+    'affûtage_10k': [
+      [
+        {type:'EF',   km:7, desc:'EF légère + 4×150m accélérations progressives', zone:2},
+        {type:'VMA',  km:7, desc:'4×800m allure objectif 10km — récup 2\' · rappel du rythme', zone:5},
+        {type:'Récup',km:5, desc:'Footing très léger J-3 — conservation', zone:1},
+      ],
+      [
+        {type:'EF',   km:6, desc:'EF courte + 6×100m strides — jambes vives', zone:2},
+        {type:'VMA',  km:6, desc:'3×1000m allure 10km — récup 2\'30 · dernière intensité', zone:5},
+        {type:'Récup',km:4, desc:'Jogging 30min — fraîcheur maximale J-2', zone:1},
+      ],
     ],
   };
-  return plans[phase]||plans['base'];
+
+  const variants = plans[phase] || plans['base'];
+  // Rotation : semaine récup (toutes les 4) → toujours dernière variante (la plus légère)
+  const isRecupWeek = (w + 1) % 4 === 0;
+  const variantIdx = isRecupWeek ? variants.length - 1 : rot % (variants.length - 1);
+  return variants[variantIdx];
 }
 
 // Progression intelligente basée sur l'historique réel + réglage utilisateur
 function getProgMultipliers() {
-  // Intensité utilisateur : 1=très prudent, 2=prudent, 3=normal, 4=ambitieux, 5=agressif
   const intensity = profile.prog_intensity || 3;
-  // Max gain total sur la période selon intensité
-  const maxGain = { 1: 0.20, 2: 0.30, 3: 0.40, 4: 0.55, 5: 0.70 }[intensity];
-  // Taux de progression hebdomadaire max (règle des 10% adaptée)
-  const weeklyMax = { 1: 0.06, 2: 0.08, 3: 0.10, 4: 0.12, 5: 0.15 }[intensity];
+  const maxGain   = { 1: 0.10, 2: 0.20, 3: 0.30, 4: 0.40, 5: 0.50 }[intensity];
+  const weeklyMax = { 1: 0.03, 2: 0.05, 3: 0.08, 4: 0.10, 5: 0.12 }[intensity];
   return { maxGain, weeklyMax };
 }
 
@@ -935,13 +1173,13 @@ function adjustKm(km, w, total, isRecup) {
 
 function updateProgLabel(val) {
   const labels = {
-    1: 'très prudente (+20% max)',
-    2: 'prudente (+30% max)',
-    3: 'normale (+40% max)',
-    4: 'ambitieuse (+55% max)',
-    5: 'agressive (+70% max)'
+    1: 'conservative (+10% max · +3%/sem)',
+    2: 'prudente (+20% max · +5%/sem)',
+    3: 'standard (+30% max · +8%/sem)',
+    4: 'ambitieuse (+40% max · +10%/sem)',
+    5: 'intensive (+50% max · +12%/sem)'
   };
-  document.getElementById('prog-pct-label').textContent = labels[val] || 'normale';
+  document.getElementById('prog-pct-label').textContent = labels[val] || 'standard';
 }
 
 function paceForType(type) {
@@ -1268,19 +1506,242 @@ function renderHistory() {
   const el=document.getElementById('history-list');
   if(!allSessions.length){el.innerHTML='<div class="empty-state">Aucune séance enregistrée</div>';return;}
   document.getElementById('history-sub').textContent=`${allSessions.length} séances`;
-  el.innerHTML=`<div class="session-item" style="opacity:.5;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;">
-    <div>Date</div><div>Type</div><div>Détail</div><div>Allure</div><div>Effort</div>
+  el.innerHTML=`<div class="session-item" style="opacity:.5;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;grid-template-columns:70px 90px 1fr auto auto 60px;">
+    <div>Date</div><div>Type</div><div>Détail</div><div>Allure</div><div>Effort</div><div></div>
   </div>`+allSessions.map(s=>`
-    <div class="session-item">
+    <div class="session-item" style="grid-template-columns:70px 90px 1fr auto auto 60px;">
       <div class="session-date">${formatDate(s.date)}</div>
       <div>${typeBadge(s.type)}</div>
-      <div style="font-family:var(--fb);font-size:.8rem;">${s.distance_km?s.distance_km+'km':''} ${s.duration_minutes?s.duration_minutes+'min':''} ${s.avg_hr?'· '+s.avg_hr+'bpm':''}</div>
+      <div style="font-family:var(--fb);font-size:.8rem;">${s.distance_km?s.distance_km+'km':''} ${s.duration_minutes?s.duration_minutes+'min':''} ${s.avg_hr?'· '+s.avg_hr+'bpm':''}${s.intervals&&s.intervals.length?` · <span style="color:var(--accent2);">${s.intervals.length} int.</span>`:''}</div>
       <div class="session-pace">${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'—'}</div>
       <div class="effort-dots">
         ${[1,2,3,4,5].map(i=>`<div class="effort-dot${i<=(s.perceived_effort||0)?' on':''}"></div>`).join('')}
         ${s.pain_level>=2?`<span style="color:var(--danger);margin-left:4px;font-size:.6rem;">⚠️${s.pain_level}</span>`:''}
       </div>
+      <button class="btn btn-ghost" style="padding:.3rem .6rem;font-size:.65rem;" onclick="openEditSession('${s.id}')">✏️</button>
     </div>`).join('');
+}
+
+// ═══════════════════════════════════════════
+// ÉDITION ACTIVITÉ
+// ═══════════════════════════════════════════
+let editEffort = 3, editPain = 0, editIntervalCount = 0;
+
+function openEditSession(id) {
+  const s = allSessions.find(s => s.id === id);
+  if (!s) return;
+
+  document.getElementById('edit-session-id').value = id;
+  document.getElementById('edit-date').value = s.date;
+  document.getElementById('edit-type').value = s.type;
+  document.getElementById('edit-dist').value = s.distance_km || '';
+  document.getElementById('edit-duration').value = s.duration_minutes || '';
+  document.getElementById('edit-pace').value = s.avg_pace_seconds ? secToAllure(s.avg_pace_seconds) : '';
+  document.getElementById('edit-hr').value = s.avg_hr || '';
+  document.getElementById('edit-notes').value = s.notes || '';
+
+  editEffort = s.perceived_effort || 3;
+  editPain = s.pain_level || 0;
+  setEditRating('effort', editEffort);
+  setEditRating('pain', editPain);
+
+  // Intervalles existants
+  editIntervalCount = 0;
+  document.getElementById('edit-intervals-list').innerHTML = '';
+  document.getElementById('edit-intervals-summary').textContent = '';
+
+  onEditTypeChange(s.type);
+
+  if (s.intervals && s.intervals.length) {
+    s.intervals.forEach(iv => addEditInterval(iv.duration||'', iv.pace||'', iv.avg_hr||'', iv.feel||'ok'));
+  }
+
+  // Bouton analyser : visible si il y a une séance planifiée ce jour
+  const planned = plannedSessions.find(p => p.date === s.date);
+  document.getElementById('btn-analyze').style.display = planned ? 'block' : 'none';
+  document.getElementById('edit-analysis-section').style.display = 'none';
+
+  openModal('modal-edit');
+}
+
+function onEditTypeChange(type) {
+  type = type || document.getElementById('edit-type').value;
+  const sec = document.getElementById('edit-intervals-section');
+  if (type === 'VMA' || type === 'Seuil') {
+    sec.style.display = 'block';
+    document.getElementById('edit-intervals-badge').textContent = type;
+  } else {
+    sec.style.display = 'none';
+  }
+}
+
+function setEditRating(type, val) {
+  if (type === 'effort') {
+    editEffort = val;
+    document.querySelectorAll('#edit-effort-group .rating-btn').forEach((b,i) => {
+      b.className = 'rating-btn' + (i+1===val ? ' sel-effort' : '');
+    });
+  } else {
+    editPain = val;
+    document.querySelectorAll('#edit-pain-group .rating-btn').forEach((b,i) => {
+      b.className = `rating-btn${i===val ? ` sel-pain-${val}` : ''}`;
+    });
+  }
+}
+
+function addEditInterval(dur='', pace='', hr='', feel='ok') {
+  editIntervalCount++;
+  const n = editIntervalCount;
+  const row = document.createElement('div');
+  row.id = `edit-interval-${n}`;
+  row.style.cssText = 'display:grid;grid-template-columns:30px 1fr 1fr 80px 1fr;gap:.4rem;align-items:center;';
+  row.innerHTML = `
+    <div style="font-family:var(--fd);font-size:1rem;color:var(--muted);text-align:center;">${n}</div>
+    <div class="form-group" style="margin:0;"><label>Durée/dist</label><input type="text" id="edit-int-dur-${n}" placeholder="6min" value="${dur}" oninput="updateEditIntSummary()"></div>
+    <div class="form-group" style="margin:0;"><label>Allure</label><input type="text" id="edit-int-pace-${n}" placeholder="3'45&quot;" value="${pace}" oninput="updateEditIntSummary()"></div>
+    <div class="form-group" style="margin:0;"><label>FC</label><input type="number" id="edit-int-hr-${n}" placeholder="175" value="${hr}" min="100" max="220"></div>
+    <div class="form-group" style="margin:0;"><label>Ressenti</label>
+      <select id="edit-int-feel-${n}">
+        <option value="facile"${feel==='facile'?' selected':''}>Facile</option>
+        <option value="ok"${feel==='ok'?' selected':''}>OK</option>
+        <option value="dur"${feel==='dur'?' selected':''}>Dur</option>
+        <option value="trop_dur"${feel==='trop_dur'?' selected':''}>Trop dur</option>
+      </select>
+    </div>`;
+  document.getElementById('edit-intervals-list').appendChild(row);
+  updateEditIntSummary();
+}
+
+function removeEditInterval() {
+  if (editIntervalCount <= 1) return;
+  document.getElementById(`edit-interval-${editIntervalCount}`)?.remove();
+  editIntervalCount--;
+  updateEditIntSummary();
+}
+
+function updateEditIntSummary() {
+  const paces = [];
+  for (let i=1; i<=editIntervalCount; i++) {
+    const p = document.getElementById(`edit-int-pace-${i}`)?.value;
+    if (p) { const s = minSecToSec(p); if (s>0) paces.push(s); }
+  }
+  const el = document.getElementById('edit-intervals-summary');
+  if (!paces.length) { el.textContent=''; return; }
+  const avg = Math.round(paces.reduce((a,b)=>a+b,0)/paces.length);
+  el.textContent = `Moy: ${secToAllure(avg)}/km · Meilleure: ${secToAllure(Math.min(...paces))}/km · Pire: ${secToAllure(Math.max(...paces))}/km`;
+}
+
+function getEditIntervals() {
+  const ivs = [];
+  for (let i=1; i<=editIntervalCount; i++) {
+    const dur  = document.getElementById(`edit-int-dur-${i}`)?.value;
+    const pace = document.getElementById(`edit-int-pace-${i}`)?.value;
+    const hr   = document.getElementById(`edit-int-hr-${i}`)?.value;
+    const feel = document.getElementById(`edit-int-feel-${i}`)?.value;
+    if (dur||pace) ivs.push({
+      num:i, duration:dur, pace, feel,
+      avg_hr: hr ? parseInt(hr) : null,
+      pace_seconds: minSecToSec(pace)||null
+    });
+  }
+  return ivs;
+}
+
+async function saveEditSession() {
+  const id   = document.getElementById('edit-session-id').value;
+  const type = document.getElementById('edit-type').value;
+  const paceRaw = document.getElementById('edit-pace').value;
+  const updates = {
+    date:             document.getElementById('edit-date').value,
+    type,
+    distance_km:      parseFloat(document.getElementById('edit-dist').value)||null,
+    duration_minutes: parseInt(document.getElementById('edit-duration').value)||null,
+    avg_pace_seconds: minSecToSec(paceRaw)||null,
+    avg_hr:           parseInt(document.getElementById('edit-hr').value)||null,
+    perceived_effort: editEffort,
+    pain_level:       editPain,
+    notes:            document.getElementById('edit-notes').value,
+    intervals:        (type==='VMA'||type==='Seuil') ? getEditIntervals() : null,
+  };
+
+  try {
+    const {error} = await db.from('sessions').update(updates).eq('id', id);
+    if (error) throw error;
+    showToast('Séance mise à jour ✓', 'success');
+    await loadSessions();
+    renderHistory();
+    renderDashboard();
+    renderWeek();
+    closeModal('modal-edit');
+  } catch(e) {
+    showToast('Erreur: ' + e.message, 'error');
+  }
+}
+
+async function analyzeVsPlanned() {
+  const id      = document.getElementById('edit-session-id').value;
+  const session = allSessions.find(s => s.id === id);
+  if (!session) return;
+  const planned = plannedSessions.find(p => p.date === session.date);
+  if (!planned) return;
+
+  const analysisEl = document.getElementById('edit-analysis-section');
+  const textEl     = document.getElementById('edit-analysis-text');
+  analysisEl.style.display = 'block';
+  textEl.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+
+  // Données réalisées (avec intervalles actuellement dans le formulaire)
+  const type     = document.getElementById('edit-type').value;
+  const paceReal = minSecToSec(document.getElementById('edit-pace').value);
+  const hrReal   = parseInt(document.getElementById('edit-hr').value)||null;
+  const dist     = parseFloat(document.getElementById('edit-dist').value)||null;
+  const effort   = editEffort;
+  const intervals = getEditIntervals();
+
+  // Zone cible pour le type planifié
+  const zones = calcZones();
+  const zoneMap = {'EF':zones[1],'Aérobie Z3':zones[2],'Seuil':zones[3],'VMA':zones[4],'Long':zones[1],'Récup':zones[0]};
+  const zPlanned = zoneMap[planned.type];
+
+  const ivStr = intervals.length ? intervals.map(iv =>
+    `  Rep ${iv.num}: ${iv.duration||'?'} @ ${iv.pace||'?'}/km FC:${iv.avg_hr||'?'} — ressenti: ${iv.feel||'?'}`
+  ).join('\n') : 'Aucun intervalle renseigné';
+
+  const prompt = `Tu es un coach running expert et direct. Compare cette séance au plan prévu.
+
+PRÉVU:
+- Type: ${planned.type} | Distance: ~${planned.target_distance_km}km
+- Allure cible: ${zPlanned ? zPlanned.paceHigh+'–'+zPlanned.paceLow+'/km' : '?'}
+- FC cible: ${zPlanned ? zPlanned.fcLow+'–'+zPlanned.fcHigh+' bpm' : '?'}
+- Description: ${planned.description}
+
+RÉALISÉ:
+- Type: ${type} | Distance: ${dist||'?'}km
+- Allure moyenne: ${paceReal ? secToAllure(paceReal)+'/km' : '?'}
+- FC moyenne: ${hrReal||'?'} bpm
+- Effort ressenti: ${effort}/5
+- Intervalles:\n${ivStr}
+
+Profil: PB 10km ${secToTime(profile.pb_10k_seconds)}, objectif sub-37, FC max ${profile.fc_max}
+
+Donne une analyse COURTE et DIRECTE (max 3 paragraphes):
+1. Verdict global (trop facile / bien calibré / trop dur ?)
+2. Points spécifiques sur les intervalles si présents (rythme, FC, fatigue en fin de séance)
+3. Une recommandation concrète pour la prochaine séance du même type
+
+Sois précis, utilise les chiffres, parle-lui directement (tu/toi).`;
+
+  try {
+    const res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({model: MODEL, max_tokens: 600, messages: [{role:'user', content:prompt}]})
+    });
+    const data = await res.json();
+    textEl.textContent = data.content?.[0]?.text || 'Analyse indisponible.';
+  } catch(e) {
+    textEl.textContent = 'Erreur Coach IA: ' + e.message;
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -1395,18 +1856,269 @@ function showPage(name) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  const tabs=['dashboard','planning','log','history','coach','profil'];
+  const tabs=['dashboard','planning','log','history','graphs','coach','profil'];
   const idx=tabs.indexOf(name);
   if(idx>=0) document.querySelectorAll('.nav-tab')[idx].classList.add('active');
   if(name==='planning') renderWeek();
+  if(name==='graphs') renderGraphs();
 }
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
 
 // ═══════════════════════════════════════════
-// START
+// GRAPHIQUES
 // ═══════════════════════════════════════════
+const chartInstances = {};
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+function renderGraphs() {
+  const days = parseInt(document.getElementById('graph-period')?.value || 90);
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+  const recent = allSessions.filter(s => new Date(s.date+'T12:00:00') >= cutoff)
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  renderVolumeChart(recent);
+  renderPaceChart(recent);
+  renderHRChart(recent);
+  renderTypesChart(recent);
+  renderLoadChart(recent);
+}
+
+function getWeekLabel(dateStr) {
+  const d = new Date(dateStr+'T12:00:00');
+  const ws = getWeekStart(d);
+  return `${ws.getDate()}/${ws.getMonth()+1}`;
+}
+
+function groupByWeek(sessions) {
+  const weeks = {};
+  sessions.forEach(s => {
+    const d = new Date(s.date+'T12:00:00');
+    const ws = getWeekStart(d);
+    const key = localDateStr(ws);
+    if (!weeks[key]) weeks[key] = [];
+    weeks[key].push(s);
+  });
+  return weeks;
+}
+
+const CHART_DEFAULTS = {
+  responsive: true,
+  plugins: { legend: { labels: { color: '#6b6b8a', font: { family: 'DM Mono', size: 10 } } } },
+  scales: {
+    x: { ticks: { color: '#6b6b8a', font: { family: 'DM Mono', size: 9 } }, grid: { color: '#2a2a3a' } },
+    y: { ticks: { color: '#6b6b8a', font: { family: 'DM Mono', size: 9 } }, grid: { color: '#2a2a3a' } }
+  }
+};
+
+function renderVolumeChart(sessions) {
+  destroyChart('volume');
+  const weeks = groupByWeek(sessions);
+  const labels = Object.keys(weeks).map(k => getWeekLabel(k));
+  const data = Object.values(weeks).map(w => parseFloat(w.reduce((a,s)=>a+(s.distance_km||0),0).toFixed(1)));
+  const colors = data.map((v,i,arr) => {
+    const avg = arr.reduce((a,b)=>a+b,0)/arr.length;
+    return v > avg*1.1 ? 'rgba(255,165,2,0.7)' : 'rgba(71,184,255,0.7)';
+  });
+  const ctx = document.getElementById('chart-volume')?.getContext('2d');
+  if (!ctx) return;
+  chartInstances['volume'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'km/semaine', data, backgroundColor: colors, borderRadius: 4 }] },
+    options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } } }
+  });
+}
+
+function renderPaceChart(sessions) {
+  destroyChart('pace');
+  const efSessions = sessions.filter(s => (s.type==='EF'||s.type==='Aérobie Z3') && s.avg_pace_seconds);
+  if (efSessions.length < 2) return;
+  const labels = efSessions.map(s => formatDate(s.date));
+  const data = efSessions.map(s => parseFloat((s.avg_pace_seconds/60).toFixed(2)));
+  const ctx = document.getElementById('chart-pace')?.getContext('2d');
+  if (!ctx) return;
+  chartInstances['pace'] = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [{
+      label: 'Allure EF (min/km)',
+      data, borderColor: '#2ed573', backgroundColor: 'rgba(46,213,115,0.1)',
+      tension: 0.4, fill: true, pointRadius: 3, pointBackgroundColor: '#2ed573'
+    }]},
+    options: { ...CHART_DEFAULTS,
+      scales: { ...CHART_DEFAULTS.scales,
+        y: { ...CHART_DEFAULTS.scales.y, reverse: true,
+          ticks: { ...CHART_DEFAULTS.scales.y.ticks, callback: v => `${Math.floor(v)}'${String(Math.round((v%1)*60)).padStart(2,'0')}"` }
+        }
+      }
+    }
+  });
+}
+
+function renderHRChart(sessions) {
+  destroyChart('hr');
+  const types = ['EF','Aérobie Z3','Seuil','VMA','Long'];
+  const colors = ['rgba(71,184,255,0.7)','rgba(46,213,115,0.7)','rgba(255,165,2,0.7)','rgba(255,71,87,0.7)','rgba(232,255,71,0.7)'];
+  const data = types.map(t => {
+    const s = sessions.filter(x => x.type===t && x.avg_hr);
+    return s.length ? Math.round(s.reduce((a,x)=>a+x.avg_hr,0)/s.length) : null;
+  });
+  const ctx = document.getElementById('chart-hr')?.getContext('2d');
+  if (!ctx) return;
+  chartInstances['hr'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: types, datasets: [{ label: 'FC moy (bpm)', data, backgroundColor: colors, borderRadius: 4 }] },
+    options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } },
+      scales: { ...CHART_DEFAULTS.scales, y: { ...CHART_DEFAULTS.scales.y, min: 120 } }
+    }
+  });
+}
+
+function renderTypesChart(sessions) {
+  destroyChart('types');
+  const counts = {};
+  sessions.forEach(s => { counts[s.type] = (counts[s.type]||0) + 1; });
+  const typeColors = { 'EF':'#47b8ff','Aérobie Z3':'#2ed573','Seuil':'#ffa502','VMA':'#ff4757','Long':'#e8ff47','Récup':'#6b6b8a','Compét':'#ff4757' };
+  const labels = Object.keys(counts);
+  const ctx = document.getElementById('chart-types')?.getContext('2d');
+  if (!ctx) return;
+  chartInstances['types'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: Object.values(counts), backgroundColor: labels.map(l=>typeColors[l]||'#6b6b8a'), borderWidth: 0 }] },
+    options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#6b6b8a', font: { family: 'DM Mono', size: 10 } } } } }
+  });
+}
+
+function renderLoadChart(sessions) {
+  destroyChart('load');
+  const weeks = groupByWeek(sessions);
+  const labels = Object.keys(weeks).map(k => getWeekLabel(k));
+  const data = Object.values(weeks).map(w => parseFloat(w.reduce((a,s)=>a+(s.distance_km||0),0).toFixed(1)));
+  // Tendance (moyenne mobile 3 semaines)
+  const trend = data.map((v,i,arr) => {
+    const slice = arr.slice(Math.max(0,i-2), i+1);
+    return parseFloat((slice.reduce((a,b)=>a+b,0)/slice.length).toFixed(1));
+  });
+  const ctx = document.getElementById('chart-load')?.getContext('2d');
+  if (!ctx) return;
+  chartInstances['load'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Volume réel', data, backgroundColor: 'rgba(71,184,255,0.4)', borderRadius: 3, order: 2 },
+      { label: 'Tendance (moy 3 sem)', data: trend, type: 'line', borderColor: '#e8ff47', backgroundColor: 'transparent', tension: 0.4, pointRadius: 0, borderWidth: 2, order: 1 }
+    ]},
+    options: { ...CHART_DEFAULTS }
+  });
+}
+
+// ═══════════════════════════════════════════
+// MOTEUR D'ADAPTATION AUTOMATIQUE
+// ═══════════════════════════════════════════
+async function runAdaptationEngine() {
+  if (allSessions.length < 5) return; // Pas assez de données
+
+  const updated = {};
+
+  // 1. RECALIBRAGE VMA depuis les séances VMA/Seuil récentes
+  const vmaEstimate = estimateVMAFromHistory();
+  if (vmaEstimate && Math.abs(vmaEstimate - (profile.vma_kmh||16.5)) > 0.3) {
+    updated.vma_kmh = parseFloat(vmaEstimate.toFixed(1));
+  }
+
+  // 2. DÉTECTION FORME : rapport allure/FC sur EF récentes vs anciennes
+  const formeTrend = detectFormeTrend();
+
+  // 3. AJUSTEMENT PLANNING si forme significativement meilleure ou pire
+  if (formeTrend !== 'stable') {
+    await adaptPlanningToForme(formeTrend);
+  }
+
+  // 4. Sauvegarde VMA si changée
+  if (Object.keys(updated).length > 0) {
+    profile = { ...profile, ...updated };
+    try {
+      const {data} = await db.from('profile').select('id').limit(1).single();
+      if (data) await db.from('profile').update(updated).eq('id', data.id);
+      renderZones();
+      showToast(`Adaptation IA — VMA recalibrée à ${updated.vma_kmh} km/h ✓`, 'success');
+    } catch(e) { console.error('Adaptation engine:', e); }
+  }
+
+  return { vmaEstimate, formeTrend };
+}
+
+function estimateVMAFromHistory() {
+  // Utilise les séances VMA récentes (30 derniers jours) pour estimer la VMA
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 45);
+  const vmaSessions = allSessions.filter(s =>
+    s.type === 'VMA' && s.avg_pace_seconds && new Date(s.date+'T12:00:00') >= cutoff
+  );
+  if (vmaSessions.length < 2) return null;
+
+  // Allure moy VMA → VMA ≈ vitesse à ~95% VMA → VMA = allure_vma / 0.93
+  const avgPaceVMA = vmaSessions.reduce((a,s)=>a+s.avg_pace_seconds,0) / vmaSessions.length;
+  // avgPaceVMA = sec/km pour toute la séance (inclut échauffement)
+  // Estimation : allure réelle des intervalles ≈ allure moy séance * 0.85
+  const estimatedIntervalPace = avgPaceVMA * 0.85;
+  const speedKmh = 3600 / estimatedIntervalPace;
+  const vmaEstimate = speedKmh / 0.93; // intervalles à ~93% VMA
+
+  // Sanity check : entre 14 et 22 km/h
+  if (vmaEstimate < 14 || vmaEstimate > 22) return null;
+  return vmaEstimate;
+}
+
+function detectFormeTrend() {
+  // Compare l'économie de course (allure/FC) des 3 dernières semaines vs 3 précédentes
+  const efSessions = allSessions.filter(s => s.type==='EF' && s.avg_pace_seconds && s.avg_hr);
+  if (efSessions.length < 6) return 'stable';
+
+  const sorted = [...efSessions].sort((a,b) => b.date.localeCompare(a.date));
+  const recent = sorted.slice(0, Math.ceil(sorted.length/2));
+  const older  = sorted.slice(Math.ceil(sorted.length/2));
+
+  // Indice d'économie = FC / allure (plus bas = meilleur)
+  const econRecent = recent.reduce((a,s)=>a+(s.avg_hr/(3600/s.avg_pace_seconds)),0)/recent.length;
+  const econOlder  = older.reduce((a,s)=>a+(s.avg_hr/(3600/s.avg_pace_seconds)),0)/older.length;
+
+  const delta = (econOlder - econRecent) / econOlder; // positif = amélioration
+  if (delta > 0.04) return 'en_hausse';
+  if (delta < -0.04) return 'en_baisse';
+  return 'stable';
+}
+
+async function adaptPlanningToForme(trend) {
+  // Ajuste les 2 prochaines semaines selon la forme détectée
+  const today = localDateStr();
+  const inTwoWeeks = new Date(); inTwoWeeks.setDate(inTwoWeeks.getDate()+14);
+  const inTwoWeeksStr = localDateStr(inTwoWeeks);
+
+  const upcoming = plannedSessions.filter(s => s.date >= today && s.date <= inTwoWeeksStr && !s.skipped);
+
+  for (const s of upcoming) {
+    let newKm = s.target_distance_km;
+    if (trend === 'en_hausse') {
+      newKm = Math.round((s.target_distance_km || 10) * 1.05 * 10) / 10; // +5%
+    } else if (trend === 'en_baisse') {
+      newKm = Math.round((s.target_distance_km || 10) * 0.92 * 10) / 10; // -8%
+    }
+    if (newKm !== s.target_distance_km) {
+      await db.from('planned_sessions').update({ target_distance_km: newKm }).eq('id', s.id);
+    }
+  }
+
+  const {data} = await db.from('planned_sessions').select('*').order('date');
+  plannedSessions = data || [];
+  renderWeek(); renderNextSessions();
+
+  const msg = trend === 'en_hausse'
+    ? '📈 Forme en hausse détectée — volume des 2 prochaines semaines augmenté de 5%'
+    : '📉 Fatigue détectée — volume des 2 prochaines semaines réduit de 8%';
+  showToast(msg, 'success');
+}
 init();
 </script>
 </body>
