@@ -1,0 +1,6 @@
+<svg width="192" height="192" xmlns="http://www.w3.org/2000/svg">
+  <rect width="192" height="192" rx="40" fill="#0a0a0f"/>
+  <text x="96" y="115" font-family="Arial Black" font-size="72" font-weight="900" 
+        fill="#e8ff47" text-anchor="middle">R</text>
+  <text x="96" y="155" font-family="Arial" font-size="18" fill="#e8ff47" text-anchor="middle" letter-spacing="8">RUN</text>
+</svg>
