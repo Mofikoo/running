@@ -2,7 +2,14 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RunCoach">
+<meta name="description" content="Ton coach running personnel — planning adaptatif et analyse IA">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>RunCoach</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -194,7 +201,13 @@ select option{background:var(--surface);}
     <button class="nav-tab" onclick="showPage('coach')">Coach IA</button>
     <button class="nav-tab" onclick="showPage('profil')">Profil</button>
   </div>
-  <div class="nav-status"><div class="status-dot" id="sdot"></div><span id="db-status">Connexion...</span></div>
+  <div class="nav-status">
+    <button id="btn-install" onclick="installApp()" style="display:none;background:rgba(232,255,71,.15);border:1px solid rgba(232,255,71,.3);color:var(--accent);font-family:var(--fm);font-size:.65rem;padding:.3rem .7rem;border-radius:4px;cursor:pointer;align-items:center;gap:.4rem;">
+      📲 Installer
+    </button>
+    <div class="status-dot" id="sdot"></div>
+    <span id="db-status">Connexion...</span>
+  </div>
 </nav>
 
 <!-- DASHBOARD -->
@@ -2119,6 +2132,38 @@ async function adaptPlanningToForme(trend) {
     : '📉 Fatigue détectée — volume des 2 prochaines semaines réduit de 8%';
   showToast(msg, 'success');
 }
+// ═══════════════════════════════════════════
+// PWA
+// ═══════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/running/sw.js')
+      .then(r => console.log('SW OK:', r.scope))
+      .catch(e => console.log('SW erreur:', e));
+  });
+}
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  const btn = document.getElementById('btn-install');
+  if (btn) btn.style.display = 'flex';
+});
+window.addEventListener('appinstalled', () => {
+  deferredPrompt = null;
+  const btn = document.getElementById('btn-install');
+  if (btn) btn.style.display = 'none';
+  showToast('RunCoach installé ✓', 'success');
+});
+function installApp() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => {
+    deferredPrompt = null;
+    const btn = document.getElementById('btn-install');
+    if (btn) btn.style.display = 'none';
+  });
+}
+
 init();
 </script>
 </body>
