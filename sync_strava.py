@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 RunCoach — Strava → Supabase sync
-Tourne automatiquement via GitHub Actions 2x/jour
+Importe activités + streams (FC/allure/cadence par seconde)
 """
 import os, json, time, logging, requests
 from datetime import datetime, timedelta, date
@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, date
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 log = logging.getLogger(__name__)
 
-# ── Config ────────────────────────────────────────────────────────────────────
 CLIENT_ID     = os.environ['STRAVA_CLIENT_ID']
 CLIENT_SECRET = os.environ['STRAVA_CLIENT_SECRET']
 REFRESH_TOKEN = os.environ['STRAVA_REFRESH_TOKEN']
@@ -26,29 +25,22 @@ SUPABASE_HEADERS = {
     "Prefer": "resolution=merge-duplicates,return=minimal",
 }
 
-# ── Strava OAuth ───────────────────────────────────────────────────────────────
 def get_access_token():
-    """Échange le refresh token contre un access token frais."""
     r = requests.post('https://www.strava.com/oauth/token', data={
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET,
-        'refresh_token': REFRESH_TOKEN,
-        'grant_type': 'refresh_token',
+        'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET,
+        'refresh_token': REFRESH_TOKEN, 'grant_type': 'refresh_token',
     })
     data = r.json()
     if 'access_token' not in data:
         raise Exception(f"Auth Strava échouée: {data}")
     new_refresh = data.get('refresh_token', REFRESH_TOKEN)
-    # Sauvegarde le nouveau refresh token si changé
     if new_refresh != REFRESH_TOKEN:
         update_github_secret('STRAVA_REFRESH_TOKEN', new_refresh)
-    log.info("Access token Strava obtenu ✓")
+    log.info("Token Strava OK ✓")
     return data['access_token']
 
 def update_github_secret(name, value):
-    """Met à jour un secret GitHub."""
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        return
+    if not GITHUB_TOKEN or not GITHUB_REPO: return
     try:
         from nacl import encoding, public
         import base64
@@ -68,8 +60,7 @@ def update_github_secret(name, value):
     except Exception as e:
         log.warning(f"Mise à jour secret échouée: {e}")
 
-# ── Type détection ─────────────────────────────────────────────────────────────
-def map_type(name, avg_hr, suffer_score):
+def map_type(name, avg_hr):
     n = (name or '').lower()
     if any(x in n for x in ['vma','6x6','5x6','4x6','x6\'','3x2','4x2','x2km','x1km','fractionné','interval','répétition']):
         return 'VMA'
@@ -87,8 +78,87 @@ def map_type(name, avg_hr, suffer_score):
         return 'EF'
     return 'EF'
 
-# ── Supabase ───────────────────────────────────────────────────────────────────
-def get_existing_strava_ids():
+def get_streams(token, activity_id):
+    """Récupère les streams par seconde depuis Strava."""
+    keys = 'time,heartrate,velocity_smooth,cadence,altitude,distance'
+    r = requests.get(
+        f'https://www.strava.com/api/v3/activities/{activity_id}/streams',
+        headers={"Authorization": f"Bearer {token}"},
+        params={'keys': keys, 'key_by_type': 'true'}
+    )
+    if r.status_code != 200:
+        log.warning(f"Streams non disponibles pour {activity_id}: {r.status_code}")
+        return None
+    data = r.json()
+    if not data:
+        return None
+
+    # Extraire les arrays
+    time_arr = data.get('time', {}).get('data', [])
+    hr_arr   = data.get('heartrate', {}).get('data', [])
+    vel_arr  = data.get('velocity_smooth', {}).get('data', [])
+    cad_arr  = data.get('cadence', {}).get('data', [])
+    alt_arr  = data.get('altitude', {}).get('data', [])
+    dist_arr = data.get('distance', {}).get('data', [])
+
+    if not time_arr:
+        return None
+
+    # Sous-échantillonner à 1 point toutes les 5 secondes pour réduire la taille
+    step = 5
+    n = len(time_arr)
+    indices = list(range(0, n, step))
+
+    def safe_get(arr, i):
+        return arr[i] if arr and i < len(arr) else None
+
+    # Convertir vitesse m/s → allure sec/km
+    def vel_to_pace(v):
+        if v and v > 0:
+            return round(1000 / v)
+        return None
+
+    streams_data = {
+        'time':     [time_arr[i] for i in indices],
+        'hr':       [safe_get(hr_arr, i) for i in indices],
+        'pace':     [vel_to_pace(safe_get(vel_arr, i)) for i in indices],
+        'cadence':  [safe_get(cad_arr, i) for i in indices],
+        'altitude': [round(safe_get(alt_arr, i), 1) if safe_get(alt_arr, i) else None for i in indices],
+        'distance': [round(safe_get(dist_arr, i), 0) if safe_get(dist_arr, i) else None for i in indices],
+    }
+
+    # Calcul temps par zone FC
+    zone_minutes = compute_zone_times(hr_arr)
+
+    return {
+        'streams': streams_data,
+        'zone_minutes': zone_minutes,
+        'total_points': len(indices),
+        'duration_sec': time_arr[-1] if time_arr else None,
+    }
+
+def compute_zone_times(hr_arr):
+    """Calcule le temps réel passé dans chaque zone FC."""
+    if not hr_arr:
+        return None
+    zones = {'Z1':0, 'Z2':0, 'Z3':0, 'Z4':0, 'Z5':0}
+    bounds = [
+        ('Z1', FC_MAX*0.60, FC_MAX*0.70),
+        ('Z2', FC_MAX*0.70, FC_MAX*0.80),
+        ('Z3', FC_MAX*0.80, FC_MAX*0.88),
+        ('Z4', FC_MAX*0.88, FC_MAX*0.93),
+        ('Z5', FC_MAX*0.93, FC_MAX*1.01),
+    ]
+    for hr in hr_arr:
+        if hr is None: continue
+        for name, low, high in bounds:
+            if low <= hr < high:
+                zones[name] += 1  # 1 seconde par point
+                break
+    # Convertir en minutes
+    return {k: round(v/60, 1) for k, v in zones.items()}
+
+def get_existing_ids():
     r = requests.get(
         f"{SUPABASE_URL}/rest/v1/sessions?select=garmin_activity_id&garmin_activity_id=not.is.null",
         headers=SUPABASE_HEADERS
@@ -102,19 +172,16 @@ def upsert_session(session):
         json=session
     )
     if r.status_code not in (200, 201):
-        log.error(f"Upsert error: {r.status_code} {r.text}")
+        log.error(f"Upsert error: {r.status_code} {r.text[:200]}")
     else:
         log.info(f"✓ {session['date']} {session['type']} {session.get('distance_km','?')}km")
 
-# ── Sync ───────────────────────────────────────────────────────────────────────
 def sync(days_back=7):
     token = get_access_token()
     headers = {"Authorization": f"Bearer {token}"}
-    existing = get_existing_strava_ids()
-
+    existing = get_existing_ids()
     after = int((datetime.now() - timedelta(days=days_back)).timestamp())
-    page = 1
-    total = 0
+    page, total = 1, 0
 
     while True:
         r = requests.get(
@@ -131,31 +198,37 @@ def sync(days_back=7):
 
         for act in running:
             aid = act.get('id')
-            if not aid or aid in existing:
-                log.info(f"Skip {aid}")
+            if not aid:
                 continue
 
-            name       = act.get('name', '')
-            date_str   = act.get('start_date_local', '')[:10]
-            dist_km    = round((act.get('distance') or 0) / 1000, 2) or None
-            dur_min    = round((act.get('moving_time') or 0) / 60) or None
-            avg_hr     = act.get('average_heartrate')
-            max_hr     = act.get('max_heartrate')
-            suffer     = act.get('suffer_score')
-            elev       = act.get('total_elevation_gain')
-            avg_spd    = act.get('average_speed')  # m/s
-            pace_sec   = round(1000 / avg_spd) if avg_spd and avg_spd > 0 else None
-            cadence    = act.get('average_cadence')
-
-            stype = map_type(name, avg_hr, suffer)
+            name     = act.get('name', '')
+            date_str = act.get('start_date_local', '')[:10]
+            dist_km  = round((act.get('distance') or 0) / 1000, 2) or None
+            dur_min  = round((act.get('moving_time') or 0) / 60) or None
+            avg_hr   = act.get('average_heartrate')
+            elev     = act.get('total_elevation_gain')
+            avg_spd  = act.get('average_speed')
+            pace_sec = round(1000 / avg_spd) if avg_spd and avg_spd > 0 else None
+            cadence  = act.get('average_cadence')
+            stype    = map_type(name, avg_hr)
 
             effort = 3
             if avg_hr:
                 fc = float(avg_hr)
-                if fc >= FC_MAX * 0.93:   effort = 5
-                elif fc >= FC_MAX * 0.88: effort = 4
-                elif fc >= FC_MAX * 0.80: effort = 3
-                else:                     effort = 2
+                if fc >= FC_MAX*0.93:   effort = 5
+                elif fc >= FC_MAX*0.88: effort = 4
+                elif fc >= FC_MAX*0.80: effort = 3
+                else:                   effort = 2
+
+            # Streams (FC/allure par seconde) — même pour les réimports
+            streams_data = None
+            time.sleep(0.5)  # rate limiting Strava
+            try:
+                streams_data = get_streams(token, aid)
+                if streams_data:
+                    log.info(f"  → {streams_data['total_points']} points, zones: {streams_data['zone_minutes']}")
+            except Exception as e:
+                log.warning(f"  Streams erreur: {e}")
 
             session = {
                 "date":               date_str,
@@ -166,11 +239,12 @@ def sync(days_back=7):
                 "avg_hr":             int(avg_hr) if avg_hr else None,
                 "perceived_effort":   effort,
                 "pain_level":         0,
-                "notes":              f"{name} · Strava import",
+                "notes":              f"{name} · Strava",
                 "completed":          True,
-                "garmin_activity_id": aid,  # on réutilise ce champ pour l'ID Strava
+                "garmin_activity_id": aid,
                 "elevation_gain":     round(elev, 1) if elev else None,
-                "cadence_avg":        int(cadence * 2) if cadence else None,  # Strava = cadence/jambe × 2
+                "cadence_avg":        int(cadence * 2) if cadence else None,
+                "streams":            streams_data,
             }
 
             upsert_session(session)
@@ -183,7 +257,7 @@ def sync(days_back=7):
         page += 1
         time.sleep(1)
 
-    log.info(f"Sync terminé — {total} nouvelles activités importées ✓")
+    log.info(f"Sync terminé — {total} activités ✓")
 
 if __name__ == '__main__':
     days = int(os.environ.get('DAYS_BACK', '7'))
