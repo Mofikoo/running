@@ -2259,6 +2259,27 @@ async function askCoachCustom() {
   document.getElementById('coach-question').value='';
 }
 
+<div class="card">
+  <h3>Calculateur allure / vitesse</h3>
+
+  <div class="form-group">
+    <label>Vitesse (km/h)</label>
+    <input id="speedInput" type="number" step="0.1" placeholder="Ex: 12">
+  </div>
+
+  <div class="form-group">
+    <label>Allure (min/km)</label>
+    <input id="paceInput" type="text" placeholder="Ex: 5:00">
+  </div>
+
+  <div style="display:flex;gap:8px;margin-top:10px;">
+    <button class="btn btn-primary" onclick="fromSpeed()">Calculer depuis km/h</button>
+    <button class="btn btn-ghost" onclick="fromPace()">Calculer depuis min/km</button>
+  </div>
+
+  <div id="results" style="margin-top:15px;"></div>
+</div>
+
 // ═══════════════════════════════════════════
 // SKIP / ABSENCE
 // ═══════════════════════════════════════════
@@ -2339,6 +2360,71 @@ function showPage(name) {
   if(name==='planning') renderWeek();
   if(name==='graphs') renderGraphs();
 }
+
+  function formatTime(totalMinutes) {
+  const h = Math.floor(totalMinutes / 60);
+  const m = Math.floor(totalMinutes % 60);
+  const s = Math.round((totalMinutes - Math.floor(totalMinutes)) * 60);
+
+  return `${h > 0 ? h + 'h ' : ''}${m}m ${s}s`;
+}
+
+function paceToSpeed(pace) {
+  const [min, sec] = pace.split(':').map(Number);
+  const totalMin = min + sec / 60;
+  return 60 / totalMin;
+}
+
+function speedToPace(speed) {
+  const totalMin = 60 / speed;
+  const min = Math.floor(totalMin);
+  const sec = Math.round((totalMin - min) * 60);
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
+function displayResults(speed) {
+  const distances = [
+    { name: "5 km", dist: 5 },
+    { name: "10 km", dist: 10 },
+    { name: "Semi", dist: 21.1 },
+    { name: "Marathon", dist: 42.195 }
+  ];
+
+  let html = `<div class="session-item" style="grid-template-columns:1fr 1fr;">`;
+  html += `<div><strong>Allure</strong></div><div>${speedToPace(speed)} /km</div>`;
+  html += `</div>`;
+
+  distances.forEach(d => {
+    const time = (d.dist / speed) * 60;
+
+    html += `
+      <div class="session-item" style="grid-template-columns:1fr 1fr;">
+        <div>${d.name}</div>
+        <div>${formatTime(time)}</div>
+      </div>
+    `;
+  });
+
+  document.getElementById('results').innerHTML = html;
+}
+
+function fromSpeed() {
+  const speed = parseFloat(document.getElementById('speedInput').value);
+  if (!speed || speed <= 0) return;
+
+  document.getElementById('paceInput').value = speedToPace(speed);
+  displayResults(speed);
+}
+
+function fromPace() {
+  const pace = document.getElementById('paceInput').value;
+  if (!pace.includes(':')) return;
+
+  const speed = paceToSpeed(pace);
+  document.getElementById('speedInput').value = speed.toFixed(2);
+  displayResults(speed);
+}
+  
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
