@@ -203,157 +203,50 @@ input[type=range]{padding:0;background:none;border:none;}
 
 /* ═══ RESPONSIVE MOBILE ═══ */
 @media(max-width:768px){
-  /* Nav desktop cachée, bottom nav visible */
   .nav-tabs{display:none;}
   .nav-status{display:none;}
-  nav{padding:0 1rem;justify-content:center;}
+  nav{padding:0 1rem;justify-content:center;padding-top:env(safe-area-inset-top);}
   .nav-logo{font-size:1.3rem;}
   .bottom-nav{display:block;}
-
-  /* Pages avec padding bottom pour bottom nav */
-  .page{padding:1rem;padding-bottom:calc(var(--bottom-nav-h) + 1rem);}
-
-  /* Grids → 1 colonne */
+  .page{padding:1rem;padding-bottom:calc(var(--bottom-nav-h) + 1rem + env(safe-area-inset-bottom));}
   .hero-stats{grid-template-columns:1fr 1fr;}
   .grid-2,.grid-3{grid-template-columns:1fr;}
   .form-grid{grid-template-columns:1fr;}
   .form-group.full{grid-column:span 1;}
-
-  /* Week grid → scroll horizontal */
-  .week-grid{grid-template-columns:repeat(7,minmax(42px,1fr));gap:.25rem;overflow-x:auto;}
-  .day-cell{min-height:70px;padding:.4rem .2rem;}
-  .day-num{font-size:1.1rem;}
-
-  /* Section header empilé */
-  .section-header{flex-direction:column;align-items:flex-start;gap:.75rem;}
+  .week-grid{grid-template-columns:repeat(7,minmax(40px,1fr));gap:.2rem;overflow-x:auto;}
+  .day-cell{min-height:68px;padding:.4rem .15rem;}
+  .day-num{font-size:1rem;}
+  .section-header{flex-direction:column;align-items:flex-start;gap:.5rem;}
   .section-actions{width:100%;justify-content:flex-end;}
-  .section-title{font-size:1.6rem;}
-
-  /* Session items simplifiés */
-  .session-item{grid-template-columns:55px 75px 1fr auto auto;gap:.5rem;padding:.7rem .75rem;}
-
-  /* Stats cards */
-  .stat-value{font-size:1.8rem;}
-  .stat-card{padding:1rem;}
-
-  /* Next sessions */
+  .section-title{font-size:1.5rem;}
+  .session-item{grid-template-columns:52px 72px 1fr auto auto;gap:.4rem;padding:.65rem .5rem;font-size:.68rem;}
+  .stat-value{font-size:1.7rem;}
+  .stat-card{padding:.9rem;}
   .ns-desc{display:none;}
-  .ns-km{font-size:1.1rem;}
-
-  /* Boutons pleine largeur dans modals */
+  .ns-km{font-size:1rem;}
   .modal-footer{flex-direction:column-reverse;}
   .modal-footer .btn{width:100%;text-align:center;}
   .modal{border-radius:20px 20px 0 0;padding:1.25rem;}
-
-  /* Coach buttons */
-  .grid-2 .btn-ghost{font-size:.7rem;padding:.6rem .5rem;}
-
-  /* Zones */
+  .grid-2 .btn-ghost{font-size:.7rem;padding:.6rem .4rem;}
   .zone-pace{display:none;}
-  .zone-range{min-width:70px;}
-
-  /* Cards padding réduit */
-  .card{padding:1rem;}
-  .card-title{font-size:1rem;}
-
-  /* Toast au dessus bottom nav */
-  .toast{bottom:calc(var(--bottom-nav-h) + 1rem);}
+  .zone-range{min-width:65px;}
+  .card{padding:.9rem;}
+  .card-title{font-size:.95rem;}
+  .toast{bottom:calc(var(--bottom-nav-h) + 1rem + env(safe-area-inset-bottom));}
+  .bottom-nav{padding-bottom:env(safe-area-inset-bottom);}
 }
-
 @media(max-width:380px){
-  .hero-stats{grid-template-columns:1fr 1fr;}
-  .stat-value{font-size:1.5rem;}
-  .day-cell{min-height:60px;}
-  .week-grid{gap:.15rem;}
+  .stat-value{font-size:1.4rem;}
+  .day-cell{min-height:56px;}
+  .hero-stats{gap:.5rem;}
 }
+</style>
 
 /* WEEKS NAV */
 .weeks-nav{display:flex;align-items:center;gap:1rem;margin-bottom:1rem;}
 .week-label{font-family:var(--fd);font-size:1.3rem;letter-spacing:.05em;flex:1;text-align:center;}
 .icon-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;}
 .icon-btn:hover{border-color:var(--accent);color:var(--accent);}
-
-/* ZONES */
-.zone-row{display:flex;align-items:center;gap:1rem;font-family:var(--fm);font-size:.75rem;padding:.3rem 0;}
-.zone-label{width:50px;color:var(--muted);font-size:.65rem;text-transform:uppercase;}
-.zone-bar{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
-.zone-fill{height:100%;border-radius:4px;}
-.zone-range{color:var(--muted);font-size:.68rem;min-width:90px;text-align:right;}
-.zone-pace{font-size:.7rem;min-width:110px;text-align:right;}
-
-/* FORMS */
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
-.form-group{display:flex;flex-direction:column;gap:.4rem;}
-.form-group.full{grid-column:span 2;}
-label{font-family:var(--fm);font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);}
-input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--fm);font-size:.85rem;padding:.6rem .8rem;outline:none;transition:border-color .2s;}
-input:focus,select:focus,textarea:focus{border-color:var(--accent);}
-select option{background:var(--surface);}
-
-/* RATINGS */
-.rating-group{display:flex;gap:.4rem;}
-.rating-btn{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-family:var(--fm);font-size:.75rem;padding:.5rem;cursor:pointer;transition:all .15s;text-align:center;}
-.rating-btn:hover{border-color:var(--accent);color:var(--text);}
-.sel-effort{background:rgba(232,255,71,.15);border-color:var(--accent);color:var(--accent);}
-.sel-pain-0,.sel-pain-1{background:rgba(46,213,115,.1);border-color:var(--success);color:var(--success);}
-.sel-pain-2{background:rgba(255,165,2,.15);border-color:var(--warn);color:var(--warn);}
-.sel-pain-3,.sel-pain-4,.sel-pain-5{background:rgba(255,71,87,.15);border-color:var(--danger);color:var(--danger);}
-
-/* BUTTONS */
-.btn{background:var(--accent);border:none;border-radius:6px;color:#0a0a0f;font-family:var(--fm);font-size:.78rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:.75rem 1.5rem;cursor:pointer;transition:all .2s;}
-.btn:hover{background:#f5ff70;transform:translateY(-1px);}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}
-.btn-ghost:hover{background:var(--surface2);color:var(--text);border-color:var(--text);}
-
-/* SESSION LIST */
-.session-item{display:grid;grid-template-columns:70px 90px 1fr auto auto;align-items:center;gap:1rem;padding:.85rem 1rem;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;transition:background .15s;}
-.session-item:hover{background:var(--surface2);}
-.session-item:last-child{border-bottom:none;}
-.session-date{color:var(--muted);}
-.session-pace{color:var(--accent);}
-.effort-dots{display:flex;gap:2px;}
-.effort-dot{width:6px;height:6px;border-radius:50%;background:var(--border);}
-.effort-dot.on{background:var(--accent);}
-
-/* AI PANEL */
-.ai-panel{background:var(--surface);border:1px solid rgba(232,255,71,.2);border-radius:12px;padding:1.5rem;}
-.ai-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;}
-.ai-avatar{width:36px;height:36px;background:rgba(232,255,71,.15);border:1px solid rgba(232,255,71,.3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;}
-.ai-name{font-family:var(--fd);font-size:1rem;letter-spacing:.05em;}
-.ai-sub{font-family:var(--fm);font-size:.62rem;color:var(--muted);}
-.ai-message{font-family:var(--fb);font-size:.88rem;line-height:1.7;white-space:pre-wrap;}
-.ai-loading{display:flex;gap:4px;align-items:center;padding:.5rem 0;}
-.ai-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce 1.2s infinite;}
-.ai-dot:nth-child(2){animation-delay:.2s;}
-.ai-dot:nth-child(3){animation-delay:.4s;}
-@keyframes bounce{0%,100%{transform:translateY(0);opacity:.4;}50%{transform:translateY(-4px);opacity:1;}}
-
-/* ALERTS */
-.alert{border-radius:8px;padding:1rem 1.2rem;margin-bottom:1rem;font-family:var(--fm);font-size:.78rem;line-height:1.6;}
-.alert-warn{background:rgba(255,165,2,.1);border:1px solid rgba(255,165,2,.3);color:var(--warn);}
-.alert-danger{background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.3);color:var(--danger);}
-.alert-success{background:rgba(46,213,115,.1);border:1px solid rgba(46,213,115,.3);color:var(--success);}
-.alert-info{background:rgba(71,184,255,.1);border:1px solid rgba(71,184,255,.3);color:var(--accent2);}
-
-/* MODAL */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;}
-.modal-overlay.open{display:flex;}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;width:90%;max-width:560px;max-height:90vh;overflow-y:auto;animation:modalIn .2s ease;}
-@keyframes modalIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);}}
-.modal-title{font-family:var(--fd);font-size:1.4rem;letter-spacing:.06em;margin-bottom:1.5rem;}
-.modal-footer{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem;}
-
-/* MISC */
-.toast{position:fixed;bottom:2rem;right:2rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem 1.5rem;font-family:var(--fm);font-size:.78rem;z-index:9999;transform:translateY(100px);opacity:0;transition:all .3s;}
-.toast.show{transform:translateY(0);opacity:1;}
-.toast.success{border-color:var(--success);color:var(--success);}
-.toast.error{border-color:var(--danger);color:var(--danger);}
-.empty-state{text-align:center;padding:3rem;color:var(--muted);font-family:var(--fm);font-size:.8rem;}
-.divider{height:1px;background:var(--border);margin:1.5rem 0;}
-::-webkit-scrollbar{width:4px;}
-::-webkit-scrollbar-track{background:transparent;}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
-@media(max-width:900px){.hero-stats{grid-template-columns:1fr 1fr;}.grid-2,.grid-3{grid-template-columns:1fr;}.week-grid{grid-template-columns:repeat(4,1fr);}nav{padding:0 1rem;}.nav-status{display:none;}}
 </style>
 </head>
 <body>
@@ -384,22 +277,40 @@ select option{background:var(--surface);}
     </button>
     <button class="bottom-tab" onclick="showPage('planning')" id="btab-planning">
       <div class="bottom-tab-icon">📅</div>
-      <div class="bottom-tab-label">Planning</div>
+      <div class="bottom-tab-label">Plan</div>
     </button>
     <button class="bottom-tab" onclick="showPage('log')" id="btab-log">
-      <div class="bottom-tab-icon" style="background:var(--accent);color:#0a0a0f;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:2px;">+</div>
+      <div class="bottom-tab-icon" style="background:var(--accent);color:#0a0a0f;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5rem;line-height:1;">+</div>
       <div class="bottom-tab-label">Log</div>
     </button>
-    <button class="bottom-tab" onclick="showPage('graphs')" id="btab-graphs">
-      <div class="bottom-tab-icon">📊</div>
-      <div class="bottom-tab-label">Stats</div>
+    <button class="bottom-tab" onclick="showPage('history')" id="btab-history">
+      <div class="bottom-tab-icon">📋</div>
+      <div class="bottom-tab-label">Histo</div>
     </button>
-    <button class="bottom-tab" onclick="showPage('coach')" id="btab-coach">
-      <div class="bottom-tab-icon">🧠</div>
-      <div class="bottom-tab-label">Coach</div>
+    <button class="bottom-tab" onclick="showPage('more')" id="btab-more">
+      <div class="bottom-tab-icon">⋯</div>
+      <div class="bottom-tab-label">Plus</div>
     </button>
   </div>
 </nav>
+
+<!-- MORE MENU (mobile only) -->
+<div id="page-more" class="page" style="display:none;">
+  <div class="section-header">
+    <div><div class="section-title">MENU</div></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:.75rem;">
+    <button class="btn btn-ghost" style="width:100%;text-align:left;padding:1.2rem;font-size:.9rem;display:flex;align-items:center;gap:1rem;" onclick="showPage('graphs')">
+      <span style="font-size:1.5rem;">📊</span> Graphiques
+    </button>
+    <button class="btn btn-ghost" style="width:100%;text-align:left;padding:1.2rem;font-size:.9rem;display:flex;align-items:center;gap:1rem;" onclick="showPage('coach')">
+      <span style="font-size:1.5rem;">🧠</span> Coach IA
+    </button>
+    <button class="btn btn-ghost" style="width:100%;text-align:left;padding:1.2rem;font-size:.9rem;display:flex;align-items:center;gap:1rem;" onclick="showPage('profil')">
+      <span style="font-size:1.5rem;">👤</span> Profil
+    </button>
+  </div>
+</div>
 
 <!-- DASHBOARD -->
 <div id="page-dashboard" class="page active">
@@ -1578,7 +1489,7 @@ function addInterval(dur='',pace='') {
   const n=intervalCount;
   const row=document.createElement('div');
   row.id=`interval-${n}`;
-  row.style.cssText='display:grid;grid-template-columns:40px 1fr 1fr 80px 1fr;gap:.5rem;align-items:center;';
+  row.style.cssText='display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;align-items:end;';
   row.innerHTML=`<div style="font-family:var(--fd);font-size:1.1rem;color:var(--muted);text-align:center;">${n}</div>
     <div class="form-group" style="margin:0;"><label>Durée/dist</label><input type="text" id="int-dur-${n}" placeholder="6min / 2km" value="${dur}" oninput="updateIntSummary()"></div>
     <div class="form-group" style="margin:0;"><label>Allure (min:sec)</label><input type="text" id="int-pace-${n}" placeholder="3'45&quot;" value="${pace}" oninput="updateIntSummary()"></div>
@@ -1724,7 +1635,7 @@ function renderHistory() {
       </div>
       <div style="display:flex;gap:.3rem;">
         <button class="btn btn-ghost btn-sm" onclick="openEditSession('${s.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteSession('${s.id}','${s.date}')">🗑</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSession('${s.id}','${s.date}')">×</button>
       </div>
     </div>`).join('');
 }
@@ -1814,7 +1725,7 @@ function addEditInterval(dur='', pace='', hr='', feel='ok') {
   const n = editIntervalCount;
   const row = document.createElement('div');
   row.id = `edit-interval-${n}`;
-  row.style.cssText = 'display:grid;grid-template-columns:30px 1fr 1fr 80px 1fr;gap:.4rem;align-items:center;';
+  row.style.cssText = 'display:grid;grid-template-columns:28px 1fr 1fr 1fr 1fr;gap:.4rem;align-items:end;';
   row.innerHTML = `
     <div style="font-family:var(--fd);font-size:1rem;color:var(--muted);text-align:center;">${n}</div>
     <div class="form-group" style="margin:0;"><label>Durée/dist</label><input type="text" id="edit-int-dur-${n}" placeholder="6min" value="${dur}" oninput="updateEditIntSummary()"></div>
@@ -2077,7 +1988,7 @@ function showPage(name) {
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.bottom-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  const tabs=['dashboard','planning','log','history','graphs','coach','profil'];
+  const tabs=['dashboard','planning','log','history','graphs','coach','profil','more'];
   const idx=tabs.indexOf(name);
   if(idx>=0) document.querySelectorAll('.nav-tab')[idx].classList.add('active');
   const btab=document.getElementById('btab-'+name);
