@@ -550,6 +550,56 @@ input[type=range]{padding:0;background:none;border:none;}
   </div>
 </div>
 
+<!-- DETAIL SÉANCE -->
+<div id="page-detail" class="page">
+  <div class="section-header">
+    <div>
+      <div class="section-title" id="detail-title">SÉANCE</div>
+      <div class="section-sub" id="detail-sub"></div>
+    </div>
+    <div class="section-actions">
+      <button class="btn btn-ghost" onclick="showPage('history')">← Retour</button>
+      <button class="btn btn-ghost" id="detail-edit-btn" onclick="">✏️ Modifier</button>
+    </div>
+  </div>
+
+  <!-- Stats rapides -->
+  <div class="hero-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem;" id="detail-stats"></div>
+
+  <!-- Graphique FC + Allure -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-title">FC & Allure <span class="badge">PAR SECONDE</span></div>
+    <canvas id="chart-detail-main" height="140"></canvas>
+  </div>
+
+  <div class="grid-2">
+    <!-- Temps par zone FC -->
+    <div class="card">
+      <div class="card-title">Temps par zone FC <span class="badge">RÉEL</span></div>
+      <canvas id="chart-detail-zones" height="180"></canvas>
+    </div>
+    <!-- Allure par km -->
+    <div class="card">
+      <div class="card-title">Allure par km</div>
+      <canvas id="chart-detail-pace" height="180"></canvas>
+    </div>
+  </div>
+
+  <!-- Intervalles si présents -->
+  <div id="detail-intervals" style="display:none;margin-top:1rem;">
+    <div class="card">
+      <div class="card-title">Intervalles détectés <span class="badge" id="detail-intervals-badge"></span></div>
+      <div id="detail-intervals-list"></div>
+    </div>
+  </div>
+
+  <!-- Notes et analyse -->
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-title">Infos & Notes</div>
+    <div id="detail-notes" style="font-family:var(--fm);font-size:.78rem;line-height:2.2;"></div>
+  </div>
+</div>
+
 <!-- HISTORIQUE -->
 <div id="page-history" class="page">
   <div class="section-header">
@@ -1634,12 +1684,16 @@ function renderHistory() {
         ${s.pain_level>=2?`<span style="color:var(--danger);margin-left:4px;font-size:.6rem;">⚠️${s.pain_level}</span>`:''}
       </div>
       <div style="display:flex;gap:.3rem;">
+        <button class="btn btn-ghost btn-sm" onclick="openDetailSession('${s.id}')">👁</button>
         <button class="btn btn-ghost btn-sm" onclick="openEditSession('${s.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteSession('${s.id}','${s.date}')">×</button>
       </div>
     </div>`).join('');
 }
 
+// ═══════════════════════════════════════════
+// SUPPRESSION SÉANCE
+// ═══════════════════════════════════════════
 async function deleteSession(id, date) {
   if (!confirm(`Supprimer la séance du ${formatDate(date)} ?`)) return;
   try {
@@ -1647,10 +1701,297 @@ async function deleteSession(id, date) {
     if (error) throw error;
     showToast('Séance supprimée ✓', 'success');
     await loadSessions();
-    renderHistory();
-    renderDashboard();
-    renderWeek();
+    renderHistory(); renderDashboard(); renderWeek();
   } catch(e) { showToast('Erreur: '+e.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════
+// PAGE DÉTAIL SÉANCE
+// ═══════════════════════════════════════════
+function openDetailSession(id) {
+  const s = allSessions.find(x => x.id === id);
+  if (!s) return;
+
+  // Titre
+  document.getElementById('detail-title').textContent = `${s.type} — ${formatDate(s.date)}`;
+  document.getElementById('detail-sub').textContent = s.notes || '';
+  document.getElementById('detail-edit-btn').setAttribute('onclick', `openEditSession('${id}')`);
+
+  // Stats rapides
+  const planned = plannedSessions.find(p => p.date === s.date);
+  const zones = calcZones();
+  const zMap = {'EF':zones[1],'Aérobie Z3':zones[2],'Seuil':zones[3],'VMA':zones[4],'Long':zones[1],'Récup':zones[0]};
+  const z = zMap[s.type];
+
+  document.getElementById('detail-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Distance</div><div class="stat-value" style="font-size:1.8rem;">${s.distance_km||'—'}</div><div class="stat-sub">km${planned?` · prévu ${planned.target_distance_km}km`:''}</div></div>
+    <div class="stat-card"><div class="stat-label">Durée</div><div class="stat-value" style="font-size:1.8rem;">${s.duration_minutes||'—'}</div><div class="stat-sub">minutes</div></div>
+    <div class="stat-card"><div class="stat-label">Allure moy</div><div class="stat-value" style="font-size:1.8rem;color:var(--accent2);">${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds):'—'}</div><div class="stat-sub">/km${z?` · cible ${z.paceHigh}-${z.paceLow}`:''}</div></div>
+    <div class="stat-card"><div class="stat-label">FC moyenne</div><div class="stat-value" style="font-size:1.8rem;color:var(--danger);">${s.avg_hr||'—'}</div><div class="stat-sub">bpm${z?` · cible ${z.fcLow}-${z.fcHigh}`:''}</div></div>
+  `;
+
+  // Notes
+  const noteLines = [
+    s.elevation_gain ? `<div><span style="color:var(--muted)">Dénivelé:</span> +${s.elevation_gain}m</div>` : '',
+    s.cadence_avg    ? `<div><span style="color:var(--muted)">Cadence:</span> ${s.cadence_avg} pas/min</div>` : '',
+    s.training_effect? `<div><span style="color:var(--muted)">Training Effect:</span> ${s.training_effect}</div>` : '',
+    s.perceived_effort?`<div><span style="color:var(--muted)">Effort ressenti:</span> ${s.perceived_effort}/5</div>` : '',
+    s.pain_level>=1  ? `<div><span style="color:var(--danger)">Douleur:</span> ${s.pain_level}/5${s.pain_location?' — '+s.pain_location:''}</div>` : '',
+    s.notes          ? `<div style="margin-top:.5rem;color:var(--muted);">${s.notes}</div>` : '',
+  ].filter(Boolean).join('');
+  document.getElementById('detail-notes').innerHTML = noteLines || '<span style="color:var(--muted)">Aucune note</span>';
+
+  // Intervalles manuels
+  const intEl = document.getElementById('detail-intervals');
+  if (s.intervals && s.intervals.length) {
+    intEl.style.display = 'block';
+    document.getElementById('detail-intervals-badge').textContent = `${s.intervals.length} reps`;
+    document.getElementById('detail-intervals-list').innerHTML = s.intervals.map(iv => `
+      <div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.75rem;padding:.5rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;align-items:center;">
+        <span style="color:var(--muted);font-family:var(--fd);font-size:1rem;">${iv.num}</span>
+        <span>${iv.duration||'—'}</span>
+        <span style="color:var(--accent);">${iv.pace||'—'}/km</span>
+        <span style="color:var(--danger);">${iv.avg_hr?'♥ '+iv.avg_hr:''}</span>
+        <span style="color:var(--muted);">${iv.feel||''}</span>
+      </div>`).join('');
+  } else {
+    intEl.style.display = 'none';
+  }
+
+  // Graphiques depuis streams
+  renderDetailCharts(s);
+
+  showPage('detail');
+}
+
+function renderDetailCharts(s) {
+  destroyChart('detail-main');
+  destroyChart('detail-zones');
+  destroyChart('detail-pace');
+
+  const streams = s.streams?.streams;
+  const zoneMins = s.streams?.zone_minutes;
+
+  // ── Graphique principal FC + Allure ──────────────────────────────
+  if (streams && streams.time && streams.time.length > 0) {
+    const t = streams.time;
+    const labels = t.map(sec => {
+      const m = Math.floor(sec/60);
+      return sec % 60 === 0 ? `${m}'` : '';
+    });
+
+    const ctx1 = document.getElementById('chart-detail-main')?.getContext('2d');
+    if (ctx1) {
+      chartInstances['detail-main'] = new Chart(ctx1, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'FC (bpm)',
+              data: streams.hr,
+              borderColor: '#ff4757',
+              backgroundColor: 'rgba(255,71,87,0.08)',
+              tension: 0.3, fill: true, pointRadius: 0, borderWidth: 1.5,
+              yAxisID: 'y-hr',
+            },
+            {
+              label: 'Allure (sec/km)',
+              data: streams.pace,
+              borderColor: '#47b8ff',
+              backgroundColor: 'rgba(71,184,255,0.05)',
+              tension: 0.3, fill: false, pointRadius: 0, borderWidth: 1.5,
+              yAxisID: 'y-pace',
+            },
+          ]
+        },
+        options: {
+          responsive: true, animation: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: '#6b6b8a', font: { family: 'DM Mono', size: 10 } } },
+            tooltip: { callbacks: {
+              label: (c) => {
+                if (c.dataset.yAxisID === 'y-pace' && c.raw) {
+                  return ` Allure: ${secToAllure(c.raw)}/km`;
+                }
+                return ` FC: ${c.raw} bpm`;
+              }
+            }}
+          },
+          scales: {
+            x: { ticks: { color:'#6b6b8a', font:{family:'DM Mono',size:8}, maxTicksLimit: 12 }, grid: { color:'#2a2a3a' } },
+            'y-hr': {
+              position: 'left',
+              ticks: { color:'#ff4757', font:{family:'DM Mono',size:9} },
+              grid: { color:'#2a2a3a' },
+              min: 100, max: profile.fc_max + 10,
+            },
+            'y-pace': {
+              position: 'right',
+              reverse: true,
+              ticks: {
+                color:'#47b8ff', font:{family:'DM Mono',size:9},
+                callback: v => v ? secToAllure(v) : ''
+              },
+              grid: { display: false },
+              min: 180, max: 480,
+            }
+          }
+        }
+      });
+    }
+  } else {
+    document.getElementById('chart-detail-main').parentElement.innerHTML =
+      '<div class="card-title">FC & Allure</div><div class="empty-state" style="padding:1.5rem;">Streams non disponibles — réimporte avec le nouveau script Strava</div>';
+  }
+
+  // ── Zones FC ──────────────────────────────────────────────────────
+  if (zoneMins) {
+    const ctx2 = document.getElementById('chart-detail-zones')?.getContext('2d');
+    if (ctx2) {
+      const labels = ['Z1 Récup','Z2 EF','Z3 Aérobie','Z4 Seuil','Z5 VMA'];
+      const data   = [zoneMins.Z1, zoneMins.Z2, zoneMins.Z3, zoneMins.Z4, zoneMins.Z5];
+      const colors = ['#6b6b8a','#47b8ff','#2ed573','#ffa502','#ff4757'];
+      const total  = data.reduce((a,b)=>a+b,0);
+      chartInstances['detail-zones'] = new Chart(ctx2, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position:'right', labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:10} } },
+            tooltip: { callbacks: { label: (c) => {
+              const pct = total > 0 ? Math.round(c.parsed/total*100) : 0;
+              const h = Math.floor(c.parsed/60), m = Math.round(c.parsed%60);
+              return ` ${h>0?h+'h':''}${m}min (${pct}%)`;
+            }}}
+          }
+        }
+      });
+    }
+  } else {
+    // Estimation depuis FC moyenne
+    renderEstimatedZones(s);
+  }
+
+  // ── Allure par km ─────────────────────────────────────────────────
+  renderPacePerKm(s, streams);
+}
+
+function renderEstimatedZones(s) {
+  if (!s.avg_hr || !s.duration_minutes) return;
+  const ctx = document.getElementById('chart-detail-zones')?.getContext('2d');
+  if (!ctx) return;
+  // Estimation simple depuis FC moyenne
+  const fc = s.avg_hr;
+  const dur = s.duration_minutes;
+  const bounds = [
+    {name:'Z1',low:0,high:FC_MAX*0.70},
+    {name:'Z2',low:FC_MAX*0.70,high:FC_MAX*0.80},
+    {name:'Z3',low:FC_MAX*0.80,high:FC_MAX*0.88},
+    {name:'Z4',low:FC_MAX*0.88,high:FC_MAX*0.93},
+    {name:'Z5',low:FC_MAX*0.93,high:999},
+  ];
+  const weights = [0,0,0,0,0];
+  const zi = bounds.findIndex(z => fc >= z.low && fc < z.high);
+  if (zi>=0) {
+    weights[zi]=0.55;
+    if(zi>0) weights[zi-1]=0.25;
+    if(zi<4) weights[zi+1]=0.20;
+  }
+  const data = weights.map(w => parseFloat((dur*w).toFixed(1)));
+  const total = data.reduce((a,b)=>a+b,0);
+  const FC_MAX_local = profile.fc_max || 208;
+  chartInstances['detail-zones'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels:['Z1 Récup','Z2 EF','Z3 Aérobie','Z4 Seuil','Z5 VMA'],
+      datasets:[{data, backgroundColor:['#6b6b8a','#47b8ff','#2ed573','#ffa502','#ff4757'], borderWidth:0}]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{position:'right',labels:{color:'#6b6b8a',font:{family:'DM Mono',size:10}}},
+        tooltip:{callbacks:{label:(c)=>{
+          const pct=total>0?Math.round(c.parsed/total*100):0;
+          return ` ~${Math.round(c.parsed)}min (${pct}%) — estimé`;
+        }}},
+        title:{display:true,text:'Estimation (réimporte pour données réelles)',color:'#6b6b8a',font:{family:'DM Mono',size:9}}
+      }
+    }
+  });
+}
+
+function renderPacePerKm(s, streams) {
+  const ctx = document.getElementById('chart-detail-pace')?.getContext('2d');
+  if (!ctx) return;
+
+  // Construire allure par km depuis streams si disponible
+  let kmPaces = [];
+  if (streams && streams.distance && streams.pace) {
+    const dist = streams.distance;
+    const pace = streams.pace;
+    let kmIdx = 1;
+    let bucket = [];
+    for (let i=0; i<dist.length; i++) {
+      if (dist[i] !== null && dist[i] >= kmIdx * 1000) {
+        if (bucket.length > 0) {
+          const valid = bucket.filter(p=>p&&p>120&&p<600);
+          if (valid.length > 0) {
+            kmPaces.push({
+              km: kmIdx,
+              pace: Math.round(valid.reduce((a,b)=>a+b,0)/valid.length)
+            });
+          }
+        }
+        kmIdx++;
+        bucket = [];
+      }
+      if (pace[i]) bucket.push(pace[i]);
+    }
+  }
+
+  if (kmPaces.length < 2) {
+    ctx.canvas.parentElement.innerHTML = '<div class="card-title">Allure par km</div><div class="empty-state" style="padding:1.5rem;">Réimporte avec le nouveau script pour les splits km</div>';
+    return;
+  }
+
+  const avgPace = s.avg_pace_seconds || 0;
+  const colors = kmPaces.map(k =>
+    k.pace < avgPace * 0.97 ? 'rgba(46,213,115,0.7)' :   // plus rapide que moy → vert
+    k.pace > avgPace * 1.03 ? 'rgba(255,71,87,0.7)' :    // plus lent → rouge
+    'rgba(71,184,255,0.7)'                                 // dans la moyenne → bleu
+  );
+
+  chartInstances['detail-pace'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: kmPaces.map(k=>`km ${k.km}`),
+      datasets: [{
+        label: 'Allure/km',
+        data: kmPaces.map(k=>k.pace),
+        backgroundColor: colors,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (c) => ` ${secToAllure(c.raw)}/km` } },
+        annotation: {},
+      },
+      scales: {
+        x: { ticks:{ color:'#6b6b8a', font:{family:'DM Mono',size:9} }, grid:{color:'#2a2a3a'} },
+        y: {
+          reverse: true,
+          ticks: { color:'#6b6b8a', font:{family:'DM Mono',size:9}, callback: v => secToAllure(v) },
+          grid: { color:'#2a2a3a' },
+        }
+      }
+    }
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -1988,11 +2329,13 @@ function showPage(name) {
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.bottom-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  const tabs=['dashboard','planning','log','history','graphs','coach','profil','more'];
+  const tabs=['dashboard','planning','log','history','graphs','coach','profil','more','detail'];
   const idx=tabs.indexOf(name);
-  if(idx>=0) document.querySelectorAll('.nav-tab')[idx].classList.add('active');
+  if(idx>=0) document.querySelectorAll('.nav-tab')[idx]?.classList.add('active');
   const btab=document.getElementById('btab-'+name);
   if(btab) btab.classList.add('active');
+  // highlight history tab when on detail
+  if(name==='detail') document.getElementById('btab-history')?.classList.add('active');
   if(name==='planning') renderWeek();
   if(name==='graphs') renderGraphs();
 }
