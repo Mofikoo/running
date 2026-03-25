@@ -2078,71 +2078,126 @@ function renderPacePerKm(s, streams) {
 }
 
 // ── Détection d'intervalles depuis les streams ────────────────────────────────
+// ── Utils ───────────────────────────────────────────────────────────────
+function avg(arr) {
+  const valid = arr.filter(v => v !== null && v !== undefined);
+  return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+}
+
+// ── Détection complète des segments ─────────────────────────────────────
 function detectIntervals(streams) {
   const pace = streams.pace;
   const hr   = streams.hr || [];
   const time = streams.time;
+
   if (!pace || pace.length < 10) return [];
 
   const smoothP = smoothArray(pace, 12); // ~1min
-  const avgPace = smoothP.filter(Boolean).reduce((a,b)=>a+b,0) / smoothP.filter(Boolean).length;
 
-  // Seuil : allure 10% plus rapide que la moyenne = effort
-  const threshold = avgPace * 0.85;
+  const avgPace = avg(smoothP);
 
-  const intervals = [];
-  let inInterval = false;
+  // Seuils
+  const fastThreshold = avgPace * 0.9;
+  const slowThreshold = avgPace * 1.1;
+
+  const segments = [];
+
+  let currentType = null;
   let start = 0;
-  const minDuration = 6; // min 30sec (6 points × 5sec)
 
-  for (let i=0; i<smoothP.length; i++) {
-    const fast = smoothP[i] && smoothP[i] < threshold;
-    if (fast && !inInterval) { inInterval = true; start = i; }
-    if ((!fast || i === smoothP.length-1) && inInterval) {
-      const len = i - start;
-      if (len >= minDuration) {
-        const pSlice = pace.slice(start, i).filter(Boolean);
-        const hSlice = hr.slice(start, i).filter(Boolean);
-        intervals.push({
-          num: intervals.length + 1,
-          startTime: time[start],
-          endTime: time[i],
-          durationSec: time[i] - time[start],
-          avgPace: pSlice.length ? Math.round(pSlice.reduce((a,b)=>a+b,0)/pSlice.length) : null,
-          avgHR:   hSlice.length ? Math.round(hSlice.reduce((a,b)=>a+b,0)/hSlice.length) : null,
-          startIdx: start, endIdx: i,
-        });
+  for (let i = 0; i < smoothP.length; i++) {
+    let type = 'normal';
+
+    if (smoothP[i] && smoothP[i] < fastThreshold) type = 'fast';
+    else if (smoothP[i] && smoothP[i] > slowThreshold) type = 'slow';
+
+    if (type !== currentType) {
+      if (currentType !== null) {
+        segments.push(createSegment(start, i, currentType, pace, hr, time));
       }
-      inInterval = false;
+      start = i;
+      currentType = type;
+    }
+
+    if (i === smoothP.length - 1) {
+      segments.push(createSegment(start, i, currentType, pace, hr, time));
     }
   }
-  return intervals;
+
+  return segments;
 }
 
+// ── Création d’un segment ───────────────────────────────────────────────
+function createSegment(start, end, type, pace, hr, time) {
+  const pSlice = pace.slice(start, end).filter(Boolean);
+  const hSlice = hr.slice(start, end).filter(Boolean);
+
+  return {
+    num: null, // on mettra après
+    type,
+    startTime: time[start],
+    endTime: time[end],
+    durationSec: time[end] - time[start],
+    avgPace: pSlice.length ? Math.round(avg(pSlice)) : null,
+    avgHR:   hSlice.length ? Math.round(avg(hSlice)) : null,
+    startIdx: start,
+    endIdx: end,
+  };
+}
+
+// ── Render ──────────────────────────────────────────────────────────────
 function renderIntervalChart(intervals, streams) {
-  // Affiche la section intervalles
   const sec = document.getElementById('detail-intervals');
   sec.style.display = 'block';
-  document.getElementById('detail-intervals-badge').textContent = `${intervals.length} détectés`;
 
-  // Tableau des intervalles
+  // Numérotation propre
+  intervals.forEach((iv, i) => iv.num = i + 1);
+
+  document.getElementById('detail-intervals-badge').textContent =
+    `${intervals.length} segments`;
+
+  // Moyenne globale UNE SEULE FOIS
+  const refPace = avg(streams.pace);
+
   document.getElementById('detail-intervals-list').innerHTML = `
     <div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);">
-      <div>#</div><div>Durée</div><div>Allure moy</div><div>FC moy</div><div>Écart moy</div>
+      <div>#</div><div>Durée</div><div>Allure moy</div><div>FC moy</div><div>Écart</div>
     </div>
+
     ${intervals.map(iv => {
-      const refPace = streams.pace.filter(Boolean).reduce((a,b)=>a+b,0)/streams.pace.filter(Boolean).length;
-      const diff = iv.avgPace ? Math.round(refPace - iv.avgPace) : null;
-      const min = Math.floor(iv.durationSec/60), sec2 = iv.durationSec%60;
-      return `<div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;align-items:center;">
+      const diff = iv.avgPace !== null ? Math.round(refPace - iv.avgPace) : null;
+
+      const min = Math.floor(iv.durationSec / 60);
+      const sec2 = iv.durationSec % 60;
+
+      // Couleur selon type
+      let color = 'var(--text)';
+      if (iv.type === 'fast') color = 'var(--success)';
+      if (iv.type === 'slow') color = 'var(--danger)';
+
+      return `
+      <div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;align-items:center;">
+        
         <div style="color:var(--muted);font-family:var(--fd);font-size:1rem;">${iv.num}</div>
+
         <div>${min}'${String(sec2).padStart(2,'0')}"</div>
-        <div style="color:var(--accent);">${iv.avgPace ? secToAllure(iv.avgPace)+'/km' : '—'}</div>
-        <div style="color:var(--danger);">${iv.avgHR ? '♥ '+iv.avgHR : '—'}</div>
-        <div style="color:${diff >= 0 ? 'var(--success)' : 'var(--danger)'};">${diff !== null ? `${diff > 0 ? '+' : ''}${diff}s` : '—'}</div>
+
+        <div style="color:${color};">
+          ${iv.avgPace ? secToAllure(iv.avgPace) + '/km' : '—'}
+        </div>
+
+        <div style="color:var(--danger);">
+          ${iv.avgHR ? '♥ ' + iv.avgHR : '—'}
+        </div>
+
+        <div style="color:${diff >= 0 ? 'var(--success)' : 'var(--danger)'};">
+          ${diff !== null ? `${diff > 0 ? '+' : ''}${diff}s` : '—'}
+        </div>
+
       </div>`;
     }).join('')}
   `;
+}
 
   // Graphique des intervalles
   const card = document.getElementById('detail-intervals');
