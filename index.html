@@ -2088,7 +2088,7 @@ function detectIntervals(streams) {
   const avgPace = smoothP.filter(Boolean).reduce((a,b)=>a+b,0) / smoothP.filter(Boolean).length;
 
   // Seuil : allure 10% plus rapide que la moyenne = effort
-  const threshold = avgPace * 0.90;
+  const threshold = avgPace * 0.85;
 
   const intervals = [];
   let inInterval = false;
@@ -2139,7 +2139,7 @@ function renderIntervalChart(intervals, streams) {
         <div>${min}'${String(sec2).padStart(2,'0')}"</div>
         <div style="color:var(--accent);">${iv.avgPace ? secToAllure(iv.avgPace)+'/km' : '—'}</div>
         <div style="color:var(--danger);">${iv.avgHR ? '♥ '+iv.avgHR : '—'}</div>
-        <div style="color:${diff>0?'var(--success)':'var(--danger)'};">${diff?`${diff>0?'+':''}${diff}s`:'—'}</div>
+        <div style="color:${diff >= 0 ? 'var(--success)' : 'var(--danger)'};">${diff !== null ? `${diff > 0 ? '+' : ''}${diff}s` : '—'}</div>
       </div>`;
     }).join('')}
   `;
