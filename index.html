@@ -1098,32 +1098,25 @@ async function generatePlan() {
 }
 
 function buildPlan() {
-  // ── Algorithme de planification continue basé sur les principes scientifiques
-  // Sources : Jack Daniels (Running Formula), Bompa (Periodization), Seiler (80/20 rule)
-  // Principe : progression continue sans fin, objectifs = jalons, pas d'arrêt
-  //
-  // Structure hebdomadaire respecte la règle 80/20 (80% low intensity, 20% high)
-  // Progression volumétrique : règle des 10% max/semaine (Pfitzinger & Douglas)
-  // Cycles de 4 semaines : 3 montée + 1 décharge (standard sport science)
-  // La sortie longue ne dépasse jamais 30% du volume hebdomadaire total
+  // Plan de progression continue — basé sur principes de Daniels, Pfitzinger, Bompa
+  // Pas de date de fin : les objectifs sont des jalons dans un plan qui continue
+  // Volume progresse selon une courbe sigmoïde avec plafond 10%/semaine max
+  // Structure hebdomadaire : majorité de séances faciles, qualité 1-2x/semaine
+  // (la proportion exacte varie selon la phase et la semaine, pas de ratio fixe)
 
   const today = new Date(); today.setHours(0,0,0,0);
-  const sessions = [];
-
-  // Paramètres de progression à long terme
   const race15 = new Date(profile.race_15k_date || '2026-09-20');
   const race10 = new Date(profile.race_10k_date || '2027-01-15');
 
-  // Base réelle depuis l'historique (4 dernières semaines)
   const baseKm = calcBaseKmFromHistory() || 35;
-  // Objectif long terme : 60km/sem fin 2026 (depuis profil ou défaut)
-  const targetKmLongTerm = 60;
-  // Nombre de semaines pour atteindre l'objectif (horizon 18 mois)
-  const totalWeeks = 78; // ~18 mois de plan continu
+  const targetKmEnd = 60; // objectif volume fin 2026
+  const totalWeeks = 78;  // ~18 mois de plan continu
 
   const monday = getWeekStart(new Date(today));
   const startMonday = new Date(monday);
   if (today.getDay() >= 5) startMonday.setDate(startMonday.getDate() + 7);
+
+  const sessions = [];
 
   for (let w = 0; w < totalWeeks; w++) {
     const wMon = new Date(startMonday);
@@ -1131,8 +1124,8 @@ function buildPlan() {
 
     const isRecupWeek = (w + 1) % 4 === 0;
     const phase = getPhase(w, totalWeeks, race15, race10, today);
-    const { sessionsForWeek, daySlots } = getWeekStructure(phase, w, isRecupWeek);
-    const targetKm = calcWeeklyVolume(w, baseKm, targetKmLongTerm, totalWeeks, isRecupWeek);
+    const targetKm = calcWeeklyVolume(w, baseKm, targetKmEnd, totalWeeks, isRecupWeek);
+    const { sessionsForWeek, daySlots } = getWeekStructure(phase, w, isRecupWeek, targetKm);
 
     sessionsForWeek.forEach((s, i) => {
       if (i >= daySlots.length) return;
@@ -1140,15 +1133,12 @@ function buildPlan() {
       d.setDate(d.getDate() + daySlots[i]);
       if (d < today) return;
 
-      // Ajuster le km de la séance proportionnellement au volume cible
-      const adjustedKm = distributeKm(s, targetKm, sessionsForWeek);
-
       sessions.push({
         date: localDateStr(d),
         type: s.type,
         description: s.desc,
-        target_distance_km: adjustedKm,
-        target_duration_minutes: Math.round(adjustedKm * paceForType(s.type)),
+        target_distance_km: s.km,
+        target_duration_minutes: Math.round(s.km * paceForType(s.type)),
         intensity_zone: s.zone,
         week_phase: phase,
         priority: s.type === 'Récup' ? 2 : 1
@@ -1161,183 +1151,153 @@ function buildPlan() {
   return sessions.filter(s => { if (seen.has(s.date)) return false; seen.add(s.date); return true; });
 }
 
-// ── Volume hebdomadaire cible (progression scientifique continue) ─────────────
+// Volume hebdomadaire cible : courbe sigmoïde + plafond Pfitzinger 10%/sem
 function calcWeeklyVolume(w, baseKm, targetKm, totalWeeks, isRecupWeek) {
-  // Modèle de progression : courbe logarithmique + plafond par règle des 10%/sem
-  // On calcule d'abord la cible idéale selon une courbe en S sur 78 semaines
   const x = w / totalWeeks;
-  // Sigmoïde : progression lente au début, accélère au milieu, plateau vers la fin
-  const sigmoid = 1 / (1 + Math.exp(-8 * (x - 0.4)));
-  const normalSigmoid = (sigmoid - 1/(1+Math.exp(3.2))) / (1/(1+Math.exp(-4.8)) - 1/(1+Math.exp(3.2)));
-  const idealKm = baseKm + (targetKm - baseKm) * Math.max(0, Math.min(1, normalSigmoid));
+  const sig = 1 / (1 + Math.exp(-8 * (x - 0.4)));
+  const sigMin = 1 / (1 + Math.exp(3.2));
+  const sigMax = 1 / (1 + Math.exp(-4.8));
+  const norm = Math.max(0, Math.min(1, (sig - sigMin) / (sigMax - sigMin)));
+  const ideal = baseKm + (targetKm - baseKm) * norm;
 
-  // Cap : jamais plus de 10% d'augmentation par semaine (Pfitzinger)
   const { weeklyMax } = getProgMultipliers();
-  const maxFromBase = baseKm * (1 + weeklyMax * (w + 1));
-  const km = Math.min(idealKm, maxFromBase, baseKm * 1.8); // jamais plus de +80% sur la totalité
-
-  if (isRecupWeek) return Math.round(km * 0.70 * 10) / 10;
-  return Math.round(km * 10) / 10;
+  const km = Math.min(ideal, baseKm * (1 + weeklyMax * (w + 1)), baseKm * 1.85);
+  return Math.round((isRecupWeek ? km * 0.70 : km) * 10) / 10;
 }
 
-// ── Distribution du km entre les séances de la semaine ──────────────────────
-function distributeKm(session, totalWeeklyKm, allSessions) {
-  // Règle : la SL ne dépasse jamais 30% du volume total (Pfitzinger)
-  // Les séances de qualité (VMA/Seuil) = distance fixe relative à la VMA
-  // Les EF et Récup absorbent le reste
-  const weights = { 'Long': 0.28, 'VMA': 0.18, 'Seuil': 0.20, 'EF': 0.22, 'Aérobie Z3': 0.22, 'Récup': 0.12 };
-  const totalWeight = allSessions.reduce((acc, s) => acc + (weights[s.type] || 0.20), 0);
-  const myWeight = weights[session.type] || 0.20;
-  const raw = totalWeeklyKm * (myWeight / totalWeight);
-  // Clamp selon le type
-  const clamps = { 'Long': [10, 28], 'VMA': [7, 14], 'Seuil': [8, 14], 'EF': [6, 14], 'Récup': [4, 8] };
-  const [min, max] = clamps[session.type] || [5, 15];
-  return Math.round(Math.max(min, Math.min(max, raw)) * 10) / 10;
-}
-
-// ── Phase du plan (jalons = objectifs) ───────────────────────────────────────
+// Phase du plan avec jalons-courses
 function getPhase(w, total, race15, race10, today) {
   const w15 = Math.max(0, Math.ceil((race15 - today) / (7*86400000)));
   const w10 = Math.max(0, Math.ceil((race10 - today) / (7*86400000)));
-
-  // Affûtages autour des courses
-  if (w >= w15 - 2 && w < w15 + 1) return 'affûtage_15k';
-  if (w >= w10 - 2 && w < w10 + 1) return 'affûtage_10k';
-
-  // Phases progressives
+  if (w >= w15 - 2 && w <= w15) return 'affûtage_15k';
+  if (w >= w10 - 2 && w <= w10) return 'affûtage_10k';
   if (w < 6) return 'base';
-  if (w < 18) return 'développement';
-  if (w < 35) return 'consolidation';
-  return 'élite'; // > 35 semaines : volumes élevés, qualité maximale
+  if (w < 20) return 'développement';
+  if (w < 40) return 'consolidation';
+  return 'élite';
 }
 
-// ── Structure hebdomadaire scientifique ───────────────────────────────────────
-// Règle 80/20 (Seiler) : 80% du volume en Z1-Z2, 20% en Z3-Z5
-// Fréquence évolue progressivement avec le niveau
-function getWeekStructure(phase, w, isRecupWeek) {
-  // Nombre de séances selon la semaine (progression du coureur)
-  // Démarre à 4 séances, monte à 5 vers sem 20, à 6 vers sem 40
-  const nbSessions = Math.min(6, 4 + Math.floor(w / 20));
+// Structure hebdomadaire — proportion de qualité variable selon phase et semaine
+// Pas de ratio 80/20 fixe : les recherches montrent qu'une grande majorité de
+// volume doit être facile, mais la proportion exacte dépend du coureur et du moment
+function getWeekStructure(phase, w, isRecupWeek, targetKm) {
+  // Nombre de séances progresse avec l'expérience
+  const nbSess = Math.min(6, 4 + Math.floor(w / 20));
 
-  // Slots jours : Lundi=0...Dimanche=6
-  // Principe : jamais 2 séances intenses consécutives, récup après qualité
+  // Jours préférés : jamais 2 séances dures consécutives
   const daySlots = {
-    4: [1, 3, 2, 5],         // Mar, Jeu, Mer, Sam
-    5: [1, 3, 2, 5, 0],      // + Lun (EF légère)
-    6: [1, 3, 2, 5, 0, 4],   // + Ven (Récup)
-  }[Math.min(6, Math.max(4, nbSessions))] || [1, 3, 2, 5];
+    4: [1, 3, 2, 5],
+    5: [1, 3, 2, 5, 0],
+    6: [1, 3, 2, 5, 0, 4]
+  }[nbSess] || [1, 3, 2, 5];
 
-  // Rotation des séances (variété scientifique : 3 cycles par phase)
+  // Rotation sur 3 variantes pour éviter la monotonie (principe Bompa)
   const rot = w % 3;
 
-  // Variantes : chaque cycle change le type de séance qualité
-  // pour éviter stagnation (principe de variation Bompa)
-  const structures = {
+  // Structures par phase — le nombre de séances de qualité varie (1 à 2 max)
+  // et les types alternent sur les 3 variantes
+  const structs = {
     'base': [
-      { types: ['EF', 'Seuil', 'EF', 'Long'],       zones: [2,3,2,2] },
-      { types: ['EF', 'Aérobie Z3', 'EF', 'Long'],   zones: [2,3,2,2] },
-      { types: ['EF', 'Seuil', 'Récup', 'Long'],     zones: [2,4,1,2] },
+      [ {type:'EF',z:2}, {type:'Seuil',z:3}, {type:'EF',z:2}, {type:'Long',z:2} ],
+      [ {type:'EF',z:2}, {type:'Aérobie Z3',z:3}, {type:'EF',z:2}, {type:'Long',z:2} ],
+      [ {type:'Récup',z:1}, {type:'Seuil',z:4}, {type:'EF',z:2}, {type:'Long',z:2} ],
     ],
     'développement': [
-      { types: ['EF', 'VMA', 'Seuil', 'Long', 'Récup'],     zones: [2,5,4,2,1] },
-      { types: ['EF', 'Seuil', 'VMA', 'Long', 'Récup'],     zones: [2,4,5,2,1] },
-      { types: ['EF', 'VMA', 'Aérobie Z3', 'Long', 'Récup'],zones: [2,5,3,2,1] },
+      [ {type:'EF',z:2}, {type:'VMA',z:5}, {type:'EF',z:2}, {type:'Long',z:2}, {type:'Récup',z:1} ],
+      [ {type:'EF',z:2}, {type:'Seuil',z:4}, {type:'EF',z:2}, {type:'Long',z:2}, {type:'Récup',z:1} ],
+      [ {type:'EF',z:2}, {type:'VMA',z:5}, {type:'Aérobie Z3',z:3}, {type:'Long',z:2}, {type:'Récup',z:1} ],
     ],
     'consolidation': [
-      { types: ['EF', 'VMA', 'Seuil', 'Long', 'EF', 'Récup'],    zones: [2,5,4,2,2,1] },
-      { types: ['EF', 'Seuil', 'VMA', 'Long', 'EF', 'Récup'],    zones: [2,4,5,2,2,1] },
-      { types: ['Récup', 'VMA', 'Seuil', 'Long', 'EF', 'EF'],    zones: [1,5,4,2,2,2] },
+      [ {type:'EF',z:2}, {type:'VMA',z:5}, {type:'Seuil',z:4}, {type:'Long',z:2}, {type:'EF',z:2}, {type:'Récup',z:1} ],
+      [ {type:'EF',z:2}, {type:'Seuil',z:4}, {type:'VMA',z:5}, {type:'Long',z:2}, {type:'EF',z:2}, {type:'Récup',z:1} ],
+      [ {type:'Récup',z:1}, {type:'VMA',z:5}, {type:'Aérobie Z3',z:3}, {type:'Long',z:2}, {type:'EF',z:2}, {type:'EF',z:2} ],
     ],
     'élite': [
-      { types: ['EF', 'VMA', 'Seuil', 'Long', 'EF', 'Récup'],    zones: [2,5,4,2,2,1] },
-      { types: ['EF', 'VMA', 'VMA', 'Long', 'Seuil', 'Récup'],   zones: [2,5,5,2,4,1] },
-      { types: ['EF', 'Seuil', 'VMA', 'Long', 'EF', 'Récup'],    zones: [2,4,5,2,2,1] },
+      [ {type:'EF',z:2}, {type:'VMA',z:5}, {type:'Seuil',z:4}, {type:'Long',z:2}, {type:'EF',z:2}, {type:'Récup',z:1} ],
+      [ {type:'EF',z:2}, {type:'VMA',z:5}, {type:'VMA',z:5}, {type:'Long',z:2}, {type:'Seuil',z:4}, {type:'Récup',z:1} ],
+      [ {type:'EF',z:2}, {type:'Seuil',z:4}, {type:'VMA',z:5}, {type:'Long',z:2}, {type:'EF',z:2}, {type:'Récup',z:1} ],
     ],
     'affûtage_15k': [
-      { types: ['EF', 'Seuil', 'Récup'], zones: [2,4,1] },
-      { types: ['EF', 'VMA', 'Récup'],   zones: [2,5,1] },
-      { types: ['EF', 'Seuil', 'Récup'], zones: [2,4,1] },
+      [ {type:'EF',z:2}, {type:'Seuil',z:4}, {type:'Récup',z:1} ],
+      [ {type:'EF',z:2}, {type:'VMA',z:5}, {type:'Récup',z:1} ],
+      [ {type:'EF',z:2}, {type:'Seuil',z:4}, {type:'Récup',z:1} ],
     ],
     'affûtage_10k': [
-      { types: ['EF', 'VMA', 'Récup'],   zones: [2,5,1] },
-      { types: ['EF', 'Seuil', 'Récup'], zones: [2,4,1] },
-      { types: ['EF', 'VMA', 'Récup'],   zones: [2,5,1] },
+      [ {type:'EF',z:2}, {type:'VMA',z:5}, {type:'Récup',z:1} ],
+      [ {type:'EF',z:2}, {type:'Seuil',z:4}, {type:'Récup',z:1} ],
+      [ {type:'EF',z:2}, {type:'VMA',z:5}, {type:'Récup',z:1} ],
     ],
   };
 
-  const phaseStructures = structures[phase] || structures['base'];
+  const phaseStructs = structs[phase] || structs['base'];
   const struct = isRecupWeek
-    ? phaseStructures[phaseStructures.length - 1]
-    : phaseStructures[rot % phaseStructures.length];
+    ? phaseStructs[phaseStructs.length - 1]
+    : phaseStructs[rot % phaseStructs.length];
 
-  // Générer les séances avec descriptions dynamiques
-  const sessionsForWeek = struct.types.map((type, i) => ({
-    type,
-    zone: struct.zones[i],
-    desc: generateDesc(type, phase, w, isRecupWeek, i, struct.types)
-  }));
+  // Distribuer le volume entre les séances
+  const weights = { 'Long':0.28, 'VMA':0.17, 'Seuil':0.19, 'EF':0.22, 'Aérobie Z3':0.22, 'Récup':0.10 };
+  const totalW = struct.reduce((acc, s) => acc + (weights[s.type] || 0.20), 0);
+  const clamps = { 'Long':[10,28], 'VMA':[7,14], 'Seuil':[8,14], 'EF':[5,14], 'Aérobie Z3':[7,13], 'Récup':[4,8] };
+
+  const sessionsForWeek = struct.slice(0, nbSess).map((s, i) => {
+    const raw = targetKm * ((weights[s.type] || 0.20) / totalW);
+    const [mn, mx] = clamps[s.type] || [5, 14];
+    const km = Math.round(Math.max(mn, Math.min(mx, raw)) * 10) / 10;
+    return { type: s.type, zone: s.z, km, desc: buildDesc(s.type, phase, w, isRecupWeek, i, struct) };
+  });
 
   return { sessionsForWeek, daySlots };
 }
 
-// ── Descriptions dynamiques et variées ────────────────────────────────────────
-function generateDesc(type, phase, w, isRecup, idx, weekTypes) {
-  const hasQuality = weekTypes.some(t => ['VMA','Seuil'].includes(t));
-  const isAfterQuality = idx > 0 && ['VMA','Seuil'].includes(weekTypes[idx-1]);
+// Descriptions variées et contextuelles
+function buildDesc(type, phase, w, isRecup, idx, struct) {
+  const prevType = idx > 0 ? struct[idx-1].type : null;
+  const afterQuality = ['VMA','Seuil'].includes(prevType);
 
   if (isRecup) {
-    const recupDescs = {
-      'EF':   'EF allégée — semaine de décharge, écoute le corps',
-      'Seuil':'Seuil court — version allégée · récup 3\'',
-      'VMA':  'VMA courte — rappel de rythme · récup généreuse',
-      'Long': 'Sortie longue courte — décharge active',
-      'Récup':'Footing très léger — décharge complète',
-    };
-    return recupDescs[type] || 'Séance allégée — semaine de récup';
+    return { 'EF':'EF allégée — semaine de décharge', 'Seuil':'Seuil court — version allégée',
+      'VMA':'VMA courte — rappel du rythme', 'Long':'Sortie longue courte — décharge',
+      'Récup':'Footing très léger — décharge complète', 'Aérobie Z3':'Z3 léger — semaine allégée' }[type] || 'Séance allégée';
   }
 
-  const weekProgress = Math.min(1, w / 40);
-  const intensity = Math.round(weekProgress * 10) / 10;
-
-  const descriptions = {
+  const v = w % 4;
+  const descs = {
     'EF': [
-      'EF douce — allure conversationnelle stricte (test : pouvoir parler)',
+      afterQuality ? 'EF récup active — jambes légères, sans chrono' : 'EF douce — allure conversationnelle (test : parler sans forcer)',
       'EF progressive — montée graduelle sur les 2 derniers km',
-      'EF + 8×100m foulées vives (récup 100m marche entre chaque)',
-      'EF + strides — 6×20sec à allure 5km, récup 60sec',
-      isAfterQuality ? 'EF récup active — jambes légères, sans effort' : 'EF solide — allure Z2 tenue',
-    ][Math.floor(Math.random() * 5)],
+      'EF + 8×100m foulées vives (récup 100m marche)',
+      'EF + 6×20sec strides à allure 5km — récup 60sec trot',
+    ][v],
     'Seuil': [
-      `${w < 10 ? '2×12\'' : w < 20 ? '2×15\'' : '3×10\''} tempo Z3-Z4 — récup 3\' trot entre chaque`,
-      `${w < 15 ? '20\'' : '30\''} continu au seuil — régularité avant tout`,
-      '3×8\' seuil anaérobie — récup 2\' trot · focus allure',
-      'Tempo progressif — 10\' Z3 + 10\' Z4 + 5\' Z3',
-    ][w % 4],
+      w < 12 ? "2×12' tempo Z3-Z4 — récup 3' trot" : w < 24 ? "3×10' seuil — récup 2' trot" : "2×15' seuil anaérobie — récup 3'",
+      "20' continu au seuil — régularité avant tout",
+      "Tempo progressif — 10' Z3 puis 10' Z4",
+      w < 18 ? "3×8' seuil — récup 2' · focus allure" : "35' continu seuil — test robustesse",
+    ][v],
     'VMA': [
-      `${w < 12 ? '5×3\'' : w < 25 ? '6×3\'' : '8×3\''} à ${w < 10 ? '95' : '100'}% VMA — récup ${w < 15 ? '3\'' : '2\'30'} trot`,
-      `${w < 12 ? '4' : '5'}×1000m allure objectif 10km — récup 2\' trot`,
-      `${w < 20 ? '3' : '4'}×2min à 105% VMA — récup 3\' marche`,
-      'Pyramide : 1\'-2\'-3\'-2\'-1\' à 100% VMA — récup égale',
-    ][w % 4],
+      w < 10 ? "5×3' à 95% VMA — récup 3' trot" : w < 22 ? "6×3' à 100% VMA — récup 2'30" : "8×3' à 100% VMA — récup 2'",
+      w < 14 ? "4×1000m allure obj. 10km — récup 2' trot" : "5×1000m allure 10km — récup 90sec",
+      "Pyramide 1'-2'-3'-2'-1' à 100% VMA — récup égale",
+      w < 20 ? "3×2min à 105% VMA — récup 3' marche" : "5×2min à 105% VMA — récup 2'30",
+    ][v],
     'Long': [
-      `Sortie longue Z2 — ${w < 10 ? 'allure 100% conversationnelle' : w < 25 ? 'km 60% à allure marathon' : 'segment central 8km allure spécifique'}`,
-      'Sortie longue — montée progressive, resiste à l\'envie d\'accélérer',
-      'Sortie longue avec changements de rythme — 3×5\' allure seuil inclus',
-      'Long run — derniers 20% à allure objectif 10km+30sec',
-    ][w % 4],
+      w < 10 ? 'Sortie longue Z2 — allure 100% conversationnelle' : w < 25 ? 'Sortie longue — 60% à allure marathon' : 'Long run — segment central 8km allure spécifique',
+      'Sortie longue — montée progressive, résiste à accélérer',
+      "Long run avec rythme — 3×5' allure seuil en milieu de séance",
+      'Sortie longue — 20% final à allure obj 10km+30sec',
+    ][v],
     'Aérobie Z3': [
       'Tempo Z3 — allure soutenue mais maîtrisée sur toute la distance',
-      'Z3 progressif — monte doucement sur 10min puis tiens',
-      'Allure marathon — travail de l\'économie de course',
+      'Z3 progressif — 10min pour monter en allure puis tiens',
+      'Allure marathon — travail économie de course',
     ][w % 3],
     'Récup': [
-      'Footing récup — très lent, jambes légères, pas d\'effort',
-      'Récupération active — 40-50min allure Z1 stricte',
-      'Footing léger — écoute les sensations, sans montre si possible',
+      'Footing récup — très lent, pas de montre si possible',
+      'Récupération active — Z1 stricte, 40-50min',
+      'Footing léger — écoute les sensations',
     ][w % 3],
   };
-
-  return descriptions[type] || `${type} — séance semaine ${w + 1}`;
+  return descs[type] || type + ' — séance semaine ' + (w+1);
 }
 
 function updateProgLabel(val) {
@@ -2186,7 +2146,7 @@ function renderIntervalChart(intervals, streams) {
         </div>
 
         <div>
-          ${min}'${String(sec2).padStart(2,'0')}"
+          ${min}'${String(sec2).padStart(2,'0')}&quot;
         </div>
 
         <div style="color:${paceColor};">
@@ -2197,7 +2157,7 @@ function renderIntervalChart(intervals, streams) {
           ${hasHR ? '♥ ' + iv.avgHR : '—'}
         </div>
 
-        <div style="color:${diffColor};font-size:.68rem;">
+        <div style="color:${diffColor};">
           ${diff !== null ? `${diff > 0 ? '▲ −' : '▼ +'}${Math.abs(diff)}s` : '—'}
         </div>
 
@@ -2212,9 +2172,7 @@ function renderIntervalChart(intervals, streams) {
     canvas = document.createElement('canvas');
     canvas.id = 'chart-detail-intervals';
     canvas.height = 160;
-    const cardInner = card.querySelector('.card');
-    if (cardInner) cardInner.appendChild(canvas);
-    else card.appendChild(canvas);
+    card.querySelector('.card').appendChild(canvas);
   }
   const ctx = canvas.getContext('2d');
   destroyChart('detail-intervals-chart');
@@ -2797,119 +2755,89 @@ function renderTypesChart(sessions) {
 }
 
 function calcSessionLoad(s) {
-  // Score de charge par séance basé sur durée × intensité (modèle simplifié Banister)
-  // Intensité : EF=1, Long=1.1, Z3=1.3, Seuil=1.6, VMA=2.0, Récup=0.7
-  const intensity = {
-    'EF':1.0, 'Long':1.1, 'Aérobie Z3':1.3,
-    'Seuil':1.6, 'VMA':2.0, 'Récup':0.7, 'Compét':2.2
-  }[s.type] || 1.0;
-  const durationH = (s.duration_minutes || (s.distance_km ? s.distance_km * 6 : 0)) / 60;
-  return Math.round(durationH * 60 * intensity); // en UA (unités arbitraires)
+  // Score de charge basé sur durée × facteur d'intensité
+  // Facteurs issus de la littérature (Edwards 1993, Seiler 2010) :
+  // Z1 Récup=0.7, Z2 EF=1.0, Z3=1.3, Z4 Seuil=1.6, Z5 VMA=2.0
+  const intensity = { 'Récup':0.7, 'EF':1.0, 'Long':1.05, 'Aérobie Z3':1.3, 'Seuil':1.6, 'VMA':2.0, 'Compét':2.2 }[s.type] || 1.0;
+  const mins = s.duration_minutes || Math.round((s.distance_km || 0) * paceForType(s.type));
+  return Math.round(mins * intensity);
 }
 
 function renderLoadChart(sessions) {
   destroyChart('load');
   const ctx = document.getElementById('chart-load')?.getContext('2d');
   if (!ctx) return;
+  if (sessions.length < 2) return;
 
-  // Trier chronologiquement
   const sorted = [...sessions].sort((a,b) => a.date.localeCompare(b.date));
-  if (sorted.length < 2) return;
 
-  // Constantes ATL/CTL (modèle Banister)
-  const CTL_TAU = 42; // forme chronique — 42 jours
-  const ATL_TAU = 7;  // fatigue aiguë — 7 jours
+  // Modèle ATL/CTL (Banister 1991) — constantes standard
+  const CTL_TAU = 42; // forme chronique (fitness)
+  const ATL_TAU = 7;  // fatigue aiguë
   const kCTL = 1 - Math.exp(-1/CTL_TAU);
   const kATL = 1 - Math.exp(-1/ATL_TAU);
 
-  // Construire un tableau jour par jour sur les 16 dernières semaines
-  const endDate = new Date();
-  const startDate = new Date(); startDate.setDate(startDate.getDate() - 112); // 16 semaines
-
-  const sessionMap = {};
+  // Map par date
+  const loadMap = {};
   sorted.forEach(s => {
-    const load = calcSessionLoad(s);
-    if (load > 0) sessionMap[s.date] = (sessionMap[s.date] || 0) + load;
+    const l = calcSessionLoad(s);
+    if (l > 0) loadMap[s.date] = (loadMap[s.date] || 0) + l;
   });
+
+  // Itération jour par jour sur 16 semaines
+  const endDate = new Date();
+  const startDate = new Date(); startDate.setDate(startDate.getDate() - 112);
 
   let ctl = 0, atl = 0;
-  const days = [];
+  const weekData = [];
+  let weekCtl = [], weekAtl = [], weekTsb = [], weekLabels = [];
+  let dayCount = 0;
+
   const d = new Date(startDate);
   while (d <= endDate) {
-    const dateStr = d.toISOString().slice(0,10);
-    const load = sessionMap[dateStr] || 0;
+    const ds = d.toISOString().slice(0,10);
+    const load = loadMap[ds] || 0;
     ctl = ctl + kCTL * (load - ctl);
     atl = atl + kATL * (load - atl);
-    days.push({ date: dateStr, ctl: Math.round(ctl*10)/10, atl: Math.round(atl*10)/10, tsb: Math.round((ctl-atl)*10)/10, load });
+
+    dayCount++;
+    if (dayCount % 7 === 0) {
+      weekCtl.push(Math.round(ctl * 10) / 10);
+      weekAtl.push(Math.round(atl * 10) / 10);
+      weekTsb.push(Math.round((ctl - atl) * 10) / 10);
+      weekLabels.push(d.toLocaleDateString('fr-FR', {day:'numeric', month:'short'}));
+    }
     d.setDate(d.getDate() + 1);
   }
-
-  // Regrouper par semaine pour lisibilité (prendre valeur du dimanche)
-  const weekDays = days.filter((_, i) => (i+1) % 7 === 0 || i === days.length-1);
-  const labels = weekDays.map(d => {
-    const dt = new Date(d.date);
-    return dt.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
-  });
 
   chartInstances['load'] = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels,
+      labels: weekLabels,
       datasets: [
-        {
-          label: 'CTL — Forme (42j)',
-          data: weekDays.map(d => d.ctl),
-          type: 'line',
-          borderColor: '#e8ff47',
-          backgroundColor: 'rgba(232,255,71,0.08)',
-          tension: 0.4, pointRadius: 0, borderWidth: 2.5,
-          fill: false, order: 1, yAxisID: 'y'
-        },
-        {
-          label: 'ATL — Fatigue (7j)',
-          data: weekDays.map(d => d.atl),
-          type: 'line',
-          borderColor: '#ff4757',
-          backgroundColor: 'transparent',
-          tension: 0.4, pointRadius: 0, borderWidth: 2,
-          fill: false, order: 2, yAxisID: 'y'
-        },
-        {
-          label: 'TSB — Fraîcheur',
-          data: weekDays.map(d => d.tsb),
-          backgroundColor: weekDays.map(d => d.tsb >= 0 ? 'rgba(46,213,115,0.5)' : 'rgba(255,71,87,0.4)'),
-          borderRadius: 3, order: 3, yAxisID: 'y-tsb'
-        }
+        { label: 'CTL — Forme', data: weekCtl, type:'line', borderColor:'#e8ff47', backgroundColor:'rgba(232,255,71,0.07)', tension:0.4, pointRadius:0, borderWidth:2.5, fill:false, order:1, yAxisID:'y' },
+        { label: 'ATL — Fatigue', data: weekAtl, type:'line', borderColor:'#ff4757', backgroundColor:'transparent', tension:0.4, pointRadius:0, borderWidth:2, fill:false, order:2, yAxisID:'y' },
+        { label: 'TSB — Fraîcheur', data: weekTsb, backgroundColor: weekTsb.map(v => v >= 0 ? 'rgba(46,213,115,0.5)' : 'rgba(255,71,87,0.4)'), borderRadius:3, order:3, yAxisID:'y-tsb' }
       ]
     },
     options: {
       responsive: true,
-      interaction: { mode: 'index', intersect: false },
+      interaction: { mode:'index', intersect:false },
       plugins: {
-        legend: { labels: { color:'#6b6b8a', font:{family:'DM Mono',size:10}, boxWidth:12 } },
-        tooltip: {
-          callbacks: {
-            label: c => {
-              if (c.dataset.label.includes('TSB')) return ` Fraîcheur: ${c.raw} (${c.raw>5?'⚡ Frais':c.raw<-10?'😓 Fatigué':'⚖️ Équilibré'})`;
-              return ` ${c.dataset.label.split('—')[0].trim()}: ${c.raw}`;
-            }
+        legend: { labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:10}, boxWidth:12 } },
+        tooltip: { callbacks: { label: c => {
+          if (c.dataset.label.includes('TSB')) {
+            const v = c.raw;
+            const état = v > 10 ? '⚡ Très frais' : v > 0 ? '✅ Frais' : v > -10 ? '⚖️ Équilibré' : '😓 Fatigué';
+            return ` Fraîcheur: ${v} (${état})`;
           }
-        }
+          return ` ${c.dataset.label}: ${c.raw}`;
+        }}}
       },
       scales: {
-        x: { ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:9},maxTicksLimit:12}, grid:{color:'rgba(42,42,58,.5)'} },
-        y: {
-          position:'left',
-          ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:9}},
-          grid:{color:'rgba(42,42,58,.3)'},
-          title:{display:true,text:'CTL / ATL',color:'#6b6b8a',font:{size:9}}
-        },
-        'y-tsb': {
-          position:'right',
-          ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:9}},
-          grid:{display:false},
-          title:{display:true,text:'TSB',color:'#6b6b8a',font:{size:9}}
-        }
+        x: { ticks:{color:'#6b6b8a', font:{family:'DM Mono',size:9}, maxTicksLimit:10}, grid:{color:'rgba(42,42,58,.5)'} },
+        y: { position:'left', ticks:{color:'#6b6b8a', font:{family:'DM Mono',size:9}}, grid:{color:'rgba(42,42,58,.3)'}, title:{display:true, text:'CTL / ATL', color:'#6b6b8a', font:{size:9}} },
+        'y-tsb': { position:'right', ticks:{color:'#6b6b8a', font:{family:'DM Mono',size:9}}, grid:{display:false}, title:{display:true, text:'TSB', color:'#6b6b8a', font:{size:9}} }
       }
     }
   });
