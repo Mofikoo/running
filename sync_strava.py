@@ -239,6 +239,7 @@ def sync(days_back=7):
                 "avg_hr":             int(avg_hr) if avg_hr else None,
                 "perceived_effort":   effort,
                 "pain_level":         0,
+                "strava_name":        name,
                 "notes":              f"{name} · Strava",
                 "completed":          True,
                 "garmin_activity_id": aid,
