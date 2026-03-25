@@ -201,6 +201,20 @@ input[type=range]{padding:0;background:none;border:none;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 
+/* WEEKS NAV */
+.weeks-nav{display:flex;align-items:center;gap:1rem;margin-bottom:1rem;}
+.week-label{font-family:var(--fd);font-size:1.3rem;letter-spacing:.05em;flex:1;text-align:center;}
+.icon-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .2s;}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ZONES */
+.zone-row{display:flex;align-items:center;gap:.75rem;font-family:var(--fm);font-size:.72rem;padding:.3rem 0;}
+.zone-label{width:40px;color:var(--muted);font-size:.6rem;text-transform:uppercase;}
+.zone-bar{flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;}
+.zone-fill{height:100%;border-radius:4px;}
+.zone-range{color:var(--muted);font-size:.65rem;min-width:85px;text-align:right;}
+.zone-pace{font-size:.68rem;min-width:100px;text-align:right;}
+
 /* ═══ RESPONSIVE MOBILE ═══ */
 @media(max-width:768px){
   .nav-tabs{display:none;}
@@ -208,45 +222,48 @@ input[type=range]{padding:0;background:none;border:none;}
   nav{padding:0 1rem;justify-content:center;padding-top:env(safe-area-inset-top);}
   .nav-logo{font-size:1.3rem;}
   .bottom-nav{display:block;}
-  .page{padding:1rem;padding-bottom:calc(var(--bottom-nav-h) + 1rem + env(safe-area-inset-bottom));}
-  .hero-stats{grid-template-columns:1fr 1fr;}
+  .page{padding:1rem;padding-bottom:calc(var(--bottom-nav-h) + 1.5rem + env(safe-area-inset-bottom));}
+  .hero-stats{grid-template-columns:1fr 1fr;gap:.6rem;}
   .grid-2,.grid-3{grid-template-columns:1fr;}
   .form-grid{grid-template-columns:1fr;}
   .form-group.full{grid-column:span 1;}
-  .week-grid{grid-template-columns:repeat(7,minmax(40px,1fr));gap:.2rem;overflow-x:auto;}
-  .day-cell{min-height:68px;padding:.4rem .15rem;}
-  .day-num{font-size:1rem;}
+  .week-grid{grid-template-columns:repeat(7,minmax(38px,1fr));gap:.15rem;overflow-x:auto;}
+  .day-cell{min-height:65px;padding:.35rem .1rem;}
+  .day-num{font-size:.95rem;}
+  .day-name{font-size:.5rem;}
   .section-header{flex-direction:column;align-items:flex-start;gap:.5rem;}
-  .section-actions{width:100%;justify-content:flex-end;}
-  .section-title{font-size:1.5rem;}
-  .session-item{grid-template-columns:52px 72px 1fr auto auto auto;gap:.4rem;padding:.65rem .5rem;font-size:.68rem;}
-  .stat-value{font-size:1.7rem;}
-  .stat-card{padding:.9rem;}
+  .section-actions{width:100%;justify-content:flex-end;flex-wrap:wrap;}
+  .section-title{font-size:1.4rem;}
+  .session-item{grid-template-columns:50px 70px 1fr auto;gap:.35rem;padding:.6rem .4rem;font-size:.65rem;}
+  .session-item .effort-dots{display:none;}
+  .stat-value{font-size:1.6rem;}
+  .stat-card{padding:.8rem;}
+  .stat-label{font-size:.58rem;}
   .ns-desc{display:none;}
   .ns-km{font-size:1rem;}
-  .modal-footer{flex-direction:column-reverse;}
+  .modal-footer{flex-direction:column-reverse;gap:.5rem;}
   .modal-footer .btn{width:100%;text-align:center;}
-  .modal{border-radius:20px 20px 0 0;padding:1.25rem;}
-  .grid-2 .btn-ghost{font-size:.7rem;padding:.6rem .4rem;}
+  .modal{border-radius:20px 20px 0 0;padding:1.1rem;max-height:95vh;}
+  .grid-2 .btn-ghost{font-size:.68rem;padding:.55rem .4rem;}
   .zone-pace{display:none;}
-  .zone-range{min-width:65px;}
-  .card{padding:.9rem;}
-  .card-title{font-size:.95rem;}
+  .zone-range{min-width:60px;}
+  .card{padding:.85rem;}
+  .card-title{font-size:.9rem;}
   .toast{bottom:calc(var(--bottom-nav-h) + 1rem + env(safe-area-inset-bottom));}
   .bottom-nav{padding-bottom:env(safe-area-inset-bottom);}
+  .btn{padding:.65rem 1.1rem;font-size:.72rem;}
+  .btn-sm{padding:.35rem .6rem;font-size:.62rem;}
+  .weeks-nav .week-label{font-size:1rem;}
+  .next-session-item{gap:.6rem;padding:.7rem 0;}
+  .ns-date{min-width:42px;font-size:.65rem;}
+  .hero-stats .stat-card.accent .stat-value{font-size:1.3rem;}
 }
 @media(max-width:380px){
-  .stat-value{font-size:1.4rem;}
-  .day-cell{min-height:56px;}
-  .hero-stats{gap:.5rem;}
+  .stat-value{font-size:1.3rem;}
+  .day-cell{min-height:52px;}
+  .hero-stats{gap:.4rem;}
+  .page{padding:.75rem;}
 }
-</style>
-
-/* WEEKS NAV */
-.weeks-nav{display:flex;align-items:center;gap:1rem;margin-bottom:1rem;}
-.week-label{font-family:var(--fd);font-size:1.3rem;letter-spacing:.05em;flex:1;text-align:center;}
-.icon-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;}
-.icon-btn:hover{border-color:var(--accent);color:var(--accent);}
 </style>
 </head>
 <body>
@@ -1671,22 +1688,25 @@ function renderHistory() {
   const el=document.getElementById('history-list');
   if(!allSessions.length){el.innerHTML='<div class="empty-state">Aucune séance enregistrée</div>';return;}
   document.getElementById('history-sub').textContent=`${allSessions.length} séances`;
-  el.innerHTML=`<div class="session-item" style="opacity:.5;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;grid-template-columns:65px 85px 1fr auto auto auto;">
+  el.innerHTML=`<div class="session-item" style="opacity:.5;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;grid-template-columns:60px 80px 1fr auto auto auto;">
     <div>Date</div><div>Type</div><div>Détail</div><div>Allure</div><div>Effort</div><div></div>
   </div>`+allSessions.map(s=>`
-    <div class="session-item" style="grid-template-columns:65px 85px 1fr auto auto auto;">
+    <div class="session-item" style="grid-template-columns:60px 80px 1fr auto auto auto;">
       <div class="session-date">${formatDate(s.date)}</div>
       <div>${typeBadge(s.type)}</div>
-      <div style="font-family:var(--fb);font-size:.8rem;">${s.distance_km?s.distance_km+'km':''} ${s.duration_minutes?s.duration_minutes+'min':''} ${s.avg_hr?'· '+s.avg_hr+'bpm':''}${s.intervals&&s.intervals.length?` · <span style="color:var(--accent2);">${s.intervals.length} int.</span>`:''}</div>
+      <div style="font-family:var(--fb);font-size:.8rem;">
+        ${s.strava_name ? `<div style="color:var(--text);font-weight:500;margin-bottom:.1rem;">${s.strava_name}</div>` : ''}
+        <span style="color:var(--muted);">${s.distance_km?s.distance_km+'km':''} ${s.duration_minutes?s.duration_minutes+'min':''} ${s.avg_hr?'· '+s.avg_hr+'bpm':''}${s.streams?` · <span style="color:var(--success);font-size:.65rem;">● live</span>`:''}</span>
+      </div>
       <div class="session-pace">${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'—'}</div>
       <div class="effort-dots">
         ${[1,2,3,4,5].map(i=>`<div class="effort-dot${i<=(s.perceived_effort||0)?' on':''}"></div>`).join('')}
         ${s.pain_level>=2?`<span style="color:var(--danger);margin-left:4px;font-size:.6rem;">⚠️${s.pain_level}</span>`:''}
       </div>
-      <div style="display:flex;gap:.3rem;">
-        <button class="btn btn-ghost btn-sm" onclick="openDetailSession('${s.id}')">👁</button>
+      <div style="display:flex;gap:.4rem;align-items:center;">
+        <button style="background:rgba(71,184,255,.15);border:1px solid var(--accent2);color:var(--accent2);font-family:var(--fm);font-size:.75rem;padding:.5rem .9rem;border-radius:6px;cursor:pointer;white-space:nowrap;" onclick="openDetailSession('${s.id}')">👁 Voir</button>
         <button class="btn btn-ghost btn-sm" onclick="openEditSession('${s.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteSession('${s.id}','${s.date}')">X</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSession('${s.id}','${s.date}')">×</button>
       </div>
     </div>`).join('');
 }
@@ -1768,233 +1788,434 @@ function renderDetailCharts(s) {
   destroyChart('detail-main');
   destroyChart('detail-zones');
   destroyChart('detail-pace');
+  destroyChart('detail-intervals-chart');
 
   const streams = s.streams?.streams;
   const zoneMins = s.streams?.zone_minutes;
 
-  // ── Graphique principal FC + Allure ──────────────────────────────
   if (streams && streams.time && streams.time.length > 0) {
-    const t = streams.time;
-    const labels = t.map(sec => {
-      const m = Math.floor(sec/60);
-      return sec % 60 === 0 ? `${m}'` : '';
-    });
-
-    const ctx1 = document.getElementById('chart-detail-main')?.getContext('2d');
-    if (ctx1) {
-      chartInstances['detail-main'] = new Chart(ctx1, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'FC (bpm)',
-              data: streams.hr,
-              borderColor: '#ff4757',
-              backgroundColor: 'rgba(255,71,87,0.08)',
-              tension: 0.3, fill: true, pointRadius: 0, borderWidth: 1.5,
-              yAxisID: 'y-hr',
-            },
-            {
-              label: 'Allure (sec/km)',
-              data: streams.pace,
-              borderColor: '#47b8ff',
-              backgroundColor: 'rgba(71,184,255,0.05)',
-              tension: 0.3, fill: false, pointRadius: 0, borderWidth: 1.5,
-              yAxisID: 'y-pace',
-            },
-          ]
-        },
-        options: {
-          responsive: true, animation: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { labels: { color: '#6b6b8a', font: { family: 'DM Mono', size: 10 } } },
-            tooltip: { callbacks: {
-              label: (c) => {
-                if (c.dataset.yAxisID === 'y-pace' && c.raw) {
-                  return ` Allure: ${secToAllure(c.raw)}/km`;
-                }
-                return ` FC: ${c.raw} bpm`;
-              }
-            }}
-          },
-          scales: {
-            x: { ticks: { color:'#6b6b8a', font:{family:'DM Mono',size:8}, maxTicksLimit: 12 }, grid: { color:'#2a2a3a' } },
-            'y-hr': {
-              position: 'left',
-              ticks: { color:'#ff4757', font:{family:'DM Mono',size:9} },
-              grid: { color:'#2a2a3a' },
-              min: 100, max: profile.fc_max + 10,
-            },
-            'y-pace': {
-              position: 'right',
-              reverse: true,
-              ticks: {
-                color:'#47b8ff', font:{family:'DM Mono',size:9},
-                callback: v => v ? secToAllure(v) : ''
-              },
-              grid: { display: false },
-              min: 180, max: 480,
-            }
-          }
-        }
-      });
-    }
+    renderMainChart(s, streams);
   } else {
-    document.getElementById('chart-detail-main').parentElement.innerHTML =
-      '<div class="card-title">FC & Allure</div><div class="empty-state" style="padding:1.5rem;">Streams non disponibles — réimporte avec le nouveau script Strava</div>';
+    const card = document.getElementById('chart-detail-main')?.closest('.card');
+    if (card) card.innerHTML = '<div class="card-title">FC & Allure</div><div class="empty-state" style="padding:1.5rem;">Streams non disponibles — réimporte avec le script mis à jour</div>';
   }
 
-  // ── Zones FC ──────────────────────────────────────────────────────
   if (zoneMins) {
-    const ctx2 = document.getElementById('chart-detail-zones')?.getContext('2d');
-    if (ctx2) {
-      const labels = ['Z1 Récup','Z2 EF','Z3 Aérobie','Z4 Seuil','Z5 VMA'];
-      const data   = [zoneMins.Z1, zoneMins.Z2, zoneMins.Z3, zoneMins.Z4, zoneMins.Z5];
-      const colors = ['#6b6b8a','#47b8ff','#2ed573','#ffa502','#ff4757'];
-      const total  = data.reduce((a,b)=>a+b,0);
-      chartInstances['detail-zones'] = new Chart(ctx2, {
-        type: 'doughnut',
-        data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position:'right', labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:10} } },
-            tooltip: { callbacks: { label: (c) => {
-              const pct = total > 0 ? Math.round(c.parsed/total*100) : 0;
-              const h = Math.floor(c.parsed/60), m = Math.round(c.parsed%60);
-              return ` ${h>0?h+'h':''}${m}min (${pct}%)`;
-            }}}
-          }
-        }
-      });
-    }
+    renderZonesChart(zoneMins);
   } else {
-    // Estimation depuis FC moyenne
     renderEstimatedZones(s);
   }
 
-  // ── Allure par km ─────────────────────────────────────────────────
   renderPacePerKm(s, streams);
+
+  // Détection et affichage des intervalles depuis les streams
+  if (streams && streams.time) {
+    const intervals = detectIntervals(streams);
+    if (intervals.length >= 2) {
+      renderIntervalChart(intervals, streams);
+    }
+  }
 }
 
-function renderEstimatedZones(s) {
-  if (!s.avg_hr || !s.duration_minutes) return;
-  const ctx = document.getElementById('chart-detail-zones')?.getContext('2d');
+// ── Lissage intelligent FC+Allure ────────────────────────────────────────────
+function smoothArray(arr, window) {
+  // Moyenne mobile
+  return arr.map((v, i) => {
+    if (v === null) return null;
+    const start = Math.max(0, i - Math.floor(window/2));
+    const end   = Math.min(arr.length, i + Math.floor(window/2) + 1);
+    const slice = arr.slice(start, end).filter(x => x !== null);
+    return slice.length ? Math.round(slice.reduce((a,b)=>a+b,0)/slice.length) : null;
+  });
+}
+
+function computeTrendLine(pace, hr, windowSize=30) {
+  // Trend = vrai changement d'allure si FC et allure bougent ensemble
+  // Sinon on garde la moyenne mobile (bruit filtré)
+  const smoothPace = smoothArray(pace, windowSize);
+  const smoothHR   = smoothArray(hr, windowSize);
+  return { smoothPace, smoothHR };
+}
+
+function renderMainChart(s, streams) {
+  const ctx = document.getElementById('chart-detail-main')?.getContext('2d');
   if (!ctx) return;
-  // Estimation simple depuis FC moyenne
-  const fc = s.avg_hr;
-  const dur = s.duration_minutes;
-  const bounds = [
-    {name:'Z1',low:0,high:FC_MAX*0.70},
-    {name:'Z2',low:FC_MAX*0.70,high:FC_MAX*0.80},
-    {name:'Z3',low:FC_MAX*0.80,high:FC_MAX*0.88},
-    {name:'Z4',low:FC_MAX*0.88,high:FC_MAX*0.93},
-    {name:'Z5',low:FC_MAX*0.93,high:999},
-  ];
-  const weights = [0,0,0,0,0];
-  const zi = bounds.findIndex(z => fc >= z.low && fc < z.high);
-  if (zi>=0) {
-    weights[zi]=0.55;
-    if(zi>0) weights[zi-1]=0.25;
-    if(zi<4) weights[zi+1]=0.20;
-  }
-  const data = weights.map(w => parseFloat((dur*w).toFixed(1)));
-  const total = data.reduce((a,b)=>a+b,0);
-  const FC_MAX_local = profile.fc_max || 208;
-  chartInstances['detail-zones'] = new Chart(ctx, {
-    type: 'doughnut',
+
+  const t    = streams.time;
+  const hr   = streams.hr;
+  const pace = streams.pace;
+
+  // Smooth window : 30 points = ~2.5 min (données toutes les 5sec)
+  const { smoothPace, smoothHR } = computeTrendLine(pace, hr, 30);
+
+  // Labels toutes les minutes
+  const labels = t.map(sec => {
+    const m = Math.floor(sec/60);
+    return (sec % 300 === 0) ? `${m}'` : '';
+  });
+
+  // FC zones pour coloration background
+  const fc_max = profile.fc_max || 208;
+  const zoneColors = t.map((_,i) => {
+    const fc = hr[i];
+    if (!fc) return 'transparent';
+    if (fc >= fc_max*0.93) return 'rgba(255,71,87,0.04)';
+    if (fc >= fc_max*0.88) return 'rgba(255,165,2,0.04)';
+    if (fc >= fc_max*0.80) return 'rgba(46,213,115,0.04)';
+    return 'transparent';
+  });
+
+  chartInstances['detail-main'] = new Chart(ctx, {
+    type: 'line',
     data: {
-      labels:['Z1 Récup','Z2 EF','Z3 Aérobie','Z4 Seuil','Z5 VMA'],
-      datasets:[{data, backgroundColor:['#6b6b8a','#47b8ff','#2ed573','#ffa502','#ff4757'], borderWidth:0}]
+      labels,
+      datasets: [
+        // Données brutes FC (très transparent)
+        {
+          label: 'FC brute',
+          data: hr,
+          borderColor: 'rgba(255,71,87,0.2)',
+          backgroundColor: 'transparent',
+          tension: 0, fill: false, pointRadius: 0, borderWidth: 1,
+          yAxisID: 'y-hr',
+        },
+        // FC lissée (ligne principale)
+        {
+          label: 'FC (bpm)',
+          data: smoothHR,
+          borderColor: '#ff4757',
+          backgroundColor: 'rgba(255,71,87,0.08)',
+          tension: 0.4, fill: true, pointRadius: 0, borderWidth: 2,
+          yAxisID: 'y-hr',
+        },
+        // Allure brute (très transparent)
+        {
+          label: 'Allure brute',
+          data: pace,
+          borderColor: 'rgba(71,184,255,0.15)',
+          backgroundColor: 'transparent',
+          tension: 0, fill: false, pointRadius: 0, borderWidth: 1,
+          yAxisID: 'y-pace',
+        },
+        // Allure lissée (ligne principale)
+        {
+          label: 'Allure',
+          data: smoothPace,
+          borderColor: '#47b8ff',
+          backgroundColor: 'rgba(71,184,255,0.06)',
+          tension: 0.4, fill: false, pointRadius: 0, borderWidth: 2,
+          yAxisID: 'y-pace',
+        },
+      ]
     },
-    options:{
-      responsive:true,
-      plugins:{
-        legend:{position:'right',labels:{color:'#6b6b8a',font:{family:'DM Mono',size:10}}},
-        tooltip:{callbacks:{label:(c)=>{
-          const pct=total>0?Math.round(c.parsed/total*100):0;
-          return ` ~${Math.round(c.parsed)}min (${pct}%) — estimé`;
-        }}},
-        title:{display:true,text:'Estimation (réimporte pour données réelles)',color:'#6b6b8a',font:{family:'DM Mono',size:9}}
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#6b6b8a', font: { family: 'DM Mono', size: 10 },
+            filter: (item) => !item.text.includes('brute') // cache les brutes
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: (c) => {
+              if (c.dataset.label?.includes('brute')) return null;
+              if (c.dataset.yAxisID === 'y-pace' && c.raw)
+                return ` Allure: ${secToAllure(c.raw)}/km`;
+              return ` FC: ${c.raw} bpm`;
+            },
+            filter: (item) => !item.dataset.label?.includes('brute')
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color:'#6b6b8a', font:{family:'DM Mono',size:8}, maxTicksLimit:10,
+            callback: (v, i, vals) => labels[i] || '' },
+          grid: { color:'rgba(42,42,58,0.5)' }
+        },
+        'y-hr': {
+          position: 'left',
+          ticks: { color:'#ff4757', font:{family:'DM Mono',size:9} },
+          grid: { color:'rgba(42,42,58,0.5)' },
+          min: Math.max(100, Math.min(...hr.filter(Boolean)) - 10),
+          max: (profile.fc_max||208) + 5,
+        },
+        'y-pace': {
+          position: 'right',
+          reverse: true,
+          ticks: {
+            color:'#47b8ff', font:{family:'DM Mono',size:9},
+            callback: v => v ? secToAllure(v) : ''
+          },
+          grid: { display: false },
+          min: 150, max: 500,
+        }
       }
     }
   });
 }
 
+// ── Zones FC réelles ─────────────────────────────────────────────────────────
+function renderZonesChart(zoneMins) {
+  const ctx = document.getElementById('chart-detail-zones')?.getContext('2d');
+  if (!ctx) return;
+  const labels = ['Z1 Récup','Z2 EF','Z3 Aérobie','Z4 Seuil','Z5 VMA'];
+  const data   = [zoneMins.Z1, zoneMins.Z2, zoneMins.Z3, zoneMins.Z4, zoneMins.Z5];
+  const colors = ['#6b6b8a','#47b8ff','#2ed573','#ffa502','#ff4757'];
+  const total  = data.reduce((a,b)=>a+(b||0),0);
+  chartInstances['detail-zones'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position:'right', labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:10} } },
+        tooltip: { callbacks: { label: (c) => {
+          const pct = total > 0 ? Math.round((c.parsed||0)/total*100) : 0;
+          const h = Math.floor((c.parsed||0)/60), m = Math.round((c.parsed||0)%60);
+          return ` ${h>0?h+'h':''}${m}min (${pct}%)`;
+        }}}
+      }
+    }
+  });
+}
+
+// ── Allure par km ─────────────────────────────────────────────────────────────
 function renderPacePerKm(s, streams) {
   const ctx = document.getElementById('chart-detail-pace')?.getContext('2d');
   if (!ctx) return;
 
-  // Construire allure par km depuis streams si disponible
   let kmPaces = [];
   if (streams && streams.distance && streams.pace) {
     const dist = streams.distance;
     const pace = streams.pace;
-    let kmIdx = 1;
-    let bucket = [];
+    const hr   = streams.hr || [];
+    let kmIdx = 1, bucketPace = [], bucketHR = [];
     for (let i=0; i<dist.length; i++) {
       if (dist[i] !== null && dist[i] >= kmIdx * 1000) {
-        if (bucket.length > 0) {
-          const valid = bucket.filter(p=>p&&p>120&&p<600);
-          if (valid.length > 0) {
-            kmPaces.push({
-              km: kmIdx,
-              pace: Math.round(valid.reduce((a,b)=>a+b,0)/valid.length)
-            });
-          }
+        const validPace = bucketPace.filter(p=>p&&p>120&&p<600);
+        const validHR   = bucketHR.filter(h=>h&&h>80);
+        if (validPace.length > 0) {
+          kmPaces.push({
+            km: kmIdx,
+            pace: Math.round(validPace.reduce((a,b)=>a+b,0)/validPace.length),
+            hr: validHR.length ? Math.round(validHR.reduce((a,b)=>a+b,0)/validHR.length) : null
+          });
         }
-        kmIdx++;
-        bucket = [];
+        kmIdx++; bucketPace = []; bucketHR = [];
       }
-      if (pace[i]) bucket.push(pace[i]);
+      if (pace[i]) bucketPace.push(pace[i]);
+      if (hr[i])   bucketHR.push(hr[i]);
     }
   }
 
   if (kmPaces.length < 2) {
-    ctx.canvas.parentElement.innerHTML = '<div class="card-title">Allure par km</div><div class="empty-state" style="padding:1.5rem;">Réimporte avec le nouveau script pour les splits km</div>';
+    ctx.canvas.parentElement.innerHTML = '<div class="card-title">Allure par km</div><div class="empty-state" style="padding:1.5rem;">Données insuffisantes</div>';
     return;
   }
 
   const avgPace = s.avg_pace_seconds || 0;
   const colors = kmPaces.map(k =>
-    k.pace < avgPace * 0.97 ? 'rgba(46,213,115,0.7)' :   // plus rapide que moy → vert
-    k.pace > avgPace * 1.03 ? 'rgba(255,71,87,0.7)' :    // plus lent → rouge
-    'rgba(71,184,255,0.7)'                                 // dans la moyenne → bleu
+    k.pace < avgPace * 0.97 ? 'rgba(46,213,115,0.8)' :
+    k.pace > avgPace * 1.05 ? 'rgba(255,71,87,0.8)' :
+    'rgba(71,184,255,0.7)'
   );
 
   chartInstances['detail-pace'] = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: kmPaces.map(k=>`km ${k.km}`),
-      datasets: [{
-        label: 'Allure/km',
-        data: kmPaces.map(k=>k.pace),
-        backgroundColor: colors,
-        borderRadius: 4,
-      }]
+      labels: kmPaces.map(k=>`${k.km}km`),
+      datasets: [
+        {
+          label: 'Allure/km',
+          data: kmPaces.map(k=>k.pace),
+          backgroundColor: colors,
+          borderRadius: 4,
+          yAxisID: 'y-pace',
+        },
+        {
+          label: 'FC moy',
+          data: kmPaces.map(k=>k.hr),
+          type: 'line',
+          borderColor: '#ff4757',
+          backgroundColor: 'transparent',
+          tension: 0.4, pointRadius: 3, borderWidth: 2,
+          yAxisID: 'y-hr',
+        }
+      ]
     },
     options: {
       responsive: true,
       plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: (c) => ` ${secToAllure(c.raw)}/km` } },
-        annotation: {},
+        legend: { labels: { color:'#6b6b8a', font:{family:'DM Mono',size:10} } },
+        tooltip: { callbacks: {
+          label: (c) => c.dataset.label === 'FC moy'
+            ? ` FC: ${c.raw} bpm`
+            : ` ${secToAllure(c.raw)}/km`
+        }}
       },
       scales: {
-        x: { ticks:{ color:'#6b6b8a', font:{family:'DM Mono',size:9} }, grid:{color:'#2a2a3a'} },
-        y: {
-          reverse: true,
-          ticks: { color:'#6b6b8a', font:{family:'DM Mono',size:9}, callback: v => secToAllure(v) },
-          grid: { color:'#2a2a3a' },
+        x: { ticks:{ color:'#6b6b8a', font:{family:'DM Mono',size:9} }, grid:{color:'rgba(42,42,58,.5)'} },
+        'y-pace': {
+          position: 'left', reverse: true,
+          ticks: { color:'#47b8ff', font:{family:'DM Mono',size:9}, callback: v => secToAllure(v) },
+          grid: { color:'rgba(42,42,58,.5)' },
+        },
+        'y-hr': {
+          position: 'right',
+          ticks: { color:'#ff4757', font:{family:'DM Mono',size:9} },
+          grid: { display: false },
+          min: 100, max: (profile.fc_max||208)+5,
         }
       }
     }
   });
 }
 
-// ═══════════════════════════════════════════
+// ── Détection d'intervalles depuis les streams ────────────────────────────────
+function detectIntervals(streams) {
+  const pace = streams.pace;
+  const hr   = streams.hr || [];
+  const time = streams.time;
+  if (!pace || pace.length < 10) return [];
+
+  const smoothP = smoothArray(pace, 12); // ~1min
+  const avgPace = smoothP.filter(Boolean).reduce((a,b)=>a+b,0) / smoothP.filter(Boolean).length;
+
+  // Seuil : allure 10% plus rapide que la moyenne = effort
+  const threshold = avgPace * 0.90;
+
+  const intervals = [];
+  let inInterval = false;
+  let start = 0;
+  const minDuration = 6; // min 30sec (6 points × 5sec)
+
+  for (let i=0; i<smoothP.length; i++) {
+    const fast = smoothP[i] && smoothP[i] < threshold;
+    if (fast && !inInterval) { inInterval = true; start = i; }
+    if ((!fast || i === smoothP.length-1) && inInterval) {
+      const len = i - start;
+      if (len >= minDuration) {
+        const pSlice = pace.slice(start, i).filter(Boolean);
+        const hSlice = hr.slice(start, i).filter(Boolean);
+        intervals.push({
+          num: intervals.length + 1,
+          startTime: time[start],
+          endTime: time[i],
+          durationSec: time[i] - time[start],
+          avgPace: pSlice.length ? Math.round(pSlice.reduce((a,b)=>a+b,0)/pSlice.length) : null,
+          avgHR:   hSlice.length ? Math.round(hSlice.reduce((a,b)=>a+b,0)/hSlice.length) : null,
+          startIdx: start, endIdx: i,
+        });
+      }
+      inInterval = false;
+    }
+  }
+  return intervals;
+}
+
+function renderIntervalChart(intervals, streams) {
+  // Affiche la section intervalles
+  const sec = document.getElementById('detail-intervals');
+  sec.style.display = 'block';
+  document.getElementById('detail-intervals-badge').textContent = `${intervals.length} détectés`;
+
+  // Tableau des intervalles
+  document.getElementById('detail-intervals-list').innerHTML = `
+    <div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);">
+      <div>#</div><div>Durée</div><div>Allure moy</div><div>FC moy</div><div>Écart moy</div>
+    </div>
+    ${intervals.map(iv => {
+      const refPace = streams.pace.filter(Boolean).reduce((a,b)=>a+b,0)/streams.pace.filter(Boolean).length;
+      const diff = iv.avgPace ? Math.round(refPace - iv.avgPace) : null;
+      const min = Math.floor(iv.durationSec/60), sec2 = iv.durationSec%60;
+      return `<div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;align-items:center;">
+        <div style="color:var(--muted);font-family:var(--fd);font-size:1rem;">${iv.num}</div>
+        <div>${min}'${String(sec2).padStart(2,'0')}"</div>
+        <div style="color:var(--accent);">${iv.avgPace ? secToAllure(iv.avgPace)+'/km' : '—'}</div>
+        <div style="color:var(--danger);">${iv.avgHR ? '♥ '+iv.avgHR : '—'}</div>
+        <div style="color:${diff>0?'var(--success)':'var(--danger)'};">${diff?`${diff>0?'+':''}${diff}s`:'—'}</div>
+      </div>`;
+    }).join('')}
+  `;
+
+  // Graphique des intervalles
+  const card = document.getElementById('detail-intervals');
+  let canvas = document.getElementById('chart-detail-intervals');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'chart-detail-intervals';
+    canvas.height = 160;
+    card.querySelector('.card').appendChild(canvas);
+  }
+  const ctx = canvas.getContext('2d');
+  destroyChart('detail-intervals-chart');
+
+  const labels = intervals.map(iv => `Rep ${iv.num}`);
+  const paceData = intervals.map(iv => iv.avgPace);
+  const hrData   = intervals.map(iv => iv.avgHR);
+  const avgPaceAll = paceData.filter(Boolean).reduce((a,b)=>a+b,0)/paceData.filter(Boolean).length;
+
+  chartInstances['detail-intervals-chart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Allure moy',
+          data: paceData,
+          backgroundColor: paceData.map(p =>
+            p < avgPaceAll*0.98 ? 'rgba(46,213,115,0.7)' :
+            p > avgPaceAll*1.02 ? 'rgba(255,71,87,0.7)' : 'rgba(71,184,255,0.7)'
+          ),
+          borderRadius: 4, yAxisID: 'y-pace',
+        },
+        {
+          label: 'FC moy',
+          data: hrData,
+          type: 'line',
+          borderColor: '#ff4757',
+          backgroundColor: 'transparent',
+          tension: 0.3, pointRadius: 5, borderWidth: 2,
+          pointBackgroundColor: '#ff4757',
+          yAxisID: 'y-hr',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color:'#6b6b8a', font:{family:'DM Mono',size:10} } },
+        tooltip: { callbacks: {
+          label: (c) => c.dataset.label === 'FC moy'
+            ? ` FC: ${c.raw} bpm`
+            : ` ${secToAllure(c.raw)}/km`
+        }}
+      },
+      scales: {
+        x: { ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:10}}, grid:{color:'rgba(42,42,58,.5)'} },
+        'y-pace': {
+          position:'left', reverse:true,
+          ticks:{color:'#47b8ff',font:{family:'DM Mono',size:9}, callback:v=>secToAllure(v)},
+          grid:{color:'rgba(42,42,58,.5)'},
+        },
+        'y-hr': {
+          position:'right',
+          ticks:{color:'#ff4757',font:{family:'DM Mono',size:9}},
+          grid:{display:false},
+          min:100, max:(profile.fc_max||208)+5,
+        }
+      }
+    }
+  });
+}
+
+
 // ÉDITION ACTIVITÉ
 // ═══════════════════════════════════════════
 let editEffort = 3, editPain = 0, editIntervalCount = 0;
@@ -2259,27 +2480,6 @@ async function askCoachCustom() {
   document.getElementById('coach-question').value='';
 }
 
-<div class="card">
-  <h3>Calculateur allure / vitesse</h3>
-
-  <div class="form-group">
-    <label>Vitesse (km/h)</label>
-    <input id="speedInput" type="number" step="0.1" placeholder="Ex: 12">
-  </div>
-
-  <div class="form-group">
-    <label>Allure (min/km)</label>
-    <input id="paceInput" type="text" placeholder="Ex: 5:00">
-  </div>
-
-  <div style="display:flex;gap:8px;margin-top:10px;">
-    <button class="btn btn-primary" onclick="fromSpeed()">Calculer depuis km/h</button>
-    <button class="btn btn-ghost" onclick="fromPace()">Calculer depuis min/km</button>
-  </div>
-
-  <div id="results" style="margin-top:15px;"></div>
-</div>
-
 // ═══════════════════════════════════════════
 // SKIP / ABSENCE
 // ═══════════════════════════════════════════
@@ -2360,71 +2560,6 @@ function showPage(name) {
   if(name==='planning') renderWeek();
   if(name==='graphs') renderGraphs();
 }
-
-  function formatTime(totalMinutes) {
-  const h = Math.floor(totalMinutes / 60);
-  const m = Math.floor(totalMinutes % 60);
-  const s = Math.round((totalMinutes - Math.floor(totalMinutes)) * 60);
-
-  return `${h > 0 ? h + 'h ' : ''}${m}m ${s}s`;
-}
-
-function paceToSpeed(pace) {
-  const [min, sec] = pace.split(':').map(Number);
-  const totalMin = min + sec / 60;
-  return 60 / totalMin;
-}
-
-function speedToPace(speed) {
-  const totalMin = 60 / speed;
-  const min = Math.floor(totalMin);
-  const sec = Math.round((totalMin - min) * 60);
-  return `${min}:${sec.toString().padStart(2, '0')}`;
-}
-
-function displayResults(speed) {
-  const distances = [
-    { name: "5 km", dist: 5 },
-    { name: "10 km", dist: 10 },
-    { name: "Semi", dist: 21.1 },
-    { name: "Marathon", dist: 42.195 }
-  ];
-
-  let html = `<div class="session-item" style="grid-template-columns:1fr 1fr;">`;
-  html += `<div><strong>Allure</strong></div><div>${speedToPace(speed)} /km</div>`;
-  html += `</div>`;
-
-  distances.forEach(d => {
-    const time = (d.dist / speed) * 60;
-
-    html += `
-      <div class="session-item" style="grid-template-columns:1fr 1fr;">
-        <div>${d.name}</div>
-        <div>${formatTime(time)}</div>
-      </div>
-    `;
-  });
-
-  document.getElementById('results').innerHTML = html;
-}
-
-function fromSpeed() {
-  const speed = parseFloat(document.getElementById('speedInput').value);
-  if (!speed || speed <= 0) return;
-
-  document.getElementById('paceInput').value = speedToPace(speed);
-  displayResults(speed);
-}
-
-function fromPace() {
-  const pace = document.getElementById('paceInput').value;
-  if (!pace.includes(':')) return;
-
-  const speed = paceToSpeed(pace);
-  document.getElementById('speedInput').value = speed.toFixed(2);
-  displayResults(speed);
-}
-  
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
