@@ -2148,16 +2148,22 @@ function createSegment(start, end, type, pace, hr, time) {
 // ── Render ──────────────────────────────────────────────────────────────
 function renderIntervalChart(intervals, streams) {
   const sec = document.getElementById('detail-intervals');
+  if (!sec) return;
+
   sec.style.display = 'block';
 
-  // Numérotation propre
+  // Numérotation
   intervals.forEach((iv, i) => iv.num = i + 1);
 
   document.getElementById('detail-intervals-badge').textContent =
     `${intervals.length} segments`;
 
-  // Moyenne globale UNE SEULE FOIS
+  // Moyenne globale SAFE
   const refPace = avg(streams.pace);
+  if (refPace === null) {
+    console.warn("refPace null → abort render intervals");
+    return;
+  }
 
   document.getElementById('detail-intervals-list').innerHTML = `
     <div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);">
@@ -2165,32 +2171,46 @@ function renderIntervalChart(intervals, streams) {
     </div>
 
     ${intervals.map(iv => {
-      const diff = iv.avgPace !== null ? Math.round(refPace - iv.avgPace) : null;
+
+      const hasPace = iv.avgPace !== null && iv.avgPace !== undefined;
+      const hasHR   = iv.avgHR !== null && iv.avgHR !== undefined;
+
+      const diff = hasPace ? Math.round(refPace - iv.avgPace) : null;
 
       const min = Math.floor(iv.durationSec / 60);
       const sec2 = iv.durationSec % 60;
 
-      // Couleur selon type
-      let color = 'var(--text)';
-      if (iv.type === 'fast') color = 'var(--success)';
-      if (iv.type === 'slow') color = 'var(--danger)';
+      // Couleur allure
+      let paceColor = 'var(--text)';
+      if (iv.type === 'fast') paceColor = 'var(--success)';
+      if (iv.type === 'slow') paceColor = 'var(--danger)';
+
+      // Couleur diff
+      let diffColor = 'var(--muted)';
+      if (diff !== null) {
+        diffColor = diff >= 0 ? 'var(--success)' : 'var(--danger)';
+      }
 
       return `
       <div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;align-items:center;">
         
-        <div style="color:var(--muted);font-family:var(--fd);font-size:1rem;">${iv.num}</div>
+        <div style="color:var(--muted);font-family:var(--fd);font-size:1rem;">
+          ${iv.num}
+        </div>
 
-        <div>${min}'${String(sec2).padStart(2,'0')}"</div>
+        <div>
+          ${min}'${String(sec2).padStart(2,'0')}"
+        </div>
 
-        <div style="color:${color};">
-          ${iv.avgPace ? secToAllure(iv.avgPace) + '/km' : '—'}
+        <div style="color:${paceColor};">
+          ${hasPace ? secToAllure(iv.avgPace) + '/km' : '—'}
         </div>
 
         <div style="color:var(--danger);">
-          ${iv.avgHR ? '♥ ' + iv.avgHR : '—'}
+          ${hasHR ? '♥ ' + iv.avgHR : '—'}
         </div>
 
-        <div style="color:${diff >= 0 ? 'var(--success)' : 'var(--danger)'};">
+        <div style="color:${diffColor};">
           ${diff !== null ? `${diff > 0 ? '+' : ''}${diff}s` : '—'}
         </div>
 
@@ -2198,7 +2218,6 @@ function renderIntervalChart(intervals, streams) {
     }).join('')}
   `;
 }
-
   // Graphique des intervalles
   const card = document.getElementById('detail-intervals');
   let canvas = document.getElementById('chart-detail-intervals');
