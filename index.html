@@ -428,11 +428,11 @@ input[type=range]{padding:0;background:none;border:none;}
   </div>
   <div class="grid-2" style="margin-bottom:1rem;">
     <div class="card"><div class="card-title">Volume hebdomadaire (km)</div><canvas id="chart-volume" height="130"></canvas></div>
-    <div class="card"><div class="card-title">Allure EF moyenne — progression</div><canvas id="chart-pace" height="130"></canvas></div>
+    <div class="card"><div class="card-title">Allure EF — moyenne hebdomadaire <span class="badge">EF ONLY</span></div><canvas id="chart-pace" height="130"></canvas></div>
   </div>
   <div class="grid-2" style="margin-bottom:1rem;">
     <div class="card"><div class="card-title">FC moyenne par type de séance</div><canvas id="chart-hr" height="130"></canvas></div>
-    <div class="card"><div class="card-title">Temps estimé par zone FC <span class="badge">APPROX.</span></div><canvas id="chart-types" height="130"></canvas></div>
+    <div class="card"><div class="card-title">Temps par zone FC <span class="badge">KARVONEN</span></div><canvas id="chart-types" height="130"></canvas></div>
   </div>
   <div class="card"><div class="card-title">Charge cumulée (km/semaine) + tendance</div><canvas id="chart-load" height="90"></canvas></div>
   <div class="card" style="margin-top:1rem;">
@@ -1043,27 +1043,38 @@ function getProgMultipliers() {
   return {maxGain,weeklyMax};
 }
 
-function calcWeeklyVolume(w,total,baseKm,targetKm,isRecup,isTaper,isRace) {
-  if (isRace)  return baseKm*0.60;
-  if (isTaper) return baseKm*0.75+(w/total)*(targetKm-baseKm)*0.75;
-  const x=w/total;
-  const sigmoid=1/(1+Math.exp(-8*(x-0.4)));
-  const sigMin=1/(1+Math.exp(3.2));
-  const sigMax=1/(1+Math.exp(-3.2));
-  const normalized=(sigmoid-sigMin)/(sigMax-sigMin);
-  const {maxGain,weeklyMax}=getProgMultipliers();
-  const cappedPct=Math.min(maxGain,w*weeklyMax);
-  const pct=Math.min(cappedPct,normalized*maxGain);
-  const volume=baseKm*(1+pct);
-  return isRecup ? volume*0.70 : volume;
+function calcWeeklyVolume(w, total, baseKm, targetKm, isRecup, isTaper, isRace) {
+  if (isRace)  return baseKm * 0.55;
+  if (isTaper) {
+    // Affûtage : -15% puis -25% sur les 3 dernières semaines
+    const taperWeek = Math.floor(w / (total/3));
+    return baseKm * [0.85, 0.75, 0.65][Math.min(taperWeek, 2)];
+  }
+
+  const { maxGain, weeklyMax } = getProgMultipliers();
+
+  // Cycle de périodisation : 3 semaines de charge + 1 de récup
+  const cyclePos = w % 4; // 0,1,2=charge, 3=récup
+  const cycleNum = Math.floor(w / 4); // numéro de bloc
+
+  // Progression du volume par blocs (+weeklyMax par semaine de charge)
+  const totalCycles    = Math.floor(total / 4);
+  const progressFactor = Math.min(maxGain, cycleNum * (weeklyMax * 3)); // 3 semaines de charge/bloc
+  let   weekVolume     = baseKm * (1 + progressFactor);
+
+  // Modulation intra-cycle : sem1=90%, sem2=100%, sem3=110%, sem4(récup)=70%
+  const intraMulti = [0.90, 1.00, 1.10, 0.70];
+  weekVolume *= intraMulti[cyclePos];
+
+  // Cap absolu
+  weekVolume = Math.min(weekVolume, targetKm);
+
+  // Override récup signalé
+  if (isRecup) weekVolume *= 0.70;
+
+  return Math.max(baseKm * 0.8, weekVolume);
 }
 
-function calcSessionCount(w,total,startN,targetN) {
-  if (startN>=targetN) return startN;
-  const x=w/total;
-  const step=Math.min(targetN-startN,Math.floor(x*(targetN-startN+0.99)));
-  return Math.min(targetN,startN+step);
-}
 
 // ── calcPhase : SEULE fonction de phase (remplace getPhase qui n'existait pas) ──
 function calcPhase(w,total,daysToRace15,daysToRace10) {
@@ -1079,9 +1090,27 @@ function calcPhase(w,total,daysToRace15,daysToRace10) {
   return 'maintien';
 }
 
+// +1 séance toutes les 5 semaines, plafonné au nombre cible (jamais au-delà)
+function calcSessionCount(w, total, startN, targetN) {
+  if (startN >= targetN) return startN;
+  const weeksPerStep = 5;
+  const added = Math.min(targetN - startN, Math.floor(w / weeksPerStep));
+  return Math.min(targetN, startN + added); // Hard cap au targetN, point final
+}
+
 function getDaySlots(n) {
-  const slots={1:[1],2:[1,4],3:[1,3,6],4:[1,3,5,6],5:[1,3,5,6,0],6:[1,2,3,5,6,0]};
-  return slots[Math.min(n,6)]||slots[4];
+  // 5=Samedi, 6=Dimanche TOUJOURS réservés (5=séance qualité Sam, 6=Long Dim)
+  // 0=Lundi, 1=Mardi, 2=Mercredi, 3=Jeudi, 4=Vendredi
+  // Ordre : [slot1, slot2, slot3, ...] — les 2 derniers sont toujours Sam+Dim
+  const slots = {
+    1: [6],
+    2: [2, 6],
+    3: [2, 5, 6],
+    4: [1, 3, 5, 6],
+    5: [1, 3, 5, 6, 0], // Lun optionnel en 5e
+    6: [1, 2, 3, 5, 6, 0],
+  };
+  return slots[Math.min(n,6)] || slots[4];
 }
 
 function getEFDesc(rot,idx) {
@@ -1154,36 +1183,70 @@ function getKeySessions(phase,rot,isTaper) {
   }
 }
 
-function buildWeekStructure(phase,w,nSessions,weeklyKm,isRecup,isTaper) {
-  const rot=w%4;
-  const keySessions=getKeySessions(phase,rot,isTaper);
-  const keyKm=weeklyKm*0.50, efKm=weeklyKm*0.50;
-  const daySlots=getDaySlots(nSessions);
-  const plan=[];
-  const keyTotal=keySessions.reduce((a,k)=>a+k.km,0)||1;
+function buildWeekStructure(phase, w, nSessions, weeklyKm, isRecup, isTaper) {
+  const rot = w % 4;
+  const keySessions = getKeySessions(phase, rot, isTaper);
+  const keyKm  = weeklyKm * 0.48;
+  const efKm   = weeklyKm * 0.52;
+  const daySlots = getDaySlots(nSessions);
+  const plan   = [];
+  const keyTotal = keySessions.reduce((a,k) => a + k.km, 0) || 1;
 
-  if (nSessions>=1) plan.push({dayOffset:daySlots[0],type:isRecup?'Récup':'EF',desc:isRecup?'Footing récupération — très léger':getEFDesc(rot,0),km:isRecup?Math.min(7,efKm*0.4):efKm*0.35,zone:2});
-  if (nSessions>=2&&keySessions[0]) plan.push({dayOffset:daySlots[1],...keySessions[0],km:isRecup?keySessions[0].km*0.75:keySessions[0].km*(keyKm/keyTotal)});
-  if (nSessions>=3) plan.push({dayOffset:daySlots[2],type:'EF',desc:getEFDesc(rot,1),km:efKm*0.30,zone:2});
-  if (nSessions>=4&&keySessions[1]) plan.push({dayOffset:daySlots[3],...keySessions[1],km:isRecup?keySessions[1].km*0.70:keySessions[1].km});
-  // Muscu renforcement — adapté à la phase et blessures potentielles
-  const recentPain = allSessions.filter(s=>s.pain_level>=2).slice(0,1)[0]?.pain_level || 0;
-  const muscuSlot  = [2, 4, 5].find(d => !plan.some(p=>p.dayOffset===d)); // slot libre
-  if (nSessions>=4 && !isRecup && !isTaper && muscuSlot !== undefined) {
-    const muscuDur = recentPain>=3 ? 20 : 35;
-    plan.push({dayOffset:muscuSlot, type:'Muscu',
-      desc: recentPain>=3
+  // DIMANCHE toujours = sortie longue (dayOffset=6)
+  const slKm = weeklyKm * (isRecup ? 0.20 : 0.30);
+  plan.push({
+    dayOffset: 6,
+    type: 'Long',
+    desc: isRecup ? 'SL légère — allure très confortable, récupération active' : getLongDesc(phase, rot),
+    km: Math.max(10, slKm),
+    zone: 2
+  });
+
+  // SAMEDI toujours = séance qualité ou EF (dayOffset=5)
+  if (!isTaper && !isRecup && keySessions[0]) {
+    plan.push({ dayOffset:5, ...keySessions[0], km: keySessions[0].km * (keyKm/keyTotal) });
+  } else {
+    plan.push({ dayOffset:5, type:'EF', desc: isRecup ? 'EF légère — jambes fraîches avant long dimanche' : getEFDesc(rot, 0), km: efKm * 0.28, zone:2 });
+  }
+
+  // Séances supplémentaires selon nSessions
+  if (nSessions >= 3) {
+    // Mardi ou Mercredi : EF
+    plan.push({ dayOffset: daySlots[0], type:'EF', desc: getEFDesc(rot, 1), km: efKm * 0.22, zone:2 });
+  }
+  if (nSessions >= 4 && keySessions[keySessions[0] ? 1 : 0]) {
+    // Jeudi : 2e séance qualité
+    const k2 = keySessions[1] || keySessions[0];
+    plan.push({ dayOffset: daySlots[1] || 3, ...k2, km: isRecup ? k2.km * 0.70 : k2.km });
+  }
+  if (nSessions >= 5) {
+    // Lundi ou Mardi : récup ou EF douce
+    plan.push({ dayOffset: daySlots[2] || 1, type: isRecup?'Récup':'EF', desc: isRecup?'Récup active':'EF douce — allure très facile', km: efKm * 0.18, zone: isRecup?1:2 });
+  }
+  if (nSessions >= 6) {
+    plan.push({ dayOffset: daySlots[3] || 2, type:'Récup', desc:'Récupération active — jambes légères', km:5, zone:1 });
+  }
+
+  // Muscu : 1x/semaine, sur un jour sans course (jamais Sam ni Dim, jamais avant qualité)
+  const recentPain = allSessions.filter(s => s.pain_level >= 2).slice(0,1)[0]?.pain_level || 0;
+  const usedOffsets = new Set(plan.map(p => p.dayOffset));
+  const muscuSlot   = [3, 2, 1, 4].find(d => !usedOffsets.has(d)); // Jeudi pref si libre
+  if (nSessions >= 3 && !isRecup && !isTaper && muscuSlot !== undefined) {
+    plan.push({
+      dayOffset: muscuSlot,
+      type: 'Muscu',
+      desc: recentPain >= 3
         ? 'Renfo adapté périostite — isométrique, zéro impact'
-        : phase==='spécifique'||phase==='culminant'
-          ? 'Renfo PUISSANCE — Pliométrie + force explosive'
+        : (phase === 'spécifique' || phase === 'culminant')
+          ? 'Renfo PUISSANCE — Pliométrie + force explosive jambes'
           : 'Renfo PRÉVENTION — Mollets excentriques + proprioception',
-      km: 0, zone:0
+      km: 0, zone: 0
     });
   }
-  if (nSessions>=5) {const slKm=weeklyKm*0.28;plan.push({dayOffset:daySlots[4],type:'Long',desc:getLongDesc(phase,rot),km:isRecup?slKm*0.75:slKm,zone:2});}
-  if (nSessions>=6) plan.push({dayOffset:daySlots[5],type:'Récup',desc:'Récupération active — jambes légères',km:6,zone:1});
-  return plan.filter(s=>s.km>0);
+
+  return plan.filter(s => s.km >= 0);
 }
+
 
 function paceForType(type) {
   return {EF:6,'Aérobie Z3':5.5,Seuil:4.5,VMA:4.2,Long:5.8,Récup:6.5}[type]||6;
@@ -1230,9 +1293,16 @@ function buildPlan() {
       });
     });
   }
-  sessions.sort((a,b)=>a.date.localeCompare(b.date));
-  const seen=new Set();
-  return sessions.filter(s=>{if(seen.has(s.date))return false;seen.add(s.date);return true;});
+  sessions.sort((a,b) => a.date.localeCompare(b.date));
+  // Dedup par date ET type (garder les deux si même date types différents — ex: Muscu)
+  // Mais on ne veut pas 2 séances running le même jour
+  const seenRunDates = new Set();
+  return sessions.filter(s => {
+    if (s.type === 'Muscu') return true; // Muscu peut coexister en théorie mais on évite
+    if (seenRunDates.has(s.date)) return false;
+    seenRunDates.add(s.date);
+    return true;
+  });
 }
 
 function updateProgLabel(val) {
@@ -2142,11 +2212,41 @@ function renderVolumeChart(sessions) {
 
 function renderPaceChart(sessions) {
   destroyChart('pace');
-  const ef=sessions.filter(s=>(s.type==='EF'||s.type==='Aérobie Z3')&&s.avg_pace_seconds);
-  if (ef.length<2) return;
-  const ctx=document.getElementById('chart-pace')?.getContext('2d');
+  // EF uniquement, regroupées par semaine (moyenne)
+  const efOnly = sessions.filter(s => s.type === 'EF' && s.avg_pace_seconds > 0);
+  if (efOnly.length < 2) return;
+  const ctx = document.getElementById('chart-pace')?.getContext('2d');
   if (!ctx) return;
-  chartInstances['pace']=new Chart(ctx,{type:'line',data:{labels:ef.map(s=>formatDate(s.date)),datasets:[{label:'Allure EF (min/km)',data:ef.map(s=>parseFloat((s.avg_pace_seconds/60).toFixed(2))),borderColor:'#2ed573',backgroundColor:'rgba(46,213,115,0.1)',tension:0.4,fill:true,pointRadius:3,pointBackgroundColor:'#2ed573'}]},options:{...CHART_DEFAULTS,scales:{...CHART_DEFAULTS.scales,y:{...CHART_DEFAULTS.scales.y,reverse:true,ticks:{...CHART_DEFAULTS.scales.y.ticks,callback:v=>`${Math.floor(v)}'${String(Math.round((v%1)*60)).padStart(2,'0')}"`}}}}});
+  const byWeek = groupByWeek(efOnly);
+  const weekKeys = Object.keys(byWeek).sort();
+  const labels = [], avgPaces = [];
+  weekKeys.forEach(k => {
+    const valid = byWeek[k].filter(s => s.avg_pace_seconds > 0);
+    if (!valid.length) return;
+    const avg = valid.reduce((a,s) => a + s.avg_pace_seconds, 0) / valid.length;
+    labels.push(getWeekLabel(k));
+    avgPaces.push(parseFloat((avg / 60).toFixed(3)));
+  });
+  if (avgPaces.length < 2) return;
+  // Tendance lineaire
+  const n = avgPaces.length;
+  const sumX = avgPaces.reduce((_,__,i)=>_+i,0), sumY = avgPaces.reduce((a,b)=>a+b,0);
+  const sumXY = avgPaces.reduce((a,b,i)=>a+i*b,0), sumX2 = avgPaces.reduce((a,_,i)=>a+i*i,0);
+  const slope = (n*sumXY - sumX*sumY)/(n*sumX2 - sumX*sumX);
+  const intercept = (sumY - slope*sumX)/n;
+  const trend = avgPaces.map((_,i) => parseFloat((slope*i+intercept).toFixed(3)));
+  const improving = slope < 0;
+  chartInstances['pace'] = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Allure EF moy/semaine', data:avgPaces, borderColor:'#2ed573', backgroundColor:'rgba(46,213,115,0.08)', tension:0.35, fill:true, pointRadius:4, pointBackgroundColor:'#2ed573', borderWidth:2 },
+      { label:'Tendance', data:trend, borderColor:improving?'rgba(232,255,71,0.8)':'rgba(255,71,87,0.7)', backgroundColor:'transparent', tension:0.3, pointRadius:0, borderWidth:1.5, borderDash:[5,4] }
+    ]},
+    options:{ ...CHART_DEFAULTS, interaction:{mode:'index',intersect:false},
+      plugins:{ ...CHART_DEFAULTS.plugins, tooltip:{ callbacks:{ label:(c)=>{ const v=c.raw; const m=Math.floor(v),s=Math.round((v%1)*60); return ` ${c.dataset.label}: ${m}'${String(s).padStart(2,'0')}"/km`; }}}},
+      scales:{ ...CHART_DEFAULTS.scales, y:{ ...CHART_DEFAULTS.scales.y, reverse:true, ticks:{ ...CHART_DEFAULTS.scales.y.ticks, callback:v=>{ const m=Math.floor(v),s=Math.round((v%1)*60); return `${m}'${String(s).padStart(2,'0')}"`;}}}}
+    }
+  });
 }
 
 function renderHRChart(sessions) {
@@ -2161,29 +2261,69 @@ function renderHRChart(sessions) {
 
 function renderTypesChart(sessions) {
   destroyChart('types');
-  const fm=profile.fc_max||208;
-  const zoneMinutes={Z1:0,Z2:0,Z3:0,Z4:0,Z5:0};
-  const zoneBounds=[{name:'Z1',low:fm*.60,high:fm*.70},{name:'Z2',low:fm*.70,high:fm*.80},{name:'Z3',low:fm*.80,high:fm*.88},{name:'Z4',low:fm*.88,high:fm*.93},{name:'Z5',low:fm*.93,high:fm*1.00}];
-  sessions.filter(s=>s.avg_hr&&s.duration_minutes).forEach(s=>{
-    const fc=s.avg_hr,dur=s.duration_minutes;
-    const zoneIdx=zoneBounds.findIndex(z=>fc>=z.low&&fc<z.high);
-    if (zoneIdx===-1) return;
-    const weights=[0,0,0,0,0];
-    weights[zoneIdx]=0.55;
-    if(zoneIdx>0) weights[zoneIdx-1]=0.25;
-    if(zoneIdx<4) weights[zoneIdx+1]=0.20;
-    const total=weights.reduce((a,b)=>a+b,0);
-    zoneBounds.forEach((z,i)=>{zoneMinutes[z.name]+=Math.round(dur*(weights[i]/total));});
+  const fm  = profile.fc_max  || 208;
+  const frep = profile.fc_repos || 55;
+  // Zones basées sur FC de reserve (Karvonen) — plus précis
+  const zoneBounds = [
+    { name:'Z1', low: frep + (fm-frep)*0.50, high: frep + (fm-frep)*0.60 },
+    { name:'Z2', low: frep + (fm-frep)*0.60, high: frep + (fm-frep)*0.70 },
+    { name:'Z3', low: frep + (fm-frep)*0.70, high: frep + (fm-frep)*0.80 },
+    { name:'Z4', low: frep + (fm-frep)*0.80, high: frep + (fm-frep)*0.90 },
+    { name:'Z5', low: frep + (fm-frep)*0.90, high: fm * 1.05             },
+  ];
+  const zoneMinutes = { Z1:0, Z2:0, Z3:0, Z4:0, Z5:0 };
+
+  sessions.filter(s => s.avg_hr && s.duration_minutes).forEach(s => {
+    const fc = s.avg_hr, dur = s.duration_minutes;
+    // FC max et min estimées de la séance selon le type
+    const spreadFactor = {
+      'VMA':0.08, 'Seuil':0.06, 'Aérobie Z3':0.05,
+      'EF':0.04, 'Long':0.05, 'Récup':0.03
+    }[s.type] || 0.05;
+    const fcEstMin = fc * (1 - spreadFactor);
+    const fcEstMax = fc * (1 + spreadFactor);
+
+    zoneBounds.forEach((z, zi) => {
+      // Quelle fraction de la durée est passée dans cette zone ?
+      const overlap = Math.max(0, Math.min(fcEstMax, z.high) - Math.max(fcEstMin, z.low));
+      const range   = fcEstMax - fcEstMin;
+      const frac    = range > 0 ? overlap / range : (fc >= z.low && fc < z.high ? 1 : 0);
+      zoneMinutes['Z'+(zi+1)] += dur * frac;
+    });
   });
-  const total=Object.values(zoneMinutes).reduce((a,b)=>a+b,0);
+
+  // Arrondir
+  Object.keys(zoneMinutes).forEach(k => { zoneMinutes[k] = Math.round(zoneMinutes[k]); });
+
+  const total = Object.values(zoneMinutes).reduce((a,b) => a+b, 0);
   if (!total) return;
-  const labels=['Z1 Récup','Z2 EF','Z3 Aérobie','Z4 Seuil','Z5 VMA'];
-  const data=[zoneMinutes.Z1,zoneMinutes.Z2,zoneMinutes.Z3,zoneMinutes.Z4,zoneMinutes.Z5];
-  const colors=['#6b6b8a','#47b8ff','#2ed573','#ffa502','#ff4757'];
-  const ctx=document.getElementById('chart-types')?.getContext('2d');
+
+  const labels = ['Z1 Récup','Z2 EF','Z3 Aérobie','Z4 Seuil','Z5 VMA'];
+  const data   = [zoneMinutes.Z1, zoneMinutes.Z2, zoneMinutes.Z3, zoneMinutes.Z4, zoneMinutes.Z5];
+  const colors = ['#6b6b8a','#47b8ff','#2ed573','#ffa502','#ff4757'];
+  const ctx    = document.getElementById('chart-types')?.getContext('2d');
   if (!ctx) return;
-  chartInstances['types']=new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{color:'#6b6b8a',font:{family:'DM Mono',size:10}}},tooltip:{callbacks:{label:(c)=>{const pct=Math.round(c.parsed/total*100);const h=Math.floor(c.parsed/60),m=c.parsed%60;return ` ${h>0?h+'h':''}${m}min (${pct}%)`;}}}}}}); 
+
+  // Calcul polarisation
+  const lowMin  = (zoneMinutes.Z1||0) + (zoneMinutes.Z2||0) + (zoneMinutes.Z3||0);
+  const highMin = (zoneMinutes.Z4||0) + (zoneMinutes.Z5||0);
+  const pctLow  = total ? Math.round(lowMin/total*100) : 0;
+
+  chartInstances['types'] = new Chart(ctx, {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:2, borderColor:'#12121a' }]},
+    options:{ responsive:true, plugins:{
+      legend:{ position:'right', labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:10} }},
+      tooltip:{ callbacks:{ label:(c) => {
+        const pct = Math.round((c.parsed||0)/total*100);
+        const h   = Math.floor((c.parsed||0)/60), m = Math.round((c.parsed||0)%60);
+        return ` ${h>0?h+'h':''}${m}min (${pct}%)`;
+      }}},
+      title:{ display:true, text:`Polarisation: ${pctLow}% basse intensité · ${100-pctLow}% haute intensité`, color:'#6b6b8a', font:{family:'DM Mono',size:9} }
+    }}
+  });
 }
+
 
 function renderLoadChart(sessions) {
   destroyChart('load');
@@ -2389,7 +2529,7 @@ const MUSCU_PLANS = {
     name: 'Renfo DÉVELOPPEMENT — Force fonctionnelle',
     duree: '40–45 min',
     focus: 'Quadriceps, ischio-jambiers, chaîne postérieure',
-    caution: '✓ OK si pas de douleur à l\'échauffement',
+    caution: "✓ OK si pas de douleur à l'échauffement",
     exercices: [
       { nom:'Fentes avant chargées', series:'4×10/jambe', note:'Barre ou haltères — contrôle genou' },
       { nom:'Romanian Deadlift', series:'4×8', note:'Ischio-jambiers — dos neutre strict' },
@@ -2408,7 +2548,7 @@ const MUSCU_PLANS = {
       { nom:'Box jump', series:'4×6', note:'Réception contrôlée, rebond minimal' },
       { nom:'Split jump (fentes sautées)', series:'3×8/jambe', note:'Focus réactivité et équilibre' },
       { nom:'Step-up explosif', series:'4×8/jambe', note:'Montée rapide, descente lente' },
-      { nom:'Single leg calf raise plyométrique', series:'3×10/jambe', note:'Petit rebond, tendon d\'Achille' },
+      { nom:'Single leg calf raise plyométrique', series:'3×10/jambe', note:"Petit rebond, tendon d'Achille" },
       { nom:'Deadlift roumain + saut', series:'3×6', note:'Enchaîner sans pause' },
       { nom:'Skipping haute fréquence', series:'4×20sec', note:'Cadence max, talons aux fesses' },
     ]
