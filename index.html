@@ -1268,7 +1268,7 @@ function buildWeekStructure(phase, w, nSessions, weeklyKm, isRecup, isTaper) {
         : (phase === 'spécifique' || phase === 'culminant')
           ? 'Renfo PUISSANCE — Pliométrie + force explosive jambes'
           : 'Renfo PRÉVENTION — Mollets excentriques + proprioception',
-      km: 0, zone: 0
+      km: 0, zone: null
     });
   }
 
@@ -1310,12 +1310,14 @@ function buildPlan() {
     weekPlan.forEach(s=>{
       const d=new Date(wMon); d.setDate(d.getDate()+s.dayOffset);
       if (d<today) return;
+      const isMuscu = s.type === 'Muscu';
       sessions.push({
         date:localDateStr(d), type:s.type,
         description:s.desc||s.description||'',
-        target_distance_km:Math.round(s.km*10)/10,
-        target_duration_minutes:Math.round(s.km*paceForType(s.type)),
-        intensity_zone:s.zone, week_phase:phase,
+        target_distance_km:     isMuscu ? null : Math.round((s.km||0)*10)/10,
+        target_duration_minutes:isMuscu ? 35   : Math.round((s.km||0)*paceForType(s.type)),
+        intensity_zone:         s.zone || null,  // null plutôt que 0 pour respecter la contrainte CHECK
+        week_phase:phase,
         priority:s.type==='Récup'?2:1,
       });
     });
