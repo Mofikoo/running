@@ -1516,7 +1516,9 @@ function renderWeek() {
   document.getElementById('week-label').textContent=`${formatDateShort(ws)} — ${formatDateShort(we)}`;
 
   const totalWeeks=Math.ceil((new Date(profile.race_10k_date||'2027-01-15')-new Date())/(7*86400000));
-  const phase=getPhase(currentWeekOffset,totalWeeks,new Date(profile.race_15k_date||'2026-09-20'),new Date());
+  const daysToR15=Math.ceil((new Date(profile.race_15k_date||'2026-09-20')-new Date())/(86400000))-currentWeekOffset*7;
+  const daysToR10=Math.ceil((new Date(profile.race_10k_date||'2027-01-15')-new Date())/(86400000))-currentWeekOffset*7;
+  const phase=calcPhase(currentWeekOffset,totalWeeks,daysToR15,daysToR10);
   const phaseLabels={
     'base':'🏗 BASE AÉROBIE','développement':'📈 DÉVELOPPEMENT',
     'spécifique':'🎯 SPÉCIFIQUE','affûtage_15k':'🏃 AFFÛTAGE 15km',
@@ -1923,10 +1925,10 @@ function openDetailSession(id) {
 }
 
 function renderDetailCharts(s) {
-  destroyChart('detail-main');
-  destroyChart('detail-zones');
-  destroyChart('detail-pace');
-  destroyChart('detail-intervals-chart');
+ ['detail-main','detail-zones','detail-pace','detail-intervals-chart'].forEach(destroyChart);
+  // Reset intervalles
+  const intSec = document.getElementById('detail-intervals');
+  if (intSec) intSec.style.display = 'none';
 
   const streams = s.streams?.streams;
   const zoneMins = s.streams?.zone_minutes;
@@ -1941,7 +1943,16 @@ function renderDetailCharts(s) {
   if (zoneMins) {
     renderZonesChart(zoneMins);
   } else {
-    renderEstimatedZones(s);
+   // Estimation depuis type + FC moy + durée
+    const zMap = { 'EF':{Z1:5,Z2:75,Z3:15,Z4:5,Z5:0}, 'Aérobie Z3':{Z1:5,Z2:30,Z3:50,Z4:15,Z5:0},
+      'Seuil':{Z1:5,Z2:15,Z3:20,Z4:55,Z5:5}, 'VMA':{Z1:5,Z2:15,Z3:15,Z4:20,Z5:45},
+      'Long':{Z1:5,Z2:70,Z3:20,Z4:5,Z5:0}, 'Récup':{Z1:60,Z2:35,Z3:5,Z4:0,Z5:0} };
+    const pcts = zMap[s.type] || zMap['EF'];
+    const dur  = s.duration_minutes || 60;
+    const zm   = { Z1:Math.round(dur*pcts.Z1/100), Z2:Math.round(dur*pcts.Z2/100),
+                   Z3:Math.round(dur*pcts.Z3/100), Z4:Math.round(dur*pcts.Z4/100),
+                   Z5:Math.round(dur*pcts.Z5/100) };
+    renderZonesChart(zm);
   }
 
   renderPacePerKm(s, streams);
