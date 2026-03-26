@@ -54,6 +54,16 @@ nav.top-nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);back
 .tb-Compét{background:rgba(255,71,87,.25);color:var(--danger);}
 .tb-Repos{background:transparent;color:var(--border);}
 .tb-done{background:rgba(46,213,115,.2);color:var(--success);}
+.tb-Muscu{background:rgba(168,85,247,.2);color:#c084fc;}
+/* ── CONFIRM MODAL ── */
+.confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(6px);z-index:2000;align-items:center;justify-content:center;}
+.confirm-overlay.open{display:flex;}
+.confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;max-width:380px;width:90%;text-align:center;animation:modalIn .2s ease;}
+.confirm-icon{font-size:2.5rem;margin-bottom:1rem;}
+.confirm-title{font-family:var(--fd);font-size:1.3rem;letter-spacing:.06em;margin-bottom:.5rem;}
+.confirm-msg{font-family:var(--fm);font-size:.78rem;color:var(--muted);line-height:1.6;margin-bottom:1.5rem;}
+.confirm-btns{display:flex;gap:.75rem;justify-content:center;}
+.confirm-btns .btn{min-width:110px;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;}
 .card:hover{border-color:rgba(232,255,71,.15);}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
@@ -163,32 +173,51 @@ input[type=range]{padding:0;background:none;border:none;}
   .nav-tabs{display:none;} .nav-status{display:none;}
   nav.top-nav{padding:0 1rem;justify-content:center;padding-top:env(safe-area-inset-top);}
   .nav-logo{font-size:1.3rem;} .bottom-nav{display:block;}
-  .page{padding:1rem;padding-bottom:calc(var(--bottom-nav-h) + 1.5rem + env(safe-area-inset-bottom));}
-  .hero-stats{grid-template-columns:1fr 1fr;gap:.6rem;}
-  .grid-2,.grid-3{grid-template-columns:1fr;}
-  .form-grid{grid-template-columns:1fr;} .form-group.full{grid-column:span 1;}
-  .week-grid{grid-template-columns:repeat(7,minmax(38px,1fr));gap:.15rem;overflow-x:auto;}
-  .day-cell{min-height:65px;padding:.35rem .1rem;} .day-num{font-size:.95rem;} .day-name{font-size:.5rem;}
-  .section-header{flex-direction:column;align-items:flex-start;gap:.5rem;}
-  .section-actions{width:100%;justify-content:flex-end;flex-wrap:wrap;} .section-title{font-size:1.4rem;}
-  .session-item{grid-template-columns:50px 70px 1fr auto;gap:.35rem;padding:.6rem .4rem;font-size:.65rem;}
+  .page{padding:.85rem;padding-bottom:calc(var(--bottom-nav-h) + 1.2rem + env(safe-area-inset-bottom));}
+  .hero-stats{grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;}
+  .stat-card{padding:.75rem;} .stat-value{font-size:1.5rem;} .stat-label{font-size:.58rem;} .stat-sub{font-size:.62rem;}
+  .grid-2,.grid-3{grid-template-columns:1fr;gap:.6rem;}
+  .form-grid{grid-template-columns:1fr;gap:.65rem;} .form-group.full{grid-column:span 1;}
+  /* Week grid : scroll horizontal si trop étroit */
+  .week-grid{display:flex;gap:.2rem;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:.25rem;margin-bottom:.75rem;}
+  .day-cell{flex:0 0 calc(14.28% - .18rem);min-width:42px;min-height:62px;padding:.3rem .1rem;border-radius:6px;}
+  .day-num{font-size:.9rem;} .day-name{font-size:.48rem;} .day-km{font-size:.45rem;}
+  .section-header{flex-direction:column;align-items:flex-start;gap:.4rem;margin-bottom:1rem;}
+  .section-title{font-size:1.35rem;}
+  .section-actions{width:100%;display:flex;gap:.4rem;flex-wrap:wrap;}
+  .section-actions .btn{flex:1;min-width:0;font-size:.65rem;padding:.5rem .6rem;text-align:center;}
+  .session-item{grid-template-columns:46px 66px 1fr auto;gap:.3rem;padding:.55rem .4rem;font-size:.63rem;}
   .session-item .effort-dots{display:none;}
-  .stat-value{font-size:1.6rem;} .stat-card{padding:.8rem;} .stat-label{font-size:.58rem;}
-  .ns-desc{display:none;} .ns-km{font-size:1rem;}
+  .ns-desc{display:none;} .ns-km{font-size:.95rem;min-width:38px;}
+  .ns-date{min-width:40px;font-size:.63rem;}
   .modal-footer{flex-direction:column-reverse;gap:.5rem;} .modal-footer .btn{width:100%;text-align:center;}
-  .modal{border-radius:20px 20px 0 0;padding:1.1rem;max-height:95vh;}
-  .grid-2 .btn-ghost{font-size:.68rem;padding:.55rem .4rem;}
-  .zone-pace{display:none;} .zone-range{min-width:60px;}
-  .card{padding:.85rem;} .card-title{font-size:.9rem;}
-  .toast{bottom:calc(var(--bottom-nav-h) + 1rem + env(safe-area-inset-bottom));}
+  .modal{border-radius:20px 20px 0 0;padding:1rem;max-height:96vh;}
+  .zone-pace{display:none;} .zone-range{min-width:55px;font-size:.6rem;}
+  .card{padding:.8rem;border-radius:10px;} .card-title{font-size:.88rem;margin-bottom:.75rem;}
+  .toast{bottom:calc(var(--bottom-nav-h) + .75rem + env(safe-area-inset-bottom));}
   .bottom-nav{padding-bottom:env(safe-area-inset-bottom);}
-  .btn{padding:.65rem 1.1rem;font-size:.72rem;} .btn-sm{padding:.35rem .6rem;font-size:.62rem;}
-  .weeks-nav .week-label{font-size:1rem;}
-  .next-session-item{gap:.6rem;padding:.7rem 0;} .ns-date{min-width:42px;font-size:.65rem;}
-  .hero-stats .stat-card.accent .stat-value{font-size:1.3rem;}
+  .btn{padding:.6rem 1rem;font-size:.71rem;} .btn-sm{padding:.3rem .55rem;font-size:.61rem;}
+  .weeks-nav{gap:.5rem;margin-bottom:.6rem;} .weeks-nav .week-label{font-size:.95rem;}
+  .icon-btn{width:32px;height:32px;}
+  .next-session-item{gap:.5rem;padding:.65rem 0;}
+  /* Graphiques : hauteur réduite sur mobile */
+  canvas{max-height:160px !important;}
+  .hero-stats .stat-card.accent .stat-value{font-size:1.2rem;}
+  /* Zones dans dashboard */
+  .zones-grid .zone-pace{display:none;}
+  /* Rating buttons plus larges */
+  .rating-btn{font-size:.7rem;padding:.45rem .1rem;}
+  /* Confirm box centré */
+  .confirm-box{width:88%;padding:1.5rem 1.2rem;}
+  /* Formulaires : inputs plus grands sur mobile pour eviter zoom ios */
+  input,select,textarea{font-size:16px !important;}
 }
-@media(max-width:380px){
-  .stat-value{font-size:1.3rem;} .day-cell{min-height:52px;} .hero-stats{gap:.4rem;} .page{padding:.75rem;}
+@media(max-width:400px){
+  .stat-value{font-size:1.25rem;} .day-cell{min-width:38px;min-height:54px;}
+  .page{padding:.65rem;}
+  .hero-stats{gap:.35rem;}
+  .btn{padding:.55rem .75rem;font-size:.67rem;}
+  canvas{max-height:130px !important;}
 }
 </style>
 </head>
@@ -313,7 +342,8 @@ input[type=range]{padding:0;background:none;border:none;}
             <option value="VMA">VMA — Fractionné</option>
             <option value="Long">Sortie longue</option>
             <option value="Récup">Récupération</option>
-            <option value="Compét">Compétition</option>
+          <option value="Muscu">Muscu — Renforcement jambes</option>
+          <option value="Compét">Compétition</option>
           </select>
         </div>
         <div class="form-group"><label>Distance (km)</label><input type="number" id="log-dist" placeholder="10.5" step="0.1"></div>
@@ -397,18 +427,35 @@ input[type=range]{padding:0;background:none;border:none;}
     </select>
   </div>
   <div class="grid-2" style="margin-bottom:1rem;">
-    <div class="card"><div class="card-title">Volume hebdomadaire (km)</div><canvas id="chart-volume" height="200"></canvas></div>
-    <div class="card"><div class="card-title">Allure EF moyenne — progression</div><canvas id="chart-pace" height="200"></canvas></div>
+    <div class="card"><div class="card-title">Volume hebdomadaire (km)</div><canvas id="chart-volume" height="130"></canvas></div>
+    <div class="card"><div class="card-title">Allure EF moyenne — progression</div><canvas id="chart-pace" height="130"></canvas></div>
   </div>
   <div class="grid-2" style="margin-bottom:1rem;">
-    <div class="card"><div class="card-title">FC moyenne par type de séance</div><canvas id="chart-hr" height="200"></canvas></div>
-    <div class="card"><div class="card-title">Temps estimé par zone FC <span class="badge">APPROX.</span></div><canvas id="chart-types" height="200"></canvas></div>
+    <div class="card"><div class="card-title">FC moyenne par type de séance</div><canvas id="chart-hr" height="130"></canvas></div>
+    <div class="card"><div class="card-title">Temps estimé par zone FC <span class="badge">APPROX.</span></div><canvas id="chart-types" height="130"></canvas></div>
   </div>
-  <div class="card"><div class="card-title">Charge cumulée (km/semaine) + tendance</div><canvas id="chart-load" height="120"></canvas></div>
+  <div class="card"><div class="card-title">Charge cumulée (km/semaine) + tendance</div><canvas id="chart-load" height="90"></canvas></div>
   <div class="card" style="margin-top:1rem;">
     <div class="card-title">ATL / CTL / TSB <span class="badge">BANISTER</span></div>
     <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.75rem;">CTL = Forme (τ42j) · ATL = Fatigue (τ7j) · TSB = Fraîcheur (CTL−ATL)</div>
-    <canvas id="chart-fitness" height="120"></canvas>
+    <canvas id="chart-fitness" height="90"></canvas>
+  </div>
+  <div class="grid-2" style="margin-top:1rem;">
+    <div class="card">
+      <div class="card-title">Ratio Effort/FC — Économie de course <span class="badge">AVANCÉ</span></div>
+      <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Allure (km/h) ÷ FC — plus c'est haut, plus tu es économe</div>
+      <canvas id="chart-economy" height="130"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">Douleur & Effort hebdo <span class="badge">SANTÉ</span></div>
+      <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Corrélation charge / signaux de blessure</div>
+      <canvas id="chart-pain" height="130"></canvas>
+    </div>
+  </div>
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-title">Répartition séances par type <span class="badge">POLARISATION</span></div>
+    <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Modèle 80/20 : ~80% basse intensité, ~20% haute intensité</div>
+    <canvas id="chart-polar" height="80"></canvas>
   </div>
 </div>
 
@@ -424,11 +471,11 @@ input[type=range]{padding:0;background:none;border:none;}
   <div class="hero-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem;" id="detail-stats"></div>
   <div class="card" style="margin-bottom:1rem;">
     <div class="card-title">FC & Allure <span class="badge">PAR SECONDE</span></div>
-    <canvas id="chart-detail-main" height="140"></canvas>
+    <canvas id="chart-detail-main" height="110"></canvas>
   </div>
   <div class="grid-2">
-    <div class="card"><div class="card-title">Temps par zone FC <span class="badge">RÉEL</span></div><canvas id="chart-detail-zones" height="180"></canvas></div>
-    <div class="card"><div class="card-title">Allure par km</div><canvas id="chart-detail-pace" height="180"></canvas></div>
+    <div class="card"><div class="card-title">Temps par zone FC <span class="badge">RÉEL</span></div><canvas id="chart-detail-zones" height="140"></canvas></div>
+    <div class="card"><div class="card-title">Allure par km</div><canvas id="chart-detail-pace" height="140"></canvas></div>
   </div>
   <div id="detail-intervals" style="display:none;margin-top:1rem;">
     <div class="card">
@@ -519,6 +566,7 @@ input[type=range]{padding:0;background:none;border:none;}
           <option value="VMA">VMA — Fractionné</option>
           <option value="Long">Sortie longue</option>
           <option value="Récup">Récupération</option>
+          <option value="Muscu">Muscu — Renforcement jambes</option>
           <option value="Compét">Compétition</option>
         </select>
       </div>
@@ -593,6 +641,31 @@ input[type=range]{padding:0;background:none;border:none;}
   </div>
 </div>
 
+<!-- CONFIRM DIALOG CUSTOM -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-icon" id="confirm-icon">⚠️</div>
+    <div class="confirm-title" id="confirm-title">Confirmer</div>
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Annuler</button>
+      <button class="btn btn-danger" id="confirm-ok-btn" onclick="execConfirm()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MUSCU DETAIL MODAL -->
+<div class="modal-overlay" id="modal-muscu">
+  <div class="modal">
+    <div class="modal-title">💪 Séance Renforcement</div>
+    <div id="muscu-content" style="font-family:var(--fm);font-size:.82rem;line-height:2;color:var(--text);"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-muscu')">Fermer</button>
+      <button class="btn" onclick="logMuscu()">Loguer cette séance</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <script>
 // ═══════════════════════════════════════════════════════
@@ -616,6 +689,7 @@ const TYPE_CONFIG = {
   'Long':       { cls:'tb-Long',   label:'Long'   },
   'Récup':      { cls:'tb-Récup',  label:'Récup'  },
   'Compét':     { cls:'tb-Compét', label:'Compét' },
+  'Muscu':      { cls:'tb-Muscu',  label:'Muscu'  },
   'Repos':      { cls:'tb-Repos',  label:'Repos'  },
 };
 function typeBadge(type, done=false) {
@@ -1092,6 +1166,20 @@ function buildWeekStructure(phase,w,nSessions,weeklyKm,isRecup,isTaper) {
   if (nSessions>=2&&keySessions[0]) plan.push({dayOffset:daySlots[1],...keySessions[0],km:isRecup?keySessions[0].km*0.75:keySessions[0].km*(keyKm/keyTotal)});
   if (nSessions>=3) plan.push({dayOffset:daySlots[2],type:'EF',desc:getEFDesc(rot,1),km:efKm*0.30,zone:2});
   if (nSessions>=4&&keySessions[1]) plan.push({dayOffset:daySlots[3],...keySessions[1],km:isRecup?keySessions[1].km*0.70:keySessions[1].km});
+  // Muscu renforcement — adapté à la phase et blessures potentielles
+  const recentPain = allSessions.filter(s=>s.pain_level>=2).slice(0,1)[0]?.pain_level || 0;
+  const muscuSlot  = [2, 4, 5].find(d => !plan.some(p=>p.dayOffset===d)); // slot libre
+  if (nSessions>=4 && !isRecup && !isTaper && muscuSlot !== undefined) {
+    const muscuDur = recentPain>=3 ? 20 : 35;
+    plan.push({dayOffset:muscuSlot, type:'Muscu',
+      desc: recentPain>=3
+        ? 'Renfo adapté périostite — isométrique, zéro impact'
+        : phase==='spécifique'||phase==='culminant'
+          ? 'Renfo PUISSANCE — Pliométrie + force explosive'
+          : 'Renfo PRÉVENTION — Mollets excentriques + proprioception',
+      km: 0, zone:0
+    });
+  }
   if (nSessions>=5) {const slKm=weeklyKm*0.28;plan.push({dayOffset:daySlots[4],type:'Long',desc:getLongDesc(phase,rot),km:isRecup?slKm*0.75:slKm,zone:2});}
   if (nSessions>=6) plan.push({dayOffset:daySlots[5],type:'Récup',desc:'Récupération active — jambes légères',km:6,zone:1});
   return plan.filter(s=>s.km>0);
@@ -1229,7 +1317,11 @@ function selectDay(dateStr) {
       <div style="font-family:var(--fb);font-size:.9rem;margin:.5rem 0;">${planned.description||''}</div>
       <div><span style="color:var(--muted);">Distance:</span> ~${planned.target_distance_km||'?'}km</div>
       ${z?`<div><span style="color:var(--muted);">Allure cible:</span> <span style="color:var(--accent);">${z.paceHigh}–${z.paceLow}/km</span></div><div><span style="color:var(--muted);">FC cible:</span> ${z.fcLow}–${z.fcHigh} bpm</div>`:''}
-      <div style="margin-top:1rem;"><button class="btn" style="width:100%;padding:.5rem;" onclick="prefillLog('${dateStr}','${planned.type}')">Loguer cette séance</button></div>
+      <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+        ${planned.type==='Muscu'
+          ? `<button class="btn" style="flex:1;padding:.5rem;" onclick="openMuscu('${dateStr}')">💪 Voir le programme</button>`
+          : `<button class="btn" style="flex:1;padding:.5rem;" onclick="prefillLog('${dateStr}','${planned.type}')">Loguer cette séance</button>`}
+      </div>
     </div>`;
   } else {
     el.innerHTML='<div class="empty-state">Repos — aucune séance planifiée</div>';
@@ -1295,9 +1387,10 @@ Réponds UNIQUEMENT en JSON valide:
     if (parsed.warning&&textEl) textEl.innerHTML+=`<div class="alert alert-warn" style="margin-top:.75rem;">${parsed.warning}</div>`;
     if (parsed.modifications&&parsed.modifications.length>0&&actEl) {
       const sum=parsed.modifications.map(m=>m.action==='update'?`✏️ ${m.data?.date} → ${m.data?.type}`:m.action==='insert'?`➕ ${m.data?.type} le ${m.data?.date}`:`🗑 Supprimer`).join('<br>');
-      const modsJson=JSON.stringify(parsed.modifications).replace(/"/g,'&quot;');
+      // Store mods as JSON in a hidden div to avoid HTML attribute encoding issues
       actEl.innerHTML=`<div style="font-family:var(--fm);font-size:.7rem;color:var(--muted);width:100%;margin-bottom:.5rem;">${sum}</div>
-        <button class="btn" onclick="applyPlanMods('${modsJson}')">✓ Appliquer</button>
+        <div id="pending-mods" style="display:none">${JSON.stringify(parsed.modifications)}</div>
+        <button class="btn" onclick="applyPlanMods()">✓ Appliquer</button>
         <button class="btn btn-ghost" onclick="document.getElementById('plan-coach-response').style.display='none'">Annuler</button>`;
     }
     input.value='';
@@ -1305,10 +1398,12 @@ Réponds UNIQUEMENT en JSON valide:
   if (btn) { btn.textContent='Modifier'; btn.disabled=false; }
 }
 
-async function applyPlanMods(modsJson) {
-  const mods=JSON.parse(modsJson.replace(/&quot;/g,'"'));
+async function applyPlanMods() {
+  const pendingEl=document.getElementById('pending-mods');
+  if (!pendingEl) return;
+  const mods=JSON.parse(pendingEl.textContent);
   const actEl=document.getElementById('plan-coach-actions');
-  if (actEl) actEl.innerHTML='<div style="font-family:var(--fm);font-size:.75rem;color:var(--muted);">Application...</div>';
+  if (actEl) actEl.innerHTML='<div style="font-family:var(--fm);font-size:.75rem;color:var(--muted);">Application en cours...</div>';
   for (const m of mods) {
     if      (m.action==='update'&&m.id)   await db.from('planned_sessions').update(m.data).eq('id',m.id);
     else if (m.action==='insert'&&m.data) await db.from('planned_sessions').insert([m.data]);
@@ -1336,6 +1431,17 @@ function onTypeChange() {
     if (intervalCount===0) initIntervals(type);
   } else if (sec) {
     sec.style.display='none';
+  }
+  // Pour Muscu : masquer distance/allure, garder durée
+  const distGrp = document.getElementById('log-dist')?.closest('.form-group');
+  const paceGrp = document.getElementById('log-pace')?.closest('.form-group');
+  const hrGrp   = document.getElementById('log-hr')?.closest('.form-group');
+  if (type==='Muscu') {
+    if (distGrp) distGrp.style.opacity='.4';
+    if (paceGrp) paceGrp.style.opacity='.4';
+  } else {
+    if (distGrp) distGrp.style.opacity='1';
+    if (paceGrp) paceGrp.style.opacity='1';
   }
 }
 
@@ -1503,14 +1609,21 @@ function renderHistory() {
 }
 
 async function deleteSession(id, date) {
-  if (!confirm(`Supprimer la séance du ${formatDate(date)} ?`)) return;
-  try {
-    const {error}=await db.from('sessions').delete().eq('id',id);
-    if (error) throw error;
-    showToast('Séance supprimée ✓','success');
-    await loadSessions();
-    renderHistory(); renderDashboard(); renderWeek();
-  } catch(e) { showToast('Erreur: '+e.message,'error'); }
+  showConfirm(
+    '🗑️',
+    'Supprimer cette séance ?',
+    `La séance du <strong>${formatDate(date)}</strong> sera définitivement supprimée.`,
+    'Supprimer',
+    async () => {
+      try {
+        const {error}=await db.from('sessions').delete().eq('id',id);
+        if (error) throw error;
+        showToast('Séance supprimée ✓','success');
+        await loadSessions();
+        renderHistory(); renderDashboard(); renderWeek();
+      } catch(e) { showToast('Erreur: '+e.message,'error'); }
+    }
+  );
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1995,6 +2108,7 @@ function renderGraphs() {
   const recent=allSessions.filter(s=>new Date(s.date+'T12:00:00')>=cutoff).sort((a,b)=>a.date.localeCompare(b.date));
   renderVolumeChart(recent); renderPaceChart(recent); renderHRChart(recent);
   renderTypesChart(recent); renderLoadChart(recent); renderFitnessChart();
+  renderEconomyChart(recent); renderPainChart(recent); renderPolarChart(recent);
 }
 
 function getWeekLabel(dateStr) {
@@ -2229,8 +2343,238 @@ window.addEventListener('appinstalled',()=>{deferredPrompt=null;showToast('RunCo
 function installApp(){if(!deferredPrompt)return;deferredPrompt.prompt();deferredPrompt.userChoice.then(()=>{deferredPrompt=null;});}
 
 // ═══════════════════════════════════════════════════════
-// DÉMARRAGE
+// CONFIRM DIALOG CUSTOM
 // ═══════════════════════════════════════════════════════
+let _confirmCallback = null;
+function showConfirm(icon, title, msg, okLabel, callback) {
+  document.getElementById('confirm-icon').textContent  = icon;
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').innerHTML     = msg;
+  const okBtn = document.getElementById('confirm-ok-btn');
+  if (okBtn) okBtn.textContent = okLabel || 'Confirmer';
+  _confirmCallback = callback;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function closeConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  _confirmCallback = null;
+}
+function execConfirm() {
+  closeConfirm();
+  if (_confirmCallback) _confirmCallback();
+}
+document.getElementById('confirm-overlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('confirm-overlay')) closeConfirm();
+});
+
+// ═══════════════════════════════════════════════════════
+// MUSCU — RENFORCEMENT JAMBES
+// ═══════════════════════════════════════════════════════
+const MUSCU_PLANS = {
+  base: {
+    name: 'Renfo BASE — Prévention périostite',
+    duree: '30–35 min',
+    focus: 'Proprioception, tibial antérieur, mollets excentrique',
+    caution: '⚠️ Interdit en phase périostite active (douleur ≥ 3/5)',
+    exercices: [
+      { nom:'Flexion plantaire excentrique sur step', series:'3×15', note:'Descente lente 4sec · Charge propre poids' },
+      { nom:'Tibial antérieur — relevé de pointe talons', series:'3×20', note:'Lent et contrôlé' },
+      { nom:'Pistol squat assisté (chaise)', series:'3×8/jambe', note:'Travail unijambiste équilibre' },
+      { nom:'Step-up latéral', series:'3×12/jambe', note:'Genou aligné sur orteil, contrôle excentrique' },
+      { nom:'Pont fessier unilatéral', series:'3×12/jambe', note:'Maintien 2sec en haut' },
+      { nom:'Proprioception plateau instable', series:'3×45sec', note:'Yeux fermés si maîtrisé' },
+    ]
+  },
+  développement: {
+    name: 'Renfo DÉVELOPPEMENT — Force fonctionnelle',
+    duree: '40–45 min',
+    focus: 'Quadriceps, ischio-jambiers, chaîne postérieure',
+    caution: '✓ OK si pas de douleur à l\'échauffement',
+    exercices: [
+      { nom:'Fentes avant chargées', series:'4×10/jambe', note:'Barre ou haltères — contrôle genou' },
+      { nom:'Romanian Deadlift', series:'4×8', note:'Ischio-jambiers — dos neutre strict' },
+      { nom:'Leg press unilatéral', series:'3×12/jambe', note:'Amplitude complète' },
+      { nom:'Nordic curl (assisté)', series:'3×6', note:'Excentrique pur — ischio-jambiers' },
+      { nom:'Calf raise lesté', series:'4×15', note:'Complet + excentrique 3sec' },
+      { nom:'Squat bulgare', series:'3×10/jambe', note:'Pied arrière surélevé' },
+    ]
+  },
+  spécifique: {
+    name: 'Renfo SPÉCIFIQUE — Puissance course',
+    duree: '35–40 min',
+    focus: 'Pliométrie, force explosive, transfert running',
+    caution: '✓ Phase avancée — bonne base requise',
+    exercices: [
+      { nom:'Box jump', series:'4×6', note:'Réception contrôlée, rebond minimal' },
+      { nom:'Split jump (fentes sautées)', series:'3×8/jambe', note:'Focus réactivité et équilibre' },
+      { nom:'Step-up explosif', series:'4×8/jambe', note:'Montée rapide, descente lente' },
+      { nom:'Single leg calf raise plyométrique', series:'3×10/jambe', note:'Petit rebond, tendon d\'Achille' },
+      { nom:'Deadlift roumain + saut', series:'3×6', note:'Enchaîner sans pause' },
+      { nom:'Skipping haute fréquence', series:'4×20sec', note:'Cadence max, talons aux fesses' },
+    ]
+  },
+  periostite: {
+    name: 'Renfo ADAPTÉ — Périostite / douleur active',
+    duree: '20–25 min',
+    focus: 'Zéro impact, travail isométrique, haut du corps OK',
+    caution: '🔴 Protocole blessure — arrêt si douleur augmente',
+    exercices: [
+      { nom:'Contraction isométrique tibial antérieur', series:'5×30sec', note:'Pied en dorsiflexion contre résistance' },
+      { nom:'Pont fessier bilatéral', series:'3×15', note:'Sans appui tibial, allongé' },
+      { nom:'Clam shell (abducteurs)', series:'3×20/côté', note:'Élastique léger si dispo' },
+      { nom:'Abdo planche', series:'3×45sec', note:'Zéro contrainte sur tibias' },
+      { nom:'Mollet aquatique (si piscine)', series:'3×20', note:'Flotabilité = zéro impact' },
+      { nom:'Étirements mollets passifs', series:'3×60sec', note:'Mur, genou tendu puis fléchi' },
+    ]
+  }
+};
+
+function getMuscu(phase, painLevel=0) {
+  if (painLevel >= 3) return MUSCU_PLANS.periostite;
+  if (phase === 'spécifique' || phase === 'culminant') return MUSCU_PLANS.spécifique;
+  if (phase === 'développement') return MUSCU_PLANS.développement;
+  return MUSCU_PLANS.base;
+}
+
+function openMuscu(dateStr) {
+  // Détermine la phase courante
+  const race10 = new Date(profile.race_10k_date || '2027-01-15');
+  const race15 = new Date(profile.race_15k_date || '2026-09-20');
+  const totalW = Math.ceil((race10 - new Date()) / (7 * 86400000));
+  const dToR15 = Math.ceil((race15 - new Date()) / 86400000);
+  const dToR10 = Math.ceil((race10 - new Date()) / 86400000);
+  const phase  = calcPhase(0, totalW, dToR15, dToR10);
+  // Niveau de douleur récent
+  const recentPain = allSessions.filter(s => s.pain_level >= 2).slice(0,1)[0]?.pain_level || 0;
+  const plan = getMuscu(phase, recentPain);
+
+  document.getElementById('muscu-content').innerHTML = `
+    <div style="background:var(--surface2);border-radius:8px;padding:1rem;margin-bottom:1rem;">
+      <div style="font-family:var(--fd);font-size:1rem;color:var(--accent);margin-bottom:.3rem;">${plan.name}</div>
+      <div style="color:var(--muted);font-size:.7rem;margin-bottom:.2rem;">⏱ ${plan.duree} · 🎯 ${plan.focus}</div>
+      <div style="color:${recentPain>=3?'var(--danger)':'var(--success)'};font-size:.72rem;margin-top:.4rem;">${plan.caution}</div>
+    </div>
+    ${plan.exercices.map((e,i) => `
+      <div style="display:grid;grid-template-columns:1.5rem 1fr auto;gap:.5rem;padding:.6rem 0;border-bottom:1px solid var(--border);align-items:start;">
+        <div style="font-family:var(--fd);color:var(--muted);font-size:.95rem;">${i+1}</div>
+        <div>
+          <div style="color:var(--text);font-size:.8rem;margin-bottom:.15rem;">${e.nom}</div>
+          <div style="color:var(--muted);font-size:.68rem;">${e.note}</div>
+        </div>
+        <div style="font-family:var(--fd);color:var(--accent);font-size:.8rem;white-space:nowrap;">${e.series}</div>
+      </div>`).join('')}
+    <div style="margin-top:1rem;padding:.75rem;background:rgba(232,255,71,.05);border-radius:8px;font-size:.7rem;color:var(--muted);">
+      💡 Fais ce renfo le <strong style="color:var(--text);">lendemain d'une séance EF</strong> ou en jour de repos. Pas la veille d'un VMA ou seuil.
+    </div>`;
+  // Stocker la date pour le log
+  document.getElementById('modal-muscu').dataset.date = dateStr || localDateStr(new Date());
+  openModal('modal-muscu');
+}
+
+function logMuscu() {
+  const dateStr = document.getElementById('modal-muscu').dataset.date || localDateStr(new Date());
+  const el = document.getElementById('log-date'); if (el) el.value = dateStr;
+  const lt = document.getElementById('log-type'); if (lt) lt.value = 'Muscu';
+  onTypeChange();
+  closeModal('modal-muscu');
+  showPage('log');
+}
+
+// ═══════════════════════════════════════════════════════
+// NOUVEAUX GRAPHIQUES
+// ═══════════════════════════════════════════════════════
+function renderEconomyChart(sessions) {
+  destroyChart('economy');
+  const ctx = document.getElementById('chart-economy')?.getContext('2d');
+  if (!ctx) return;
+  // Économie = vitesse (km/h) / FC — sessions EF et Z3 avec HR connu
+  const ef = sessions.filter(s => ['EF','Aérobie Z3','Long'].includes(s.type) && s.avg_pace_seconds && s.avg_hr)
+    .sort((a,b) => a.date.localeCompare(b.date));
+  if (ef.length < 3) { ctx.canvas.parentElement.innerHTML += '<div class="empty-state" style="padding:1rem;">Pas assez de séances EF avec FC</div>'; return; }
+  const data    = ef.map(s => +((3600 / s.avg_pace_seconds) / s.avg_hr * 100).toFixed(2));
+  const labels  = ef.map(s => formatDate(s.date));
+  const avg     = data.reduce((a,b)=>a+b,0)/data.length;
+  // Tendance (regression linéaire simple)
+  const n = data.length;
+  const sumX = data.reduce((_,__,i)=>_+i,0);
+  const sumY = data.reduce((a,b)=>a+b,0);
+  const sumXY= data.reduce((a,b,i)=>a+i*b,0);
+  const sumX2= data.reduce((a,_,i)=>a+i*i,0);
+  const slope = (n*sumXY - sumX*sumY)/(n*sumX2 - sumX*sumX);
+  const intercept = (sumY - slope*sumX)/n;
+  const trend = data.map((_,i) => +((slope*i+intercept).toFixed(2)));
+  chartInstances['economy'] = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Économie (v/FC×100)', data, borderColor:'#47b8ff', backgroundColor:'rgba(71,184,255,0.08)', tension:0.3, fill:true, pointRadius:3, pointBackgroundColor:'#47b8ff', borderWidth:2 },
+      { label:'Tendance', data:trend, borderColor:'#e8ff47', backgroundColor:'transparent', tension:0.3, pointRadius:0, borderWidth:1.5, borderDash:[4,4] }
+    ]},
+    options:{ ...CHART_DEFAULTS, plugins:{ ...CHART_DEFAULTS.plugins,
+      tooltip:{ callbacks:{ label:(c)=>` ${c.dataset.label}: ${c.raw}` }}
+    }}
+  });
+}
+
+function renderPainChart(sessions) {
+  destroyChart('pain');
+  const ctx = document.getElementById('chart-pain')?.getContext('2d');
+  if (!ctx) return;
+  const weeks  = groupByWeek(sessions);
+  const labels = Object.keys(weeks).map(k => getWeekLabel(k));
+  const volume = Object.values(weeks).map(w => +w.reduce((a,s)=>a+(s.distance_km||0),0).toFixed(1));
+  const pain   = Object.values(weeks).map(w => {
+    const p = w.filter(s=>s.pain_level>0);
+    return p.length ? +(p.reduce((a,s)=>a+(s.pain_level||0),0)/p.length).toFixed(1) : 0;
+  });
+  chartInstances['pain'] = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Volume (km)', data:volume, backgroundColor:'rgba(71,184,255,0.45)', borderRadius:3, yAxisID:'y-vol', order:2 },
+      { label:'Douleur moy', data:pain, type:'line', borderColor:'#ff4757', backgroundColor:'transparent', tension:0.3, pointRadius:4, borderWidth:2, pointBackgroundColor:'#ff4757', yAxisID:'y-pain', order:1 }
+    ]},
+    options:{ ...CHART_DEFAULTS, interaction:{mode:'index',intersect:false},
+      scales:{
+        x:CHART_DEFAULTS.scales.x,
+        'y-vol':{ position:'left', ticks:{color:'#47b8ff',font:{family:'DM Mono',size:9}}, grid:{color:'#2a2a3a'} },
+        'y-pain':{ position:'right', min:0, max:5, ticks:{color:'#ff4757',font:{family:'DM Mono',size:9}}, grid:{display:false} }
+      }
+    }
+  });
+}
+
+function renderPolarChart(sessions) {
+  destroyChart('polar');
+  const ctx = document.getElementById('chart-polar')?.getContext('2d');
+  if (!ctx) return;
+  const counts = {};
+  const totalKm = {};
+  sessions.forEach(s => {
+    counts[s.type]   = (counts[s.type]  || 0) + 1;
+    totalKm[s.type]  = (totalKm[s.type] || 0) + (s.distance_km || 0);
+  });
+  const order  = ['EF','Long','Récup','Aérobie Z3','Seuil','VMA','Muscu','Compét'];
+  const labels = order.filter(t => counts[t]);
+  const data   = labels.map(t => counts[t]);
+  const km     = labels.map(t => +totalKm[t].toFixed(1));
+  const colors = ['#47b8ff','#e8ff47','#6b6b8a','#2ed573','#ffa502','#ff4757','#c084fc','#ff6b6b'];
+  // Ligne de référence 80/20
+  const lowInt  = (counts['EF']||0)+(counts['Long']||0)+(counts['Récup']||0)+(counts['Aérobie Z3']||0);
+  const highInt = (counts['Seuil']||0)+(counts['VMA']||0);
+  const total   = lowInt + highInt;
+  const pctLow  = total ? Math.round(lowInt/total*100) : 0;
+  chartInstances['polar'] = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Séances (#)', data, backgroundColor:colors.slice(0,labels.length), borderRadius:4 }
+    ]},
+    options:{ ...CHART_DEFAULTS, plugins:{ ...CHART_DEFAULTS.plugins,
+      legend:{ display:false },
+      tooltip:{ callbacks:{ afterLabel:(c)=>`${km[c.dataIndex]}km total` }},
+      title:{ display:true, text:`Polarisation: ${pctLow}% basse intensité / ${100-pctLow}% haute intensité`, color:'#6b6b8a', font:{family:'DM Mono',size:10} }
+    }}
+  });
+}
+
 init();
 </script>
 </body>
