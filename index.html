@@ -432,7 +432,7 @@ input[type=range]{padding:0;background:none;border:none;}
   </div>
   <div class="grid-2" style="margin-bottom:1rem;">
     <div class="card"><div class="card-title">FC moyenne par type de séance</div><canvas id="chart-hr" height="130"></canvas></div>
-    <div class="card"><div class="card-title">Temps par zone FC <span class="badge">KARVONEN</span></div><canvas id="chart-types" height="130"></canvas></div>
+    <div class="card"><div class="card-title">Temps par zone FC <span class="badge" id="types-badge">STRAVA</span></div><canvas id="chart-types" height="130"></canvas></div>
   </div>
   <div class="card"><div class="card-title">Charge cumulée (km/semaine) + tendance</div><canvas id="chart-load" height="90"></canvas></div>
   <div class="card" style="margin-top:1rem;">
@@ -1673,27 +1673,59 @@ function renderHistory() {
       <div style="display:flex;gap:.4rem;align-items:center;">
         <button style="background:rgba(71,184,255,.15);border:1px solid var(--accent2);color:var(--accent2);font-family:var(--fm);font-size:.75rem;padding:.5rem .9rem;border-radius:6px;cursor:pointer;white-space:nowrap;" onclick="openDetailSession('${s.id}')">👁 Voir</button>
         <button class="btn btn-ghost btn-sm" onclick="openEditSession('${s.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteSession('${s.id}','${s.date}')">×</button>
+        <button class="btn btn-danger btn-sm delete-btn" data-id="${s.id}" data-date="${s.date}" title="Supprimer">🗑</button>
       </div>
     </div>`).join('');
 }
 
+// Event delegation for delete buttons (works on dynamically created elements)
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.delete-btn');
+  if (btn) {
+    e.stopPropagation();
+    deleteSession(btn.dataset.id, btn.dataset.date);
+  }
+});
+
 async function deleteSession(id, date) {
-  showConfirm(
-    '🗑️',
-    'Supprimer cette séance ?',
-    `La séance du <strong>${formatDate(date)}</strong> sera définitivement supprimée.`,
-    'Supprimer',
-    async () => {
-      try {
-        const {error}=await db.from('sessions').delete().eq('id',id);
-        if (error) throw error;
-        showToast('Séance supprimée ✓','success');
-        await loadSessions();
-        renderHistory(); renderDashboard(); renderWeek();
-      } catch(e) { showToast('Erreur: '+e.message,'error'); }
+  // Affiche le mini-confirm inline dans la carte historique
+  const btn = document.querySelector(`.delete-btn[data-id="${id}"]`);
+  if (!btn) return;
+  // Si déjà en mode confirm, exécuter
+  if (btn.dataset.confirming === '1') {
+    btn.dataset.confirming = '0';
+    btn.textContent = '🗑';
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    try {
+      const {error} = await db.from('sessions').delete().eq('id', id);
+      if (error) throw error;
+      showToast('Séance supprimée ✓', 'success');
+      await loadSessions();
+      renderHistory(); renderDashboard(); renderWeek();
+    } catch(e) { showToast('Erreur: ' + e.message, 'error'); }
+    return;
+  }
+  // Premier clic : passer en mode confirmation
+  btn.dataset.confirming = '1';
+  btn.textContent = '✓ Confirmer';
+  btn.style.background = 'var(--danger)';
+  btn.style.color = '#fff';
+  btn.style.borderColor = 'var(--danger)';
+  btn.style.fontSize = '.6rem';
+  btn.style.padding = '.3rem .5rem';
+  // Auto-reset après 3 secondes si pas de 2e clic
+  setTimeout(() => {
+    if (btn.dataset.confirming === '1') {
+      btn.dataset.confirming = '0';
+      btn.textContent = '🗑';
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+      btn.style.fontSize = '';
+      btn.style.padding = '';
     }
-  );
+  }, 3000);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1778,15 +1810,39 @@ function renderDetailCharts(s) {
     }
   }
 
-  if (zoneMins) {
-    renderZonesChart(zoneMins);
-  } else {
-    // ── BUG #2 CORRIGÉ : renderEstimatedZones inline (la fonction n'existait pas) ──
-    const zMap={'EF':{Z1:5,Z2:75,Z3:15,Z4:5,Z5:0},'Aérobie Z3':{Z1:5,Z2:30,Z3:50,Z4:15,Z5:0},'Seuil':{Z1:5,Z2:15,Z3:20,Z4:55,Z5:5},'VMA':{Z1:5,Z2:15,Z3:15,Z4:20,Z5:45},'Long':{Z1:5,Z2:70,Z3:20,Z4:5,Z5:0},'Récup':{Z1:60,Z2:35,Z3:5,Z4:0,Z5:0}};
-    const pcts=zMap[s.type]||zMap['EF'];
-    const dur=s.duration_minutes||60;
-    const zm={Z1:Math.round(dur*pcts.Z1/100),Z2:Math.round(dur*pcts.Z2/100),Z3:Math.round(dur*pcts.Z3/100),Z4:Math.round(dur*pcts.Z4/100),Z5:Math.round(dur*pcts.Z5/100)};
-    renderZonesChart(zm);
+  // Zones détail : priorité aux données réelles FC seconde par seconde
+  {
+    const fm   = profile.fc_max   || 208;
+    const frep = profile.fc_repos || 55;
+    const zoneBoundsD = [
+      { low: frep+(fm-frep)*0.50, high: frep+(fm-frep)*0.60 },
+      { low: frep+(fm-frep)*0.60, high: frep+(fm-frep)*0.70 },
+      { low: frep+(fm-frep)*0.70, high: frep+(fm-frep)*0.80 },
+      { low: frep+(fm-frep)*0.80, high: frep+(fm-frep)*0.90 },
+      { low: frep+(fm-frep)*0.90, high: fm*1.05             },
+    ];
+
+    if (streams && streams.hr && streams.hr.length > 10) {
+      // ── DONNÉES RÉELLES : compter chaque seconde dans sa zone ──
+      const zSec = [0,0,0,0,0];
+      const hrArr = streams.hr, tArr = streams.time;
+      for (let i = 0; i < hrArr.length; i++) {
+        const fc = hrArr[i]; if (!fc || fc < 40) continue;
+        const dt = i < tArr.length-1 ? (tArr[i+1]-tArr[i]) : 1;
+        const zi = zoneBoundsD.findIndex(z => fc >= z.low && fc < z.high);
+        const idx = zi >= 0 ? zi : (fc >= zoneBoundsD[4].low ? 4 : 0);
+        zSec[idx] += dt;
+      }
+      renderZonesChart({ Z1:Math.round(zSec[0]/60), Z2:Math.round(zSec[1]/60), Z3:Math.round(zSec[2]/60), Z4:Math.round(zSec[3]/60), Z5:Math.round(zSec[4]/60) }, true);
+    } else if (zoneMins) {
+      // ── DONNÉES PRÉ-CALCULÉES par le script d'import ──
+      renderZonesChart(zoneMins, false);
+    } else {
+      // ── ESTIMATION : répartition typique par type de séance ──
+      const zMap={'EF':{Z1:5,Z2:75,Z3:15,Z4:5,Z5:0},'Aérobie Z3':{Z1:5,Z2:30,Z3:50,Z4:15,Z5:0},'Seuil':{Z1:5,Z2:15,Z3:20,Z4:55,Z5:5},'VMA':{Z1:5,Z2:15,Z3:15,Z4:20,Z5:45},'Long':{Z1:5,Z2:70,Z3:20,Z4:5,Z5:0},'Récup':{Z1:60,Z2:35,Z3:5,Z4:0,Z5:0}};
+      const pcts=zMap[s.type]||zMap['EF'], dur=s.duration_minutes||60;
+      renderZonesChart({ Z1:Math.round(dur*pcts.Z1/100), Z2:Math.round(dur*pcts.Z2/100), Z3:Math.round(dur*pcts.Z3/100), Z4:Math.round(dur*pcts.Z4/100), Z5:Math.round(dur*pcts.Z5/100) }, null);
+    }
   }
 
   renderPacePerKm(s,streams);
@@ -1828,14 +1884,35 @@ function renderMainChart(s,streams) {
   }});
 }
 
-function renderZonesChart(zoneMins) {
-  const ctx=document.getElementById('chart-detail-zones')?.getContext('2d');
+function renderZonesChart(zoneMins, isReal) {
+  // isReal: true=données FC brutes Strava, false=zone_minutes import, null=estimation
+  const ctx = document.getElementById('chart-detail-zones')?.getContext('2d');
   if (!ctx) return;
-  const labels=['Z1 Récup','Z2 EF','Z3 Aérobie','Z4 Seuil','Z5 VMA'];
-  const data=[zoneMins.Z1,zoneMins.Z2,zoneMins.Z3,zoneMins.Z4,zoneMins.Z5];
-  const colors=['#6b6b8a','#47b8ff','#2ed573','#ffa502','#ff4757'];
-  const total=data.reduce((a,b)=>a+(b||0),0);
-  chartInstances['detail-zones']=new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{color:'#6b6b8a',font:{family:'DM Mono',size:10}}},tooltip:{callbacks:{label:(c)=>{const pct=total>0?Math.round((c.parsed||0)/total*100):0;const h=Math.floor((c.parsed||0)/60),m=Math.round((c.parsed||0)%60);return ` ${h>0?h+'h':''}${m}min (${pct}%)`;}}}}}});
+  const labels = ['Z1 Récup','Z2 EF','Z3 Aérobie','Z4 Seuil','Z5 VMA'];
+  const data   = [zoneMins.Z1||0, zoneMins.Z2||0, zoneMins.Z3||0, zoneMins.Z4||0, zoneMins.Z5||0];
+  const colors = ['#6b6b8a','#47b8ff','#2ed573','#ffa502','#ff4757'];
+  const total  = data.reduce((a,b) => a+b, 0);
+
+  const sourceText = isReal === true
+    ? '✓ Données FC réelles (seconde par seconde)'
+    : isReal === false
+      ? '~ Données import Strava'
+      : '⚠️ Estimation par type de séance';
+  const sourceColor = isReal === true ? '#2ed573' : isReal === false ? '#47b8ff' : '#ffa502';
+
+  chartInstances['detail-zones'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets:[{ data, backgroundColor:colors, borderWidth:2, borderColor:'#12121a' }]},
+    options: { responsive:true, plugins:{
+      legend:{ position:'right', labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:10} }},
+      tooltip:{ callbacks:{ label:(c) => {
+        const pct = total>0 ? Math.round((c.parsed||0)/total*100) : 0;
+        const h = Math.floor((c.parsed||0)/60), m = Math.round((c.parsed||0)%60);
+        return ` ${h>0?h+'h':''}${m}min (${pct}%)`;
+      }}},
+      title:{ display:true, text:sourceText, color:sourceColor, font:{family:'DM Mono',size:9} }
+    }}
+  });
 }
 
 function renderPacePerKm(s,streams) {
@@ -2261,9 +2338,11 @@ function renderHRChart(sessions) {
 
 function renderTypesChart(sessions) {
   destroyChart('types');
-  const fm  = profile.fc_max  || 208;
+
+  const fm   = profile.fc_max   || 208;
   const frep = profile.fc_repos || 55;
-  // Zones basées sur FC de reserve (Karvonen) — plus précis
+
+  // Zones Karvonen (FC de réserve)
   const zoneBounds = [
     { name:'Z1', low: frep + (fm-frep)*0.50, high: frep + (fm-frep)*0.60 },
     { name:'Z2', low: frep + (fm-frep)*0.60, high: frep + (fm-frep)*0.70 },
@@ -2271,29 +2350,62 @@ function renderTypesChart(sessions) {
     { name:'Z4', low: frep + (fm-frep)*0.80, high: frep + (fm-frep)*0.90 },
     { name:'Z5', low: frep + (fm-frep)*0.90, high: fm * 1.05             },
   ];
-  const zoneMinutes = { Z1:0, Z2:0, Z3:0, Z4:0, Z5:0 };
 
-  sessions.filter(s => s.avg_hr && s.duration_minutes).forEach(s => {
-    const fc = s.avg_hr, dur = s.duration_minutes;
-    // FC max et min estimées de la séance selon le type
-    const spreadFactor = {
-      'VMA':0.08, 'Seuil':0.06, 'Aérobie Z3':0.05,
-      'EF':0.04, 'Long':0.05, 'Récup':0.03
-    }[s.type] || 0.05;
-    const fcEstMin = fc * (1 - spreadFactor);
-    const fcEstMax = fc * (1 + spreadFactor);
+  const zoneSeconds = { Z1:0, Z2:0, Z3:0, Z4:0, Z5:0 };
+  let   streamsUsed = 0;   // nb séances avec streams réels
+  let   estimUsed   = 0;   // nb séances avec estimation
 
+  sessions.forEach(s => {
+    // ── CAS 1 : streams Strava disponibles → données FC réelles seconde par seconde ──
+    const hrStream = s.streams?.streams?.hr;
+    const tStream  = s.streams?.streams?.time;
+
+    if (hrStream && tStream && hrStream.length > 10) {
+      streamsUsed++;
+      for (let i = 0; i < hrStream.length; i++) {
+        const fc  = hrStream[i];
+        if (!fc || fc < 40) continue;
+        // Durée de ce point = différence avec le point suivant (ou 1 sec par défaut)
+        const dt  = i < tStream.length - 1 ? (tStream[i+1] - tStream[i]) : 1;
+        // Trouver la zone
+        const zi  = zoneBounds.findIndex(z => fc >= z.low && fc < z.high);
+        if (zi >= 0) zoneSeconds['Z'+(zi+1)] += dt;
+        else if (fc >= zoneBounds[4].low) zoneSeconds['Z5'] += dt; // au-dessus Z5
+        else zoneSeconds['Z1'] += dt; // en-dessous Z1
+      }
+      return; // pas besoin d'estimation pour cette séance
+    }
+
+    // ── CAS 2 : zone_minutes pré-calculées par le script d'import Strava ──
+    const zm = s.streams?.zone_minutes;
+    if (zm && (zm.Z1 || zm.Z2 || zm.Z3 || zm.Z4 || zm.Z5)) {
+      streamsUsed++;
+      zoneSeconds.Z1 += (zm.Z1 || 0) * 60;
+      zoneSeconds.Z2 += (zm.Z2 || 0) * 60;
+      zoneSeconds.Z3 += (zm.Z3 || 0) * 60;
+      zoneSeconds.Z4 += (zm.Z4 || 0) * 60;
+      zoneSeconds.Z5 += (zm.Z5 || 0) * 60;
+      return;
+    }
+
+    // ── CAS 3 : pas de streams → estimation Karvonen avec spread par type ──
+    if (!s.avg_hr || !s.duration_minutes) return;
+    estimUsed++;
+    const fc  = s.avg_hr, dur = s.duration_minutes * 60; // en secondes
+    const spread = { 'VMA':0.08,'Seuil':0.06,'Aérobie Z3':0.05,'EF':0.04,'Long':0.05,'Récup':0.03 }[s.type] || 0.05;
+    const fcMin = fc * (1 - spread);
+    const fcMax = fc * (1 + spread);
     zoneBounds.forEach((z, zi) => {
-      // Quelle fraction de la durée est passée dans cette zone ?
-      const overlap = Math.max(0, Math.min(fcEstMax, z.high) - Math.max(fcEstMin, z.low));
-      const range   = fcEstMax - fcEstMin;
+      const overlap = Math.max(0, Math.min(fcMax, z.high) - Math.max(fcMin, z.low));
+      const range   = fcMax - fcMin;
       const frac    = range > 0 ? overlap / range : (fc >= z.low && fc < z.high ? 1 : 0);
-      zoneMinutes['Z'+(zi+1)] += dur * frac;
+      zoneSeconds['Z'+(zi+1)] += dur * frac;
     });
   });
 
-  // Arrondir
-  Object.keys(zoneMinutes).forEach(k => { zoneMinutes[k] = Math.round(zoneMinutes[k]); });
+  // Convertir en minutes pour l'affichage
+  const zoneMinutes = {};
+  Object.keys(zoneSeconds).forEach(k => { zoneMinutes[k] = Math.round(zoneSeconds[k] / 60); });
 
   const total = Object.values(zoneMinutes).reduce((a,b) => a+b, 0);
   if (!total) return;
@@ -2304,26 +2416,34 @@ function renderTypesChart(sessions) {
   const ctx    = document.getElementById('chart-types')?.getContext('2d');
   if (!ctx) return;
 
-  // Calcul polarisation
   const lowMin  = (zoneMinutes.Z1||0) + (zoneMinutes.Z2||0) + (zoneMinutes.Z3||0);
   const highMin = (zoneMinutes.Z4||0) + (zoneMinutes.Z5||0);
   const pctLow  = total ? Math.round(lowMin/total*100) : 0;
 
+  // Label de source : RÉEL si toutes les séances ont des streams, MIXTE si partiel, ESTIMÉ si aucun
+  const sourceLabel = streamsUsed === 0
+    ? '⚠️ Estimé (pas de streams Strava)'
+    : estimUsed === 0
+      ? `✓ Données réelles (${streamsUsed} séances)`
+      : `~ Mixte: ${streamsUsed} réelles + ${estimUsed} estimées`;
+
   chartInstances['types'] = new Chart(ctx, {
-    type:'doughnut',
-    data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:2, borderColor:'#12121a' }]},
-    options:{ responsive:true, plugins:{
+    type: 'doughnut',
+    data: { labels, datasets:[{ data, backgroundColor:colors, borderWidth:2, borderColor:'#12121a' }]},
+    options: { responsive:true, plugins:{
       legend:{ position:'right', labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:10} }},
       tooltip:{ callbacks:{ label:(c) => {
         const pct = Math.round((c.parsed||0)/total*100);
         const h   = Math.floor((c.parsed||0)/60), m = Math.round((c.parsed||0)%60);
         return ` ${h>0?h+'h':''}${m}min (${pct}%)`;
       }}},
-      title:{ display:true, text:`Polarisation: ${pctLow}% basse intensité · ${100-pctLow}% haute intensité`, color:'#6b6b8a', font:{family:'DM Mono',size:9} }
+      title:[
+        { display:true, text:`Polarisation : ${pctLow}% basse intensité · ${100-pctLow}% haute intensité`, color:'#6b6b8a', font:{family:'DM Mono',size:9} },
+        { display:true, text: sourceLabel, color: streamsUsed===0?'#ffa502':streamsUsed>estimUsed?'#2ed573':'#47b8ff', font:{family:'DM Mono',size:9} },
+      ]
     }}
   });
 }
-
 
 function renderLoadChart(sessions) {
   destroyChart('load');
