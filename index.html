@@ -763,7 +763,7 @@ create table if not exists sessions (id uuid default gen_random_uuid() primary k
 create table if not exists planned_sessions (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), date date not null, type text not null, description text, target_distance_km numeric, target_duration_minutes integer, intensity_zone integer, week_phase text, priority integer default 1, skipped boolean default false, skip_reason text);
 create table if not exists health_logs (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), date date not null, location text, severity integer, notes text, resolved boolean default false);`;
   navigator.clipboard.writeText(sql);
-  showToast('SQL copié ✓', 'success');
+  showToast('SQL copié ✓ — colle dans Supabase > SQL Editor', 'success');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -836,7 +836,14 @@ async function loadPlannedSessions() {
     if (error) throw error;
     plannedSessions = data || [];
     if (plannedSessions.length === 0) await generatePlan();
-  } catch(e) { console.error('loadPlanned:', e); }
+  } catch(e) {
+    console.error('loadPlanned:', e);
+    // Fallback : générer le planning en mémoire sans Supabase
+    if (!plannedSessions.length) {
+      plannedSessions = buildPlan();
+      showToast('Planning généré en local (DB indisponible)', 'success');
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1005,17 +1012,38 @@ function renderLastSessions() {
 // ═══════════════════════════════════════════════════════
 async function generatePlan() {
   showToast('Génération du planning...', 'success');
-  const today=localDateStr(new Date());
-  await db.from('planned_sessions').delete().gte('date', today);
-  const sessions=buildPlan();
-  if (sessions.length>0) {
-    for (let i=0; i<sessions.length; i+=50)
-      await db.from('planned_sessions').insert(sessions.slice(i,i+50));
-    const {data}=await db.from('planned_sessions').select('*').order('date');
-    plannedSessions=data||[];
-    renderWeek(); renderNextSessions();
-    showToast(`Planning généré ✓ (${sessions.length} séances)`, 'success');
+  const today = localDateStr(new Date());
+
+  // 1. Supprimer les séances futures existantes
+  const { error: delError } = await db.from('planned_sessions').delete().gte('date', today);
+  if (delError) { showToast('Erreur suppression: ' + delError.message, 'error'); console.error('delete error:', delError); }
+
+  // 2. Construire le plan
+  const sessions = buildPlan();
+  if (!sessions.length) { showToast('Aucune séance à générer', 'error'); return; }
+
+  // 3. Insérer par tranches de 50 avec gestion d'erreur
+  let insertedCount = 0;
+  for (let i = 0; i < sessions.length; i += 50) {
+    const chunk = sessions.slice(i, i + 50);
+    const { error: insError, data: insData } = await db.from('planned_sessions').insert(chunk).select();
+    if (insError) {
+      console.error('Insert error (chunk ' + i + '):', insError);
+      showToast('Erreur insert: ' + insError.message, 'error');
+      break;
+    }
+    insertedCount += chunk.length;
   }
+
+  // 4. Re-charger depuis Supabase pour avoir les IDs
+  const { data, error: fetchError } = await db.from('planned_sessions').select('*').order('date');
+  if (fetchError) { console.error('fetch error:', fetchError); }
+  plannedSessions = data || [];
+
+  // 5. Afficher
+  renderWeek();
+  renderNextSessions();
+  showToast(`Planning généré ✓ (${insertedCount} séances)`, 'success');
 }
 
 function calcBaseKmFromHistory() {
@@ -1259,9 +1287,8 @@ function buildPlan() {
   const race10=new Date(profile.race_10k_date||'2027-01-15');
   const baseKm  =calcBaseKmFromHistory()||45;
   const targetKm=Math.max(baseKm*1.5,55);
-  const monday  =getWeekStart(new Date(today));
-  const startMon=new Date(monday);
-  if (today.getDay()>=4) startMon.setDate(startMon.getDate()+7);
+  const monday   = getWeekStart(new Date(today));
+  const startMon = new Date(monday); // toujours commencer à la semaine courante
 
   const sessions=[];
   for (let w=0; w<TOTAL_WEEKS; w++) {
