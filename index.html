@@ -1477,16 +1477,32 @@ ${recent}
 
 Demande: "${msg}"
 
-Réponds UNIQUEMENT en JSON valide:
-{"message":"explication courte","modifications":[{"action":"update","id":"uuid","data":{"date":"YYYY-MM-DD","type":"EF","description":"...","target_distance_km":10,"intensity_zone":2,"week_phase":"base","priority":1}}],"warning":null}`;
+Réponds UNIQUEMENT en JSON valide (pas de texte avant/après, pas de markdown):
+{
+  "message": "explication courte de ce que tu fais",
+  "modifications": [
+    {"action": "update", "id": "UUID-EXACT-DU-PLANNING", "data": {"date": "YYYY-MM-DD", "type": "EF", "description": "...", "target_distance_km": 10, "intensity_zone": 2, "week_phase": "base", "priority": 1}},
+    {"action": "insert", "data": {"date": "YYYY-MM-DD", "type": "VMA", "description": "...", "target_distance_km": 10, "intensity_zone": 5, "week_phase": "base", "priority": 1}},
+    {"action": "delete", "id": "UUID-EXACT-DU-PLANNING"}
+  ],
+  "warning": null
+}
+IMPORTANT: Pour "update" et "delete", utilise EXACTEMENT les UUIDs entre crochets [id:...] du planning ci-dessus. Sans UUID exact, la modification sera ignorée.`;
 
   try {
     const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:1500,messages:[{role:'user',content:prompt}]})});
     const data=await res.json();
-    const raw=data.content?.[0]?.text||'{}';
+    const raw = data.content?.[0]?.text || '{}';
+    console.log('[Coach Planning] Raw AI response:', raw); // DEBUG
     let parsed;
-    try { parsed=JSON.parse(raw.replace(/```json|```/g,'').trim()); }
-    catch(e) { if(textEl) textEl.textContent='Le coach n\'a pas pu analyser ta demande. Reformule.'; if(btn){btn.textContent='Modifier';btn.disabled=false;} return; }
+    try {
+      parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    } catch(e) {
+      console.error('[Coach Planning] JSON parse error:', e, 'raw:', raw);
+      if(textEl) textEl.textContent = 'Le coach a répondu mais le format est invalide. Reformule ta demande.';
+      if(btn){btn.textContent='Modifier';btn.disabled=false;}
+      return;
+    }
     if (textEl) textEl.textContent=parsed.message||'';
     if (parsed.warning&&textEl) textEl.innerHTML+=`<div class="alert alert-warn" style="margin-top:.75rem;">${parsed.warning}</div>`;
     if (parsed.modifications&&parsed.modifications.length>0&&actEl) {
@@ -1503,22 +1519,37 @@ Réponds UNIQUEMENT en JSON valide:
 }
 
 async function applyPlanMods() {
-  const pendingEl=document.getElementById('pending-mods');
-  if (!pendingEl) return;
-  const mods=JSON.parse(pendingEl.textContent);
-  const actEl=document.getElementById('plan-coach-actions');
-  if (actEl) actEl.innerHTML='<div style="font-family:var(--fm);font-size:.75rem;color:var(--muted);">Application en cours...</div>';
+  // ── Lire les mods EN PREMIER, avant tout changement DOM ──
+  const pendingEl = document.getElementById('pending-mods');
+  if (!pendingEl) { showToast('Aucune modification en attente', 'error'); return; }
+  let mods;
+  try { mods = JSON.parse(pendingEl.textContent); }
+  catch(e) { showToast('Erreur parsing modifications', 'error'); return; }
+  if (!mods || !mods.length) { showToast('Aucune modification', 'error'); return; }
+
+  // ── Maintenant on peut toucher le DOM ──
+  const actEl = document.getElementById('plan-coach-actions');
+  if (actEl) actEl.innerHTML = '<div style="font-family:var(--fm);font-size:.75rem;color:var(--muted);">Application en cours...</div>';
+
+  let ok = 0, err = 0;
   for (const m of mods) {
-    if      (m.action==='update'&&m.id)   await db.from('planned_sessions').update(m.data).eq('id',m.id);
-    else if (m.action==='insert'&&m.data) await db.from('planned_sessions').insert([m.data]);
-    else if (m.action==='delete'&&m.id)   await db.from('planned_sessions').delete().eq('id',m.id);
+    try {
+      if      (m.action === 'update' && m.id)   { const {error} = await db.from('planned_sessions').update(m.data).eq('id', m.id); if(error) throw error; }
+      else if (m.action === 'insert' && m.data) { const {error} = await db.from('planned_sessions').insert([m.data]); if(error) throw error; }
+      else if (m.action === 'delete' && m.id)   { const {error} = await db.from('planned_sessions').delete().eq('id', m.id); if(error) throw error; }
+      ok++;
+    } catch(e) { console.error('Mod error:', m, e); err++; }
   }
-  const {data}=await db.from('planned_sessions').select('*').order('date');
-  plannedSessions=data||[];
+
+  const { data } = await db.from('planned_sessions').select('*').order('date');
+  plannedSessions = data || [];
   renderWeek(); renderNextSessions();
-  const resp=document.getElementById('plan-coach-response');
-  if (resp) resp.style.display='none';
-  showToast('Planning modifié ✓','success');
+
+  const resp = document.getElementById('plan-coach-response');
+  if (resp) resp.style.display = 'none';
+
+  if (err === 0) showToast(`Planning modifié ✓ (${ok} changement${ok>1?'s':''})`, 'success');
+  else           showToast(`${ok} OK · ${err} erreur(s) — voir console`, 'error');
 }
 
 // ═══════════════════════════════════════════════════════
