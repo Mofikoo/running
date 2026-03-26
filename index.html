@@ -20,7 +20,7 @@
   --accent:#e8ff47; --accent2:#47b8ff; --danger:#ff4757; --warn:#ffa502;
   --success:#2ed573; --text:#f0f0f8; --muted:#6b6b8a;
   --fd:'Bebas Neue',sans-serif; --fm:'DM Mono',monospace; --fb:'DM Sans',sans-serif;
-  --nav-h:60px; --bottom-nav-h:64px;
+  --nav-h:60px; --bottom-nav-h:76px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:var(--fb);min-height:100vh;overflow-x:hidden;}
@@ -35,12 +35,12 @@ nav.top-nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);back
 .nav-status{font-family:var(--fm);font-size:.68rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;}
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:pulse 2s infinite;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
-.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(10,10,15,.96);backdrop-filter:blur(20px);border-top:1px solid var(--border);height:var(--bottom-nav-h);padding-bottom:env(safe-area-inset-bottom);}
-.bottom-nav-inner{display:flex;height:100%;}
-.bottom-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:var(--muted);cursor:pointer;padding:.4rem .2rem;transition:color .2s;}
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(10,10,15,.96);backdrop-filter:blur(20px);border-top:1px solid var(--border);height:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));}
+.bottom-nav-inner{display:flex;height:100%;padding-bottom:env(safe-area-inset-bottom);}
+.bottom-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:none;border:none;color:var(--muted);cursor:pointer;padding:.5rem .2rem .4rem;transition:color .2s;}
 .bottom-tab.active{color:var(--accent);}
-.bottom-tab-icon{font-size:1.3rem;line-height:1;}
-.bottom-tab-label{font-family:var(--fm);font-size:.52rem;text-transform:uppercase;letter-spacing:.06em;}
+.bottom-tab-icon{font-size:1.5rem;line-height:1;}
+.bottom-tab-label{font-family:var(--fm);font-size:.57rem;text-transform:uppercase;letter-spacing:.06em;}
 .page{display:none;padding:1.5rem 2rem;position:relative;z-index:1;}
 .page.active{display:block;animation:fadeIn .3s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
@@ -89,7 +89,7 @@ nav.top-nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);back
 .card-title{font-family:var(--fd);font-size:1.1rem;letter-spacing:.08em;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
 .badge{font-family:var(--fm);font-size:.6rem;background:rgba(232,255,71,.15);color:var(--accent);padding:.2rem .5rem;border-radius:20px;}
 .week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.4rem;margin-bottom:1rem;}
-.day-cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.6rem .3rem;text-align:center;min-height:80px;cursor:pointer;transition:all .2s;}
+.day-cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.5rem .2rem;text-align:center;min-height:80px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:2px;}
 .day-cell:hover{border-color:var(--accent);transform:translateY(-2px);}
 .day-cell.today{border-color:var(--accent);background:rgba(232,255,71,.05);}
 .day-cell.done{border-color:var(--success);}
@@ -173,20 +173,25 @@ input[type=range]{padding:0;background:none;border:none;}
   .nav-tabs{display:none;} .nav-status{display:none;}
   nav.top-nav{padding:0 1rem;justify-content:center;padding-top:env(safe-area-inset-top);}
   .nav-logo{font-size:1.3rem;} .bottom-nav{display:block;}
-  .page{padding:.85rem;padding-bottom:calc(var(--bottom-nav-h) + 1.2rem + env(safe-area-inset-bottom));}
+  .page{padding:.85rem;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 2rem);}
   .hero-stats{grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;}
   .stat-card{padding:.75rem;} .stat-value{font-size:1.5rem;} .stat-label{font-size:.58rem;} .stat-sub{font-size:.62rem;}
   .grid-2,.grid-3{grid-template-columns:1fr;gap:.6rem;}
   .form-grid{grid-template-columns:1fr;gap:.65rem;} .form-group.full{grid-column:span 1;}
   /* Week grid : scroll horizontal si trop étroit */
   .week-grid{display:flex;gap:.2rem;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:.25rem;margin-bottom:.75rem;}
-  .day-cell{flex:0 0 calc(14.28% - .18rem);min-width:42px;min-height:62px;padding:.3rem .1rem;border-radius:6px;}
+  .day-cell{flex:0 0 calc(14.28% - .18rem);min-width:42px;min-height:72px;padding:.3rem .1rem;border-radius:6px;display:flex;flex-direction:column;align-items:center;gap:2px;}
   .day-num{font-size:.9rem;} .day-name{font-size:.48rem;} .day-km{font-size:.45rem;}
   .section-header{flex-direction:column;align-items:flex-start;gap:.4rem;margin-bottom:1rem;}
   .section-title{font-size:1.35rem;}
   .section-actions{width:100%;display:flex;gap:.4rem;flex-wrap:wrap;}
   .section-actions .btn{flex:1;min-width:0;font-size:.65rem;padding:.5rem .6rem;text-align:center;}
-  .session-item{grid-template-columns:46px 66px 1fr auto;gap:.3rem;padding:.55rem .4rem;font-size:.63rem;}
+  /* Historique mobile : layout carte */
+  .session-item{display:flex;flex-direction:column;gap:.2rem;padding:.75rem .6rem;}
+  .shi-top{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;}
+  .shi-bot{display:flex;align-items:center;justify-content:space-between;gap:.4rem;margin-top:.15rem;}
+  .shi-mid{font-family:var(--fb);font-size:.76rem;color:var(--muted);}
+  .shi-actions{display:flex;gap:.25rem;align-items:center;flex-shrink:0;}
   .session-item .effort-dots{display:none;}
   .ns-desc{display:none;} .ns-km{font-size:.95rem;min-width:38px;}
   .ns-date{min-width:40px;font-size:.63rem;}
@@ -195,7 +200,7 @@ input[type=range]{padding:0;background:none;border:none;}
   .zone-pace{display:none;} .zone-range{min-width:55px;font-size:.6rem;}
   .card{padding:.8rem;border-radius:10px;} .card-title{font-size:.88rem;margin-bottom:.75rem;}
   .toast{bottom:calc(var(--bottom-nav-h) + .75rem + env(safe-area-inset-bottom));}
-  .bottom-nav{padding-bottom:env(safe-area-inset-bottom);}
+  /* bottom-nav safe-area already in base height */
   .btn{padding:.6rem 1rem;font-size:.71rem;} .btn-sm{padding:.3rem .55rem;font-size:.61rem;}
   .weeks-nav{gap:.5rem;margin-bottom:.6rem;} .weeks-nav .week-label{font-size:.95rem;}
   .icon-btn{width:32px;height:32px;}
@@ -1684,27 +1689,33 @@ function renderHistory() {
   if (!allSessions.length) { el.innerHTML='<div class="empty-state">Aucune séance enregistrée</div>'; return; }
   const sub=document.getElementById('history-sub');
   if (sub) sub.textContent=`${allSessions.length} séances`;
-  el.innerHTML=`<div class="session-item" style="opacity:.5;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;grid-template-columns:60px 80px 1fr auto auto auto;">
-    <div>Date</div><div>Type</div><div>Détail</div><div>Allure</div><div>Effort</div><div></div>
-  </div>`+allSessions.map(s=>`
-    <div class="session-item" style="grid-template-columns:60px 80px 1fr auto auto auto;">
-      <div class="session-date">${formatDate(s.date)}</div>
-      <div>${typeBadge(s.type)}</div>
-      <div style="font-family:var(--fb);font-size:.8rem;">
-        ${s.strava_name?`<div style="color:var(--text);font-weight:500;margin-bottom:.1rem;">${s.strava_name}</div>`:''}
-        <span style="color:var(--muted);">${s.distance_km?s.distance_km+'km':''} ${s.duration_minutes?s.duration_minutes+'min':''} ${s.avg_hr?'· '+s.avg_hr+'bpm':''}${s.streams?` · <span style="color:var(--success);font-size:.65rem;">● live</span>`:''}</span>
+  if (!allSessions.length) { el.innerHTML='<div class="empty-state">Aucune séance enregistrée</div>'; return; }
+  el.innerHTML = allSessions.map(s => {
+    const liveTag = s.streams ? '<span style="color:var(--success);font-size:.6rem;">● live</span>' : '';
+    const painTag = s.pain_level >= 2 ? `<span style="color:var(--danger);font-size:.65rem;">⚠️${s.pain_level}</span>` : '';
+    const detail  = [
+      s.strava_name    ? `<strong style="color:var(--text);">${s.strava_name}</strong>` : '',
+      s.distance_km    ? s.distance_km + 'km' : '',
+      s.duration_minutes ? s.duration_minutes + 'min' : '',
+      s.avg_hr         ? '♥ ' + s.avg_hr + ' bpm' : '',
+    ].filter(Boolean).join(' · ');
+    return `<div class="session-item">
+      <div class="shi-top">
+        <span style="font-family:var(--fm);font-size:.66rem;color:var(--muted);">${formatDate(s.date)}</span>
+        ${typeBadge(s.type)}
+        ${s.avg_pace_seconds ? `<span style="font-family:var(--fm);font-size:.73rem;color:var(--accent);">${secToAllure(s.avg_pace_seconds)}/km</span>` : ''}
+        ${liveTag}${painTag}
       </div>
-      <div class="session-pace">${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'—'}</div>
-      <div class="effort-dots">
-        ${[1,2,3,4,5].map(i=>`<div class="effort-dot${i<=(s.perceived_effort||0)?' on':''}"></div>`).join('')}
-        ${s.pain_level>=2?`<span style="color:var(--danger);margin-left:4px;font-size:.6rem;">⚠️${s.pain_level}</span>`:''}
+      <div class="shi-bot">
+        <span class="shi-mid">${detail}</span>
+        <div class="shi-actions">
+          <button style="background:rgba(71,184,255,.12);border:1px solid var(--accent2);color:var(--accent2);font-family:var(--fm);font-size:.68rem;padding:.35rem .65rem;border-radius:6px;cursor:pointer;white-space:nowrap;" onclick="openDetailSession('${s.id}')">👁 Voir</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditSession('${s.id}')" style="padding:.35rem .55rem;font-size:.68rem;">✏️</button>
+          <button class="btn btn-danger btn-sm delete-btn" data-id="${s.id}" data-date="${s.date}" style="padding:.35rem .55rem;font-size:.68rem;">🗑</button>
+        </div>
       </div>
-      <div style="display:flex;gap:.4rem;align-items:center;">
-        <button style="background:rgba(71,184,255,.15);border:1px solid var(--accent2);color:var(--accent2);font-family:var(--fm);font-size:.75rem;padding:.5rem .9rem;border-radius:6px;cursor:pointer;white-space:nowrap;" onclick="openDetailSession('${s.id}')">👁 Voir</button>
-        <button class="btn btn-ghost btn-sm" onclick="openEditSession('${s.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm delete-btn" data-id="${s.id}" data-date="${s.date}" title="Supprimer">🗑</button>
-      </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // Event delegation for delete buttons (works on dynamically created elements)
