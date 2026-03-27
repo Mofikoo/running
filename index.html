@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0a0a0f">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="RunCoach">
 <link rel="manifest" href="manifest.json">
@@ -2362,9 +2363,9 @@ async function askCoach(type) {
   const zoneDesc = calcZones().map(z => `${z.name}: ${z.fcLow}-${z.fcHigh}bpm`).join(', ');
   const prompts = {
     'bilan':   'Analyse chaque séance récente en détail (zones FC réelles, allures, intervalles). Bilan de semaine et priorités.',
-    'planning':'Explique le planning prévu et l\'adéquation avec le profil. Justifie les choix de séances.',
+    'planning':"Explique le planning prévu et l'adéquation avec le profil. Justifie les choix de séances.",
     'perio':   'Analyse le risque de périostite selon les données récentes (charge, douleur, FC). Conseils concrets.',
-    'sub37':   `Analyse l\'état de forme actuel et trace la route réaliste vers sub-37 (${daysLeft} jours). Sois précis sur les allures cibles.`,
+    'sub37':   `Analyse l'état de forme actuel et trace la route réaliste vers sub-37 (${daysLeft} jours). Sois précis sur les allures cibles.`,
   };
   const prompt = `Tu es coach running expert. Analyse ces données avec précision.
 
