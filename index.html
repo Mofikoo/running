@@ -2756,8 +2756,8 @@ async function adaptPlanningToForme(trend) {
 
   const tsbStr = tsb > 0 ? '+'+tsb.toFixed(0) : tsb.toFixed(0);
   const msg = coeff > 1
-    ? \`📈 TSB ${tsbStr} — forme bonne, volume +${Math.round((coeff-1)*100)}% sur 2 sem\`
-    : \`📉 TSB ${tsbStr} — fatigue, volume -${Math.round((1-coeff)*100)}% sur 2 sem\`;
+    ? '📈 TSB ' + tsbStr + ' — forme bonne, volume +' + Math.round((coeff-1)*100) + '% sur 2 sem'
+    : '📉 TSB ' + tsbStr + ' — fatigue, volume -' + Math.round((1-coeff)*100) + '% sur 2 sem';
   showToast(msg, 'success');
 }
 
