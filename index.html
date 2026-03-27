@@ -145,6 +145,19 @@ input[type=range]{padding:0;background:none;border:none;}
 .ai-name{font-family:var(--fd);font-size:.95rem;letter-spacing:.05em;}
 .ai-sub{font-family:var(--fm);font-size:.6rem;color:var(--muted);}
 .ai-message{font-family:var(--fb);font-size:.86rem;line-height:1.7;white-space:pre-wrap;}
+.chat-window{display:flex;flex-direction:column;gap:.75rem;max-height:55vh;overflow-y:auto;padding:.5rem 0;scroll-behavior:smooth;}
+.chat-bubble{max-width:88%;padding:.75rem 1rem;border-radius:12px;font-family:var(--fb);font-size:.85rem;line-height:1.65;white-space:pre-wrap;}
+.chat-bubble.user{align-self:flex-end;background:rgba(232,255,71,.12);border:1px solid rgba(232,255,71,.2);color:var(--text);border-bottom-right-radius:3px;}
+.chat-bubble.coach{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:3px;}
+.chat-bubble.coach.loading{color:var(--muted);}
+.chat-input-row{display:flex;gap:.6rem;align-items:flex-end;padding-top:.5rem;border-top:1px solid var(--border);}
+.chat-input-row textarea{flex:1;resize:none;min-height:44px;max-height:100px;border-radius:10px;padding:.65rem .85rem;font-size:.85rem;line-height:1.4;}
+.chat-send-btn{background:var(--accent);border:none;border-radius:10px;color:#0a0a0f;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:1.1rem;transition:background .2s;}
+.chat-send-btn:hover{background:#f5ff70;}
+.chat-send-btn:disabled{opacity:.4;cursor:default;}
+.chat-quick-btns{display:flex;gap:.4rem;flex-wrap:wrap;padding:.5rem 0 .25rem;}
+.chat-quick-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-family:var(--fm);font-size:.64rem;padding:.3rem .65rem;border-radius:20px;cursor:pointer;transition:all .15s;}
+.chat-quick-btn:hover{border-color:var(--accent);color:var(--accent);}
 .ai-loading{display:flex;gap:4px;align-items:center;padding:.5rem 0;}
 .ai-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce 1.2s infinite;}
 .ai-dot:nth-child(2){animation-delay:.2s;}
@@ -503,22 +516,29 @@ input[type=range]{padding:0;background:none;border:none;}
 
 <!-- COACH IA -->
 <div id="page-coach" class="page">
-  <div class="section-header"><div><div class="section-title">COACH IA</div><div class="section-sub">Analyse · Conseils · Adaptation</div></div></div>
-  <div class="ai-panel" style="margin-bottom:1rem;">
-    <div class="ai-header"><div class="ai-avatar">🧠</div><div><div class="ai-name">TON COACH PERSONNEL</div><div class="ai-sub">Gemini Flash · OpenRouter</div></div></div>
-    <div class="ai-message" id="coach-text" style="color:var(--muted);font-family:var(--fm);font-size:.78rem;">Clique sur un bouton pour commencer.</div>
+  <div class="section-header" style="margin-bottom:.75rem;">
+    <div><div class="section-title">COACH IA</div><div class="section-sub">Chat · Persistant · Contextuel</div></div>
+    <button class="btn btn-ghost btn-sm" onclick="clearCoachHistory()">🗑 Effacer</button>
   </div>
-  <div class="grid-2" style="margin-bottom:1rem;">
-    <button class="btn btn-ghost" onclick="askCoach('bilan')">📊 Bilan semaine</button>
-    <button class="btn btn-ghost" onclick="askCoach('planning')">📅 Explique mon planning</button>
-    <button class="btn btn-ghost" onclick="askCoach('perio')">⚠️ Risque périostite</button>
-    <button class="btn btn-ghost" onclick="askCoach('sub37')">🎯 Route vers sub-37</button>
-  </div>
-  <div class="card">
-    <div class="card-title">Question personnalisée</div>
-    <div style="display:flex;gap:.75rem;margin-top:.5rem;">
-      <input type="text" id="coach-question" placeholder="Ex: j'ai mal au genou depuis 2 jours..." style="flex:1;" onkeydown="if(event.key==='Enter')askCoachCustom()">
-      <button class="btn" onclick="askCoachCustom()">Demander</button>
+  <div class="card" style="display:flex;flex-direction:column;gap:0;padding:1rem;">
+    <!-- Suggestions rapides -->
+    <div class="chat-quick-btns" id="coach-quick-btns">
+      <button class="chat-quick-btn" onclick="sendCoachMsg('Fais un bilan de ma semaine')">📊 Bilan semaine</button>
+      <button class="chat-quick-btn" onclick="sendCoachMsg('Explique mon planning actuel')">📅 Mon planning</button>
+      <button class="chat-quick-btn" onclick="sendCoachMsg('Risque périostite ?')">⚠️ Périostite</button>
+      <button class="chat-quick-btn" onclick="sendCoachMsg('Route vers sub-37 ?')">🎯 Sub-37</button>
+      <button class="chat-quick-btn" onclick="sendCoachMsg('Comment était ma dernière séance ?')">🏃 Dernière séance</button>
+    </div>
+    <!-- Fenêtre de chat -->
+    <div class="chat-window" id="coach-chat-window">
+      <div class="chat-bubble coach" style="color:var(--muted);font-size:.8rem;">Bonjour ! Je suis ton coach running personnel. Pose-moi n'importe quelle question sur ton entraînement, ta santé, ou ton planning.</div>
+    </div>
+    <!-- Input -->
+    <div class="chat-input-row">
+      <textarea id="coach-input" placeholder="Pose ta question..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMsg();}"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
+      <button class="chat-send-btn" id="coach-send-btn" onclick="sendCoachMsg()">➤</button>
     </div>
   </div>
 </div>
@@ -858,24 +878,21 @@ async function loadPlannedSessions() {
 function calcZones() {
   const fm   = profile.fc_max   || 208;
   const frep = profile.fc_repos || 55;
-  const vma  = profile.vma_kmh  || 16.5;
   // Karvonen (FC de réserve) — bien plus précis que %FCmax brut
   // ex: FCmax=208, FCrep=55 → réserve=153
   // Z2 : 60-70% réserve → 55 + 0.60*153=147 à 55 + 0.70*153=162 bpm
   const res = fm - frep;
   const defs = [
-    { name:'Z1', label:'Récup / EF douce',            kPct:[0.50,0.60], color:'#6b6b8a', vmaPct:[.60,.68] },
-    { name:'Z2', label:'EF — Endurance fondamentale',  kPct:[0.60,0.70], color:'#47b8ff', vmaPct:[.68,.76] },
-    { name:'Z3', label:'Aérobie Z3',                   kPct:[0.70,0.80], color:'#2ed573', vmaPct:[.76,.83] },
-    { name:'Z4', label:'Seuil anaérobie',               kPct:[0.80,0.90], color:'#ffa502', vmaPct:[.83,.90] },
-    { name:'Z5', label:'VMA / VO2max',                 kPct:[0.90,1.00], color:'#ff4757', vmaPct:[.90,1.00]},
+    { name:'Z1', label:'Récup / EF douce',            kPct:[0.50,0.60], color:'#6b6b8a' },
+    { name:'Z2', label:'EF — Endurance fondamentale',  kPct:[0.60,0.70], color:'#47b8ff' },
+    { name:'Z3', label:'Aérobie Z3',                   kPct:[0.70,0.80], color:'#2ed573' },
+    { name:'Z4', label:'Seuil anaérobie',               kPct:[0.80,0.90], color:'#ffa502' },
+    { name:'Z5', label:'VMA / VO2max',                 kPct:[0.90,1.00], color:'#ff4757' },
   ];
   return defs.map(z => ({
     ...z,
-    fcLow:    Math.round(frep + res * z.kPct[0]),
-    fcHigh:   Math.round(frep + res * z.kPct[1]),
-    paceLow:  secToAllure(3600 / (vma * z.vmaPct[1])),
-    paceHigh: secToAllure(3600 / (vma * z.vmaPct[0])),
+    fcLow:  Math.round(frep + res * z.kPct[0]),
+    fcHigh: Math.round(frep + res * z.kPct[1]),
   }));
 }
 
@@ -887,8 +904,7 @@ function renderZones() {
     <div class="zone-row">
       <div class="zone-label">${z.name}</div>
       <div class="zone-bar"><div class="zone-fill" style="width:${Math.round(z.kPct[1]*100)}%;background:${z.color};opacity:.7;"></div></div>
-      <div class="zone-range" style="color:${z.color};">${z.fcLow}–${z.fcHigh}</div>
-      <div class="zone-pace">${z.paceHigh}–${z.paceLow}/km</div>
+      <div class="zone-range" style="color:${z.color};">${z.fcLow}–${z.fcHigh} bpm</div>
     </div>`).join('');
 }
 
@@ -1441,7 +1457,7 @@ function selectDay(dateStr) {
       <div style="margin-bottom:.5rem;">${typeBadge(planned.type)} <span style="color:var(--muted);margin-left:.5rem;">${planned.week_phase||''}</span></div>
       <div style="font-family:var(--fb);font-size:.9rem;margin:.5rem 0;">${planned.description||''}</div>
       <div><span style="color:var(--muted);">Distance:</span> ~${planned.target_distance_km||'?'}km</div>
-      ${z?`<div><span style="color:var(--muted);">Allure cible:</span> <span style="color:var(--accent);">${z.paceHigh}–${z.paceLow}/km</span></div><div><span style="color:var(--muted);">FC cible:</span> ${z.fcLow}–${z.fcHigh} bpm</div>`:''}
+      ${z?`<div><span style="color:var(--muted);">FC cible:</span> <span style="color:var(--accent2);">${z.fcLow}–${z.fcHigh} bpm</span></div>`:''}
       <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;">
         ${planned.type==='Muscu'
           ? `<button class="btn" style="flex:1;padding:.5rem;" onclick="openMuscu('${dateStr}')">💪 Voir le programme</button>`
@@ -2321,7 +2337,7 @@ async function analyzeVsPlanned() {
 
 PRÉVU:
 - Type: ${planned.type} | Distance: ~${planned.target_distance_km}km
-- Allure cible: ${zPlanned?zPlanned.paceHigh+'–'+zPlanned.paceLow+'/km':'?'}
+- FC cible: ${zPlanned?zPlanned.fcLow+'–'+zPlanned.fcHigh+' bpm':'?'}
 - Description: ${planned.description}
 
 RÉALISÉ:
@@ -2343,60 +2359,151 @@ Profil: PB ${secToTime(profile.pb_10k_seconds)}, objectif sub-37, FC max ${profi
 // ═══════════════════════════════════════════════════════
 // COACH IA
 // ═══════════════════════════════════════════════════════
-async function askCoach(type) {
-  const el=document.getElementById('coach-text');
-  if (!el) return;
-  el.innerHTML='<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
-  const today=new Date();
-  const race10=new Date(profile.race_10k_date||'2027-01-15');
-  const daysLeft=Math.ceil((race10-today)/86400000);
-  const zones = calcZones();
-  const recent = allSessions.slice(0,10).map(s => {
-    const zoneReal = s.avg_hr ? (zones.find(z => s.avg_hr >= z.fcLow && s.avg_hr < z.fcHigh) || zones[4]) : null;
-    const ivStr = s.intervals && s.intervals.length
-      ? ' | Intervalles: ' + s.intervals.map(iv => `${iv.duration||'?'}@${iv.pace||'?'}/km`).join(', ')
-      : '';
-    const zoneStr = zoneReal ? ` [${zoneReal.name} réelle]` : '';
-    return `- ${s.date}: ${s.type}${zoneStr} ${s.distance_km||'?'}km @ ${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'?'} | FC ${s.avg_hr||'?'}bpm | effort ${s.perceived_effort||'?'}/5 | douleur ${s.pain_level||0}/5${s.notes?' | notes: '+s.notes.slice(0,50):''}${ivStr}`;
-  }).join('\n') || 'Aucune';
-  const next=plannedSessions.filter(s=>s.date>=localDateStr(new Date())).slice(0,5).map(s=>`- ${s.date}: ${s.type} ~${s.target_distance_km}km`).join('\n')||'Non généré';
-  const zoneDesc = calcZones().map(z => `${z.name}: ${z.fcLow}-${z.fcHigh}bpm`).join(', ');
-  const prompts = {
-    'bilan':   'Analyse chaque séance récente en détail (zones FC réelles, allures, intervalles). Bilan de semaine et priorités.',
-    'planning':"Explique le planning prévu et l'adéquation avec le profil. Justifie les choix de séances.",
-    'perio':   'Analyse le risque de périostite selon les données récentes (charge, douleur, FC). Conseils concrets.',
-    'sub37':   `Analyse l'état de forme actuel et trace la route réaliste vers sub-37 (${daysLeft} jours). Sois précis sur les allures cibles.`,
-  };
-  const prompt = `Tu es coach running expert. Analyse ces données avec précision.
+// ═══════════════════════════════════════════════════════
+// COACH IA — CHAT INTERACTIF AVEC HISTORIQUE
+// ═══════════════════════════════════════════════════════
+let coachHistory = []; // Persistant pendant la session
 
-Profil:
-- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37 | ${daysLeft} jours
-- FC max: ${profile.fc_max} bpm | FC repos: ${profile.fc_repos} bpm
-- VMA: ${profile.vma_kmh} km/h | Séances: ${profile.weekly_sessions}→${profile.target_weekly_sessions}/sem
-- Zones Karvonen: ${zoneDesc}
-- Fragilités: ${profile.fragility_notes||'aucune'}
-
-10 dernières séances (avec zone FC réelle entre crochets):
-${recent}
-
-Prochaines séances planifiées:
-${next}
-
-Demande: ${prompts[type] || type}
-
-Réponds en français, direct, technique et personnalisé. Utilise les zones réelles pour qualifier les séances, pas juste le type déclaré. 3-4 paragraphes max.`;
-  try {
-    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:1000,messages:[{role:'user',content:prompt}]})});
-    const data=await res.json();
-    el.textContent=data.content?.[0]?.text||'Indisponible.';
-  } catch(e) { el.textContent='Erreur: '+e.message; }
+function appendChatBubble(role, text, isLoading=false) {
+  const win = document.getElementById('coach-chat-window');
+  if (!win) return null;
+  const div = document.createElement('div');
+  div.className = 'chat-bubble ' + role + (isLoading ? ' loading' : '');
+  div.textContent = text;
+  win.appendChild(div);
+  win.scrollTop = win.scrollHeight;
+  return div;
 }
 
+function clearCoachHistory() {
+  coachHistory = [];
+  const win = document.getElementById('coach-chat-window');
+  if (win) win.innerHTML = '<div class="chat-bubble coach" style="color:var(--muted);font-size:.8rem;">Conversation effacée. Je suis prêt pour de nouvelles questions !</div>';
+  // Réafficher les suggestions
+  const qb = document.getElementById('coach-quick-btns');
+  if (qb) qb.style.display = 'flex';
+}
+
+async function sendCoachMsg(quickMsg) {
+  const inputEl = document.getElementById('coach-input');
+  const msg = quickMsg || (inputEl ? inputEl.value.trim() : '');
+  if (!msg) return;
+
+  // Cacher les suggestions après le premier message
+  const qb = document.getElementById('coach-quick-btns');
+  if (qb) qb.style.display = 'none';
+
+  // Afficher le message utilisateur
+  appendChatBubble('user', msg);
+  if (inputEl) { inputEl.value = ''; inputEl.style.height = 'auto'; }
+
+  // Désactiver le bouton
+  const sendBtn = document.getElementById('coach-send-btn');
+  if (sendBtn) sendBtn.disabled = true;
+
+  // Bulle de chargement
+  const loadingBubble = appendChatBubble('coach', '···', true);
+
+  // Construire le contexte (une seule fois, mis en system prompt)
+  const zones    = calcZones();
+  const zoneDesc = zones.map(z => `${z.name}: ${z.fcLow}-${z.fcHigh}bpm`).join(', ');
+  const race10   = new Date(profile.race_10k_date || '2027-01-15');
+  const daysLeft = Math.ceil((race10 - new Date()) / 86400000);
+  const recentSessions = allSessions.slice(0, 10).map(s => {
+    const zoneReal = s.avg_hr ? (zones.find(z => s.avg_hr >= z.fcLow && s.avg_hr < z.fcHigh) || zones[4]) : null;
+    const ivStr    = s.intervals && s.intervals.length
+      ? ' | Intervalles: ' + s.intervals.map(iv => `${iv.duration||'?'}@${iv.pace||'?'}/km`).join(', ')
+      : '';
+    return `- ${s.date}: ${s.type}${zoneReal?' ['+zoneReal.name+' réelle]':''} ${s.distance_km||'?'}km @ ${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'?'} | FC ${s.avg_hr||'?'}bpm | effort ${s.perceived_effort||'?'}/5 | douleur ${s.pain_level||0}/5${s.notes?' | '+s.notes.slice(0,40):''}${ivStr}`;
+  }).join('\n') || 'Aucune';
+  const nextSessions = plannedSessions.filter(s => s.date >= localDateStr(new Date())).slice(0, 7)
+    .map(s => `- ${s.date}: ${s.type} ~${s.target_distance_km||'?'}km`).join('\n') || 'Non généré';
+
+  const systemPrompt = `Tu es un coach running expert, précis et bienveillant. Tu analyses les données réelles de l'athlète.
+
+PROFIL:
+- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37'00" | ${daysLeft} jours restants
+- FCmax: ${profile.fc_max}bpm | FCrepos: ${profile.fc_repos}bpm | VMA: ${profile.vma_kmh}km/h
+- Zones Karvonen: ${zoneDesc}
+- Fragilités: ${profile.fragility_notes || 'aucune'}
+
+10 DERNIÈRES SÉANCES (zone FC réelle entre crochets):
+${recentSessions}
+
+PLANNING PRÉVU:
+${nextSessions}
+
+Réponds en français, de façon directe et personnalisée. Tu as accès à l'historique de cette conversation.`;
+
+  // Ajouter le message user à l'historique
+  coachHistory.push({ role: 'user', content: msg });
+
+  // Construire les messages : system + historique
+  const messages = [
+    { role: 'user', content: systemPrompt + '\n\n---\nPremière question: ' + (coachHistory.length === 1 ? msg : coachHistory[0].content) }
+  ];
+  // Si on a déjà un historique, envoyer l'échange complet
+  if (coachHistory.length > 1) {
+    messages.length = 0;
+    messages.push({ role: 'user', content: systemPrompt });
+    messages.push({ role: 'assistant', content: '(contexte chargé, je suis prêt)' });
+    for (const m of coachHistory) {
+      messages.push({ role: m.role, content: m.content });
+    }
+  }
+
+  try {
+    const res  = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 1000, messages })
+    });
+    const data = await res.json();
+    const reply = data.content?.[0]?.text || 'Je ne peux pas répondre pour le moment.';
+
+    // Remplacer la bulle de chargement
+    if (loadingBubble) {
+      loadingBubble.textContent = reply;
+      loadingBubble.classList.remove('loading');
+    }
+
+    // Ajouter la réponse à l'historique
+    coachHistory.push({ role: 'assistant', content: reply });
+
+    // Garder l'historique raisonnable (10 échanges max = 20 messages)
+    if (coachHistory.length > 20) coachHistory = coachHistory.slice(-20);
+
+  } catch(e) {
+    if (loadingBubble) {
+      loadingBubble.textContent = 'Erreur de connexion: ' + e.message;
+      loadingBubble.classList.remove('loading');
+    }
+  }
+
+  if (sendBtn) sendBtn.disabled = false;
+
+  // Focus sur l'input
+  const win = document.getElementById('coach-chat-window');
+  if (win) win.scrollTop = win.scrollHeight;
+  if (inputEl) inputEl.focus();
+}
+
+// Compat avec les appels existants depuis d'autres endroits de l'app
+async function askCoach(type) {
+  const prompts = {
+    'bilan':   'Fais un bilan détaillé de ma semaine et donne les priorités pour la semaine à venir.',
+    'planning':'Explique mon planning actuel et pourquoi ces choix sont adaptés à mon profil.',
+    'perio':   'Analyse mon risque de périostite selon mes données récentes. Conseils concrets.',
+    'sub37':   'Analyse mon état de forme et trace la route réaliste vers sub-37 en janvier 2027.',
+  };
+  showPage('coach');
+  await sendCoachMsg(prompts[type] || type);
+}
 async function askCoachCustom() {
-  const q=document.getElementById('coach-question')?.value.trim();
+  const q = document.getElementById('coach-question')?.value.trim();
   if (!q) return;
-  await askCoach(q);
-  const el=document.getElementById('coach-question'); if(el) el.value='';
+  showPage('coach');
+  await sendCoachMsg(q);
 }
 
 // ═══════════════════════════════════════════════════════
