@@ -130,7 +130,7 @@ input[type=range]{padding:0;background:none;border:none;}
 .btn-danger{background:transparent;border:1px solid var(--danger);color:var(--danger);}
 .btn-danger:hover{background:rgba(255,71,87,.1);}
 .btn-sm{padding:.4rem .8rem;font-size:.68rem;}
-.session-item{display:grid;grid-template-columns:65px 85px 1fr auto auto auto;align-items:center;gap:.75rem;padding:.8rem 1rem;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.73rem;transition:background .15s;}
+.session-item{display:grid;grid-template-columns:70px 90px 1fr auto auto auto auto auto;align-items:center;gap:.6rem;padding:.75rem 1rem;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.73rem;transition:background .15s;}
 .session-item:hover{background:var(--surface2);}
 .session-item:last-child{border-bottom:none;}
 .session-date{color:var(--muted);}
@@ -855,19 +855,24 @@ async function loadPlannedSessions() {
 // ZONES
 // ═══════════════════════════════════════════════════════
 function calcZones() {
-  const fm  = profile.fc_max  || 208;
-  const vma = profile.vma_kmh || 16.5;
+  const fm   = profile.fc_max   || 208;
+  const frep = profile.fc_repos || 55;
+  const vma  = profile.vma_kmh  || 16.5;
+  // Karvonen (FC de réserve) — bien plus précis que %FCmax brut
+  // ex: FCmax=208, FCrep=55 → réserve=153
+  // Z2 : 60-70% réserve → 55 + 0.60*153=147 à 55 + 0.70*153=162 bpm
+  const res = fm - frep;
   const defs = [
-    { name:'Z1', label:'Récup / EF douce',           pct:[60,70],  color:'#6b6b8a', vmaPct:[.60,.68] },
-    { name:'Z2', label:'EF — Endurance fondamentale', pct:[70,80],  color:'#47b8ff', vmaPct:[.68,.76] },
-    { name:'Z3', label:'Aérobie Z3',                  pct:[80,88],  color:'#2ed573', vmaPct:[.76,.83] },
-    { name:'Z4', label:'Seuil anaérobie',              pct:[88,93],  color:'#ffa502', vmaPct:[.83,.90] },
-    { name:'Z5', label:'VMA / VO2max',                pct:[93,100], color:'#ff4757', vmaPct:[.90,1.00]},
+    { name:'Z1', label:'Récup / EF douce',            kPct:[0.50,0.60], color:'#6b6b8a', vmaPct:[.60,.68] },
+    { name:'Z2', label:'EF — Endurance fondamentale',  kPct:[0.60,0.70], color:'#47b8ff', vmaPct:[.68,.76] },
+    { name:'Z3', label:'Aérobie Z3',                   kPct:[0.70,0.80], color:'#2ed573', vmaPct:[.76,.83] },
+    { name:'Z4', label:'Seuil anaérobie',               kPct:[0.80,0.90], color:'#ffa502', vmaPct:[.83,.90] },
+    { name:'Z5', label:'VMA / VO2max',                 kPct:[0.90,1.00], color:'#ff4757', vmaPct:[.90,1.00]},
   ];
   return defs.map(z => ({
     ...z,
-    fcLow:    Math.round(fm * z.pct[0] / 100),
-    fcHigh:   Math.round(fm * z.pct[1] / 100),
+    fcLow:    Math.round(frep + res * z.kPct[0]),
+    fcHigh:   Math.round(frep + res * z.kPct[1]),
     paceLow:  secToAllure(3600 / (vma * z.vmaPct[1])),
     paceHigh: secToAllure(3600 / (vma * z.vmaPct[0])),
   }));
@@ -888,8 +893,23 @@ function renderZones() {
 
 function getZoneForType(type) {
   const zones = calcZones();
-  const m = { 'EF':zones[1], 'Aérobie Z3':zones[2], 'Seuil':zones[3], 'VMA':zones[4], 'Long':zones[1], 'Récup':zones[0] };
+  const m = { 'EF':zones[1], 'Aérobie Z3':zones[2], 'Seuil':zones[3], 'VMA':zones[4], 'Long':zones[1], 'Récup':zones[0], 'Compét':zones[4] };
   return m[type] || null;
+}
+
+// Retourne la zone réelle d'une séance selon sa FC mesurée (Karvonen)
+function getZoneFromFC(avgHR) {
+  if (!avgHR) return null;
+  const zones = calcZones();
+  // Chercher la zone qui contient cette FC
+  const z = zones.find(z => avgHR >= z.fcLow && avgHR < z.fcHigh);
+  return z || (avgHR >= zones[4].fcLow ? zones[4] : zones[0]);
+}
+
+// Classe une séance : utilise la FC réelle si disponible, sinon le type déclaré
+function classifySession(session) {
+  if (session.avg_hr) return getZoneFromFC(session.avg_hr);
+  return getZoneForType(session.type);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1531,14 +1551,33 @@ async function applyPlanMods() {
   const actEl = document.getElementById('plan-coach-actions');
   if (actEl) actEl.innerHTML = '<div style="font-family:var(--fm);font-size:.75rem;color:var(--muted);">Application en cours...</div>';
 
+  // Nettoyer les données avant insert/update (éviter violations contraintes)
+  function sanitizeMod(data) {
+    if (!data) return data;
+    const d = {...data};
+    // intensity_zone : doit être 1-5 ou null
+    if (d.intensity_zone !== undefined) {
+      const iz = parseInt(d.intensity_zone);
+      d.intensity_zone = (iz >= 1 && iz <= 5) ? iz : null;
+    }
+    // target_distance_km : null si 0 ou absent
+    if (d.target_distance_km === 0 || d.target_distance_km === '') d.target_distance_km = null;
+    // skipped : boolean
+    if (d.skipped === undefined) d.skipped = false;
+    return d;
+  }
+
   let ok = 0, err = 0;
   for (const m of mods) {
     try {
-      if      (m.action === 'update' && m.id)   { const {error} = await db.from('planned_sessions').update(m.data).eq('id', m.id); if(error) throw error; }
-      else if (m.action === 'insert' && m.data) { const {error} = await db.from('planned_sessions').insert([m.data]); if(error) throw error; }
-      else if (m.action === 'delete' && m.id)   { const {error} = await db.from('planned_sessions').delete().eq('id', m.id); if(error) throw error; }
+      // Accepter "add" comme alias de "insert" (l'IA peut varier)
+      const action = m.action === 'add' ? 'insert' : m.action;
+      if      (action === 'update' && m.id)   { const {error} = await db.from('planned_sessions').update(sanitizeMod(m.data)).eq('id', m.id); if(error) throw error; }
+      else if (action === 'insert' && m.data) { const {error} = await db.from('planned_sessions').insert([sanitizeMod(m.data)]); if(error) throw error; }
+      else if (action === 'delete' && m.id)   { const {error} = await db.from('planned_sessions').delete().eq('id', m.id); if(error) throw error; }
+      else { console.warn('Unknown mod action:', m.action, m); err++; continue; }
       ok++;
-    } catch(e) { console.error('Mod error:', m, e); err++; }
+    } catch(e) { console.error('Mod error:', m, e.message); err++; }
   }
 
   const { data } = await db.from('planned_sessions').select('*').order('date');
@@ -1721,29 +1760,29 @@ function renderHistory() {
   const sub=document.getElementById('history-sub');
   if (sub) sub.textContent=`${allSessions.length} séances`;
   if (!allSessions.length) { el.innerHTML='<div class="empty-state">Aucune séance enregistrée</div>'; return; }
-  el.innerHTML = allSessions.map(s => {
-    const liveTag = s.streams ? '<span style="color:var(--success);font-size:.6rem;">● live</span>' : '';
-    const painTag = s.pain_level >= 2 ? `<span style="color:var(--danger);font-size:.65rem;">⚠️${s.pain_level}</span>` : '';
-    const detail  = [
-      s.strava_name    ? `<strong style="color:var(--text);">${s.strava_name}</strong>` : '',
-      s.distance_km    ? s.distance_km + 'km' : '',
-      s.duration_minutes ? s.duration_minutes + 'min' : '',
-      s.avg_hr         ? '♥ ' + s.avg_hr + ' bpm' : '',
-    ].filter(Boolean).join(' · ');
+  // Header
+  const header = `<div class="session-item session-header" style="opacity:.45;font-size:.61rem;text-transform:uppercase;letter-spacing:.09em;padding:.4rem 1rem;background:transparent;border-bottom:1px solid var(--border);">
+    <div>Date</div><div>Type</div><div>Nom / détail</div>
+    <div>Allure</div><div>FC</div><div>Dist</div><div>Durée</div><div></div>
+  </div>`;
+  el.innerHTML = header + allSessions.map(s => {
+    const liveTag  = s.streams ? '<span style="color:var(--success);font-size:.58rem;">●</span>' : '';
+    const painTag  = s.pain_level >= 2 ? `<span style="color:var(--danger);font-size:.62rem;">⚠️${s.pain_level}</span>` : '';
+    const nameCell = s.strava_name
+      ? `<span style="font-weight:600;color:var(--text);">${s.strava_name}</span>`
+      : `<span style="color:var(--muted);">${s.notes ? s.notes.slice(0,30) : '—'}</span>`;
     return `<div class="session-item">
-      <div class="shi-top">
-        <span style="font-family:var(--fm);font-size:.66rem;color:var(--muted);">${formatDate(s.date)}</span>
-        ${typeBadge(s.type)}
-        ${s.avg_pace_seconds ? `<span style="font-family:var(--fm);font-size:.73rem;color:var(--accent);">${secToAllure(s.avg_pace_seconds)}/km</span>` : ''}
-        ${liveTag}${painTag}
-      </div>
-      <div class="shi-bot">
-        <span class="shi-mid">${detail}</span>
-        <div class="shi-actions">
-          <button style="background:rgba(71,184,255,.12);border:1px solid var(--accent2);color:var(--accent2);font-family:var(--fm);font-size:.68rem;padding:.35rem .65rem;border-radius:6px;cursor:pointer;white-space:nowrap;" onclick="openDetailSession('${s.id}')">👁 Voir</button>
-          <button class="btn btn-ghost btn-sm" onclick="openEditSession('${s.id}')" style="padding:.35rem .55rem;font-size:.68rem;">✏️</button>
-          <button class="btn btn-danger btn-sm delete-btn" data-id="${s.id}" data-date="${s.date}" style="padding:.35rem .55rem;font-size:.68rem;">🗑</button>
-        </div>
+      <div class="session-date">${formatDate(s.date)}</div>
+      <div>${typeBadge(s.type)}${liveTag}</div>
+      <div style="font-family:var(--fb);font-size:.78rem;">${nameCell}${painTag ? ' ' + painTag : ''}</div>
+      <div class="session-pace">${s.avg_pace_seconds ? secToAllure(s.avg_pace_seconds)+'/km' : '—'}</div>
+      <div style="color:var(--danger);font-family:var(--fm);font-size:.72rem;">${s.avg_hr ? '♥ '+s.avg_hr : '—'}</div>
+      <div style="font-family:var(--fm);font-size:.72rem;">${s.distance_km ? s.distance_km+'km' : '—'}</div>
+      <div style="font-family:var(--fm);font-size:.72rem;color:var(--muted);">${s.duration_minutes ? s.duration_minutes+'min' : '—'}</div>
+      <div style="display:flex;gap:.3rem;align-items:center;">
+        <button style="background:rgba(71,184,255,.12);border:1px solid var(--accent2);color:var(--accent2);font-family:var(--fm);font-size:.68rem;padding:.35rem .6rem;border-radius:5px;cursor:pointer;white-space:nowrap;" onclick="openDetailSession('${s.id}')">👁</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditSession('${s.id}')" style="padding:.35rem .5rem;">✏️</button>
+        <button class="btn btn-danger btn-sm delete-btn" data-id="${s.id}" data-date="${s.date}" style="padding:.35rem .5rem;">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -1919,7 +1958,7 @@ function renderDetailCharts(s) {
   renderPacePerKm(s,streams);
   if (streams&&streams.time) {
     const intervals=detectIntervals(streams);
-    if (intervals.length>=2) renderIntervalChart(intervals,streams);
+    if (intervals.length>=3) renderIntervalChart(intervals,streams);
   }
 }
 
@@ -2022,28 +2061,55 @@ function renderPacePerKm(s,streams) {
 }
 
 function detectIntervals(streams) {
-  const pace=streams.pace,hr=streams.hr||[],time=streams.time;
-  if (!pace||pace.length<10) return [];
-  const smoothP=smoothArray(pace,12);
-  const validP=smoothP.filter(Boolean);
+  const pace = streams.pace, hr = streams.hr||[], time = streams.time;
+  if (!pace || pace.length < 30) return [];
+
+  // Lisser plus fortement pour avoir des segments stables
+  const smoothP = smoothArray(pace, 30);
+  const validP  = smoothP.filter(Boolean);
   if (!validP.length) return [];
-  const avgPace=validP.reduce((a,b)=>a+b,0)/validP.length;
-  const threshold=avgPace*0.85;
-  const intervals=[];
-  let inInterval=false,start=0;
-  for (let i=0;i<smoothP.length;i++) {
-    const fast=smoothP[i]&&smoothP[i]<threshold;
-    if (fast&&!inInterval) { inInterval=true; start=i; }
-    if ((!fast||i===smoothP.length-1)&&inInterval) {
-      const len=i-start;
-      if (len>=6) {
-        const pSlice=pace.slice(start,i).filter(Boolean),hSlice=hr.slice(start,i).filter(Boolean);
-        intervals.push({num:intervals.length+1,startTime:time[start],endTime:time[i],durationSec:time[i]-time[start],avgPace:pSlice.length?Math.round(pSlice.reduce((a,b)=>a+b,0)/pSlice.length):null,avgHR:hSlice.length?Math.round(hSlice.reduce((a,b)=>a+b,0)/hSlice.length):null,startIdx:start,endIdx:i});
+
+  const avgPace   = validP.reduce((a,b)=>a+b,0) / validP.length;
+  const fastThresh = avgPace * 0.88;  // rapide si allure < 88% de la moy (= plus vite)
+  const slowThresh = avgPace * 1.10;  // lent si allure > 110% de la moy (= récup)
+
+  // Classer chaque seconde : 'fast' | 'slow' | 'normal'
+  const tags = smoothP.map(p => {
+    if (!p) return 'normal';
+    if (p < fastThresh) return 'fast';
+    if (p > slowThresh) return 'slow';
+    return 'normal';
+  });
+
+  // Détecter les blocs continus (min 45 secondes pour éviter les artefacts)
+  const MIN_DUR = 45;
+  const segments = [];
+  let curTag = tags[0], segStart = 0;
+
+  for (let i = 1; i <= tags.length; i++) {
+    const t = i < tags.length ? tags[i] : null;
+    if (t !== curTag || i === tags.length) {
+      const segEnd = i;
+      const durSec = time[Math.min(segEnd, time.length-1)] - time[segStart];
+      if (durSec >= MIN_DUR) {
+        const pSlice = pace.slice(segStart, segEnd).filter(Boolean);
+        const hSlice = hr.slice(segStart, segEnd).filter(Boolean);
+        segments.push({
+          tag:      curTag,
+          startIdx: segStart, endIdx: segEnd,
+          startTime:time[segStart],
+          endTime:  time[Math.min(segEnd, time.length-1)],
+          durationSec: durSec,
+          avgPace: pSlice.length ? Math.round(pSlice.reduce((a,b)=>a+b,0)/pSlice.length) : null,
+          avgHR:   hSlice.length ? Math.round(hSlice.reduce((a,b)=>a+b,0)/hSlice.length) : null,
+        });
       }
-      inInterval=false;
+      curTag = t; segStart = i;
     }
   }
-  return intervals;
+
+  // Numéroter tous les segments (rapides EN GRAS, lents en muted)
+  return segments.map((s, i) => ({ ...s, num: i+1 }));
 }
 
 function renderIntervalChart(intervals,streams) {
@@ -2051,23 +2117,36 @@ function renderIntervalChart(intervals,streams) {
   if (!sec) return;
   sec.style.display='block';
   const badge=document.getElementById('detail-intervals-badge'); if(badge) badge.textContent=`${intervals.length} détectés`;
-  const refPace=streams.pace.filter(Boolean).reduce((a,b)=>a+b,0)/streams.pace.filter(Boolean).length;
-  const listEl=document.getElementById('detail-intervals-list');
-  if (listEl) listEl.innerHTML=`
-    <div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);">
-      <div>#</div><div>Durée</div><div>Allure moy</div><div>FC moy</div><div>Écart</div>
+  const refPace = streams.pace.filter(Boolean).reduce((a,b)=>a+b,0)/streams.pace.filter(Boolean).length;
+  const totalDur = intervals.reduce((a,s)=>a+s.durationSec, 0);
+  const listEl = document.getElementById('detail-intervals-list');
+  if (listEl) listEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:26px 60px 60px 80px 70px 55px;gap:.4rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);">
+      <div>#</div><div>Type</div><div>Durée</div><div>Allure</div><div>FC</div><div>%séance</div>
     </div>
-    ${intervals.map(iv=>{
-      const diff=iv.avgPace?Math.round(refPace-iv.avgPace):null;
-      const min=Math.floor(iv.durationSec/60),sec2=iv.durationSec%60;
-      return `<div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;align-items:center;">
-        <div style="color:var(--muted);font-family:var(--fd);font-size:1rem;">${iv.num}</div>
+    ${intervals.map(iv => {
+      const min  = Math.floor(iv.durationSec/60), sec2 = iv.durationSec % 60;
+      const pct  = Math.round(iv.durationSec / totalDur * 100);
+      const diff = iv.avgPace ? Math.round(refPace - iv.avgPace) : null;
+      const tagLabel = iv.tag === 'fast' ? '<span style="color:var(--danger);font-weight:700;">EFFORT</span>'
+                     : iv.tag === 'slow' ? '<span style="color:var(--muted);">récup</span>'
+                     : '<span style="color:var(--accent2);">normal</span>';
+      const paceColor = iv.tag === 'fast' ? 'var(--danger)' : iv.tag === 'slow' ? 'var(--muted)' : 'var(--accent2)';
+      return `<div style="display:grid;grid-template-columns:26px 60px 60px 80px 70px 55px;gap:.4rem;padding:.35rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.72rem;align-items:center;${iv.tag==='slow'?'opacity:.6':''}">
+        <div style="color:var(--muted);font-family:var(--fd);font-size:.95rem;">${iv.num}</div>
+        <div>${tagLabel}</div>
         <div>${min}'${String(sec2).padStart(2,'0')}"</div>
-        <div style="color:var(--accent);">${iv.avgPace?secToAllure(iv.avgPace)+'/km':'—'}</div>
+        <div style="color:${paceColor};">${iv.avgPace?secToAllure(iv.avgPace)+'/km':'—'}${diff!=null?' <span style="font-size:.6rem;color:'+(diff>0?'var(--success)':'var(--warn)')+';">'+(diff>0?'+':'')+diff+'s</span>':''}</div>
         <div style="color:var(--danger);">${iv.avgHR?'♥ '+iv.avgHR:'—'}</div>
-        <div style="color:${diff!=null&&diff>0?'var(--success)':'var(--danger)'};">${diff!=null?`${diff>0?'+':''}${diff}s`:'—'}</div>
+        <div style="color:var(--muted);">${pct}%</div>
       </div>`;
-    }).join('')}`;
+    }).join('')}
+    <div style="font-family:var(--fm);font-size:.68rem;color:var(--muted);padding:.5rem 0;border-top:1px solid var(--border);margin-top:.25rem;">
+      Total: ${Math.floor(totalDur/60)}'${String(totalDur%60).padStart(2,'0')}" — 
+      effort: ${intervals.filter(s=>s.tag==='fast').reduce((a,s)=>a+s.durationSec,0)/60|0}min · 
+      récup: ${intervals.filter(s=>s.tag==='slow').reduce((a,s)=>a+s.durationSec,0)/60|0}min · 
+      normal: ${intervals.filter(s=>s.tag==='normal').reduce((a,s)=>a+s.durationSec,0)/60|0}min
+    </div>`;
 
   // ── BUG #6 CORRIGÉ : appendChild sur sec directement (pas sur .card inexistant) ──
   let canvas=document.getElementById('chart-detail-intervals');
@@ -2270,16 +2349,41 @@ async function askCoach(type) {
   const today=new Date();
   const race10=new Date(profile.race_10k_date||'2027-01-15');
   const daysLeft=Math.ceil((race10-today)/86400000);
-  const recent=allSessions.slice(0,7).map(s=>`- ${s.date}: ${s.type} ${s.distance_km||'?'}km @ ${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'?'} effort ${s.perceived_effort}/5 douleur ${s.pain_level}/5`).join('\n')||'Aucune';
+  const zones = calcZones();
+  const recent = allSessions.slice(0,10).map(s => {
+    const zoneReal = s.avg_hr ? (zones.find(z => s.avg_hr >= z.fcLow && s.avg_hr < z.fcHigh) || zones[4]) : null;
+    const ivStr = s.intervals && s.intervals.length
+      ? ' | Intervalles: ' + s.intervals.map(iv => `${iv.duration||'?'}@${iv.pace||'?'}/km`).join(', ')
+      : '';
+    const zoneStr = zoneReal ? ` [${zoneReal.name} réelle]` : '';
+    return `- ${s.date}: ${s.type}${zoneStr} ${s.distance_km||'?'}km @ ${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'?'} | FC ${s.avg_hr||'?'}bpm | effort ${s.perceived_effort||'?'}/5 | douleur ${s.pain_level||0}/5${s.notes?' | notes: '+s.notes.slice(0,50):''}${ivStr}`;
+  }).join('\n') || 'Aucune';
   const next=plannedSessions.filter(s=>s.date>=localDateStr(new Date())).slice(0,5).map(s=>`- ${s.date}: ${s.type} ~${s.target_distance_km}km`).join('\n')||'Non généré';
-  const prompts={'bilan':'Fais un bilan de la semaine et donne les priorités pour la semaine à venir.','planning':'Explique le planning prévu et pourquoi ces choix sont adaptés.','perio':'Analyse le risque de périostite. Donne des conseils concrets de prévention.','sub37':`Trace la route réaliste vers le sub-37 en janvier 2027. ${daysLeft} jours restants.`};
-  const prompt=`Coach running expert. Profil:
-- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37 | ${daysLeft} jours restants
-- FC max: ${profile.fc_max} | Séances: ${profile.weekly_sessions}→${profile.target_weekly_sessions}/sem
-Historique récent:\n${recent}
-Prochaines séances:\n${next}
-Demande: ${prompts[type]||type}
-Réponds en français, direct et personnalisé. 3-4 paragraphes max.`;
+  const zoneDesc = calcZones().map(z => `${z.name}: ${z.fcLow}-${z.fcHigh}bpm`).join(', ');
+  const prompts = {
+    'bilan':   'Analyse chaque séance récente en détail (zones FC réelles, allures, intervalles). Bilan de semaine et priorités.',
+    'planning':'Explique le planning prévu et l\'adéquation avec le profil. Justifie les choix de séances.',
+    'perio':   'Analyse le risque de périostite selon les données récentes (charge, douleur, FC). Conseils concrets.',
+    'sub37':   `Analyse l\'état de forme actuel et trace la route réaliste vers sub-37 (${daysLeft} jours). Sois précis sur les allures cibles.`,
+  };
+  const prompt = `Tu es coach running expert. Analyse ces données avec précision.
+
+Profil:
+- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37 | ${daysLeft} jours
+- FC max: ${profile.fc_max} bpm | FC repos: ${profile.fc_repos} bpm
+- VMA: ${profile.vma_kmh} km/h | Séances: ${profile.weekly_sessions}→${profile.target_weekly_sessions}/sem
+- Zones Karvonen: ${zoneDesc}
+- Fragilités: ${profile.fragility_notes||'aucune'}
+
+10 dernières séances (avec zone FC réelle entre crochets):
+${recent}
+
+Prochaines séances planifiées:
+${next}
+
+Demande: ${prompts[type] || type}
+
+Réponds en français, direct, technique et personnalisé. Utilise les zones réelles pour qualifier les séances, pas juste le type déclaré. 3-4 paragraphes max.`;
   try {
     const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const data=await res.json();
@@ -2571,8 +2675,8 @@ async function runAdaptationEngine() {
   const updated={};
   const vmaEstimate=estimateVMAFromHistory();
   if (vmaEstimate&&Math.abs(vmaEstimate-(profile.vma_kmh||16.5))>0.3) updated.vma_kmh=parseFloat(vmaEstimate.toFixed(1));
-  const formeTrend=detectFormeTrend();
-  if (formeTrend!=='stable') await adaptPlanningToForme(formeTrend);
+  // Adaptation basée sur TSB (idempotente, pas cumulative)
+  await adaptPlanningToForme('auto');  // adaptPlanningToForme calcule lui-même le coeff TSB
   if (Object.keys(updated).length>0) {
     profile={...profile,...updated};
     try {
@@ -2611,18 +2715,50 @@ function detectFormeTrend() {
 }
 
 async function adaptPlanningToForme(trend) {
-  const today=localDateStr(new Date());
-  const inTwoWeeks=new Date(); inTwoWeeks.setDate(inTwoWeeks.getDate()+14);
-  const inTwoWeeksStr=localDateStr(inTwoWeeks);
-  const upcoming=plannedSessions.filter(s=>s.date>=today&&s.date<=inTwoWeeksStr&&!s.skipped);
+  // Calculer le coefficient d'adaptation basé sur le TSB
+  const { tsb } = calcATLCTL();
+  // TSB > +10  : très frais → +8% max
+  // TSB 0-10   : frais      → +5%
+  // TSB -10-0  : neutre     → 0%
+  // TSB -25 -10: chargé     → -8%
+  // TSB < -25  : fatigué    → -15%
+  let coeff;
+  if      (tsb >  10) coeff = 1.08;
+  else if (tsb >   0) coeff = 1.05;
+  else if (tsb > -10) coeff = 1.00;   // rien à faire
+  else if (tsb > -25) coeff = 0.92;
+  else                coeff = 0.85;
+
+  if (coeff === 1.00) { showToast('TSB neutre — aucun ajustement nécessaire', 'success'); return; }
+
+  const today        = localDateStr(new Date());
+  const inTwoWeeks   = new Date(); inTwoWeeks.setDate(inTwoWeeks.getDate()+14);
+  const inTwoWeeksStr= localDateStr(inTwoWeeks);
+
+  // Recalcul à partir du VOLUME DE BASE du planning (pas de l'état actuel)
+  // Pour éviter l'accumulation, on relit les sessions fraîches depuis Supabase
+  const { data: fresh } = await db.from('planned_sessions')
+    .select('*').gte('date', today).lte('date', inTwoWeeksStr).eq('skipped', false);
+  const upcoming = fresh || [];
+
   for (const s of upcoming) {
-    const newKm=trend==='en_hausse'?Math.round((s.target_distance_km||10)*1.05*10)/10:Math.round((s.target_distance_km||10)*0.92*10)/10;
-    if (newKm!==s.target_distance_km) await db.from('planned_sessions').update({target_distance_km:newKm}).eq('id',s.id);
+    if (!s.target_distance_km || s.type === 'Muscu') continue;
+    // Calculer le km de base depuis le plan original (semaine courante)
+    const newKm = Math.round((s.target_distance_km * coeff) * 10) / 10;
+    if (Math.abs(newKm - s.target_distance_km) > 0.2) {
+      await db.from('planned_sessions').update({ target_distance_km: newKm }).eq('id', s.id);
+    }
   }
-  const {data}=await db.from('planned_sessions').select('*').order('date');
-  plannedSessions=data||[];
+
+  const { data } = await db.from('planned_sessions').select('*').order('date');
+  plannedSessions = data || [];
   renderWeek(); renderNextSessions();
-  showToast(trend==='en_hausse'?'📈 Forme en hausse — volume +5% sur 2 semaines':'📉 Fatigue détectée — volume -8% sur 2 semaines','success');
+
+  const tsbStr = tsb > 0 ? '+'+tsb.toFixed(0) : tsb.toFixed(0);
+  const msg = coeff > 1
+    ? \`📈 TSB ${tsbStr} — forme bonne, volume +${Math.round((coeff-1)*100)}% sur 2 sem\`
+    : \`📉 TSB ${tsbStr} — fatigue, volume -${Math.round((1-coeff)*100)}% sur 2 sem\`;
+  showToast(msg, 'success');
 }
 
 // ═══════════════════════════════════════════════════════
