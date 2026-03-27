@@ -886,7 +886,7 @@ function renderZones() {
   el.innerHTML = zones.map(z => `
     <div class="zone-row">
       <div class="zone-label">${z.name}</div>
-      <div class="zone-bar"><div class="zone-fill" style="width:${z.pct[1]}%;background:${z.color};opacity:.7;"></div></div>
+      <div class="zone-bar"><div class="zone-fill" style="width:${Math.round(z.kPct[1]*100)}%;background:${z.color};opacity:.7;"></div></div>
       <div class="zone-range" style="color:${z.color};">${z.fcLow}–${z.fcHigh}</div>
       <div class="zone-pace">${z.paceHigh}–${z.paceLow}/km</div>
     </div>`).join('');
