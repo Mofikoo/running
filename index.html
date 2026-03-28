@@ -479,15 +479,9 @@ input[type=range]{padding:0;background:none;border:none;}
   <div class="grid-2" style="margin-top:1rem;">
     <div class="card">
       <div class="card-title">Progression des meilleurs temps <span class="badge">BEST EFFORTS</span></div>
-      <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Évolution de tes records sur 1km, 5km, 10km</div>
-      <select id="be-distance" onchange="renderBestEffortsChart()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:var(--fm);font-size:.72rem;padding:.3rem .6rem;border-radius:5px;margin-bottom:.5rem;">
-        <option value="1000">1 km</option>
-        <option value="5000" selected>5 km</option>
-        <option value="10000">10 km</option>
-        <option value="2000">2 km</option>
-      </select>
+      <div class="card-title">Progression des meilleurs temps <span class="badge">BEST EFFORTS</span></div>
+      <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">1km · 2km · 5km · 10km — allure (plus bas = plus vite)</div>
       <canvas id="chart-best-efforts" height="130"></canvas>
-    </div>
     <div class="card">
       <div class="card-title">Cadence moyenne — progression <span class="badge">PAS/MIN</span></div>
       <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Cible : 170-180 pas/min · corrélé à l'efficacité de foulée</div>
@@ -2150,70 +2144,119 @@ function renderMainChart(s, streams) {
 
   const t     = streams.time;
   const hr    = streams.hr    || [];
-  const pace  = streams.pace  || [];
-  const power = streams.power || [];  // watts Strava (si dispo)
+  const pace  = streams.pace  || [];   // sec/km brut depuis Strava velocity_smooth
+  const power = streams.power || [];
 
-  // Pipeline de lissage amélioré
-  const smoothPace  = smoothArray(pace,  30);
-  const smoothHR    = smoothArray(hr,    20);
+  // Lissage : on lisse les données brutes stream.pace — pas de recalcul d'allure
+  // Le filtre médian élimine les pics GPS, le gaussien lisse la courbe
+  const smoothPace  = smoothArray(pace, 30);
+  const smoothHR    = smoothArray(hr,   20);
   const smoothPower = power.some(Boolean) ? smoothArray(power, 20) : [];
 
-  const labels = t.map(sec => (sec % 300 === 0) ? `${Math.floor(sec/60)}'` : '');
+  const labels = t.map(sec => (sec % 300 === 0) ? Math.floor(sec/60) + "'" : '');
 
-  // Limites dynamiques axe allure : ignorer les valeurs aberrantes (>8'/km ou <3'/km)
-  const validPace  = smoothPace.filter(v => v && v > 180 && v < 480);
-  const paceMin    = validPace.length ? Math.max(180, Math.min(...validPace) - 20) : 200;
-  const paceMax    = validPace.length ? Math.min(500, Math.max(...validPace) + 40) : 480;
+  // Bornes dynamiques basées sur les données brutes valides (3'00" à 8'30" = 180-510 sec/km)
+  const rawValid = pace.filter(v => v && v > 180 && v < 510);
+  const paceMin  = rawValid.length ? Math.max(180, Math.min(...rawValid) - 15) : 200;
+  const paceMax  = rawValid.length ? Math.min(510, Math.max(...rawValid) + 30) : 480;
 
-  const validHR    = hr.filter(Boolean);
-  const hrMin      = validHR.length ? Math.max(80,  Math.min(...validHR) - 10) : 100;
-  const hrMax      = validHR.length ? Math.min(220, Math.max(...validHR) + 8)  : (profile.fc_max||208)+5;
+  const validHR = hr.filter(Boolean);
+  const hrMin   = validHR.length ? Math.max(80,  Math.min(...validHR) - 8)  : 100;
+  const hrMax   = validHR.length ? Math.min(220, Math.max(...validHR) + 8)  : (profile.fc_max||208)+5;
 
   const datasets = [
-    // FC lissée (rouge)
-    { label:'FC (bpm)', data:smoothHR, borderColor:'#ff4757', backgroundColor:'rgba(255,71,87,0.06)',
-      tension:0.3, fill:true, pointRadius:0, borderWidth:2, yAxisID:'y-hr', spanGaps:true },
-    // Allure lissée (bleu)
-    { label:'Allure', data:smoothPace, borderColor:'#47b8ff', backgroundColor:'rgba(71,184,255,0.06)',
-      tension:0.3, fill:false, pointRadius:0, borderWidth:2, yAxisID:'y-pace', spanGaps:true },
+    // Allure BRUTE en fond (semi-transparent) — vraies données stream sans aucun calcul
+    {
+      label: 'Allure brute',
+      data: pace,
+      borderColor: 'rgba(71,184,255,0.18)',
+      backgroundColor: 'transparent',
+      tension: 0,
+      fill: false,
+      pointRadius: 0,
+      borderWidth: 1,
+      yAxisID: 'y-pace',
+      spanGaps: true,
+    },
+    // FC lissée
+    {
+      label: 'FC (bpm)',
+      data: smoothHR,
+      borderColor: '#ff4757',
+      backgroundColor: 'rgba(255,71,87,0.06)',
+      tension: 0.3,
+      fill: true,
+      pointRadius: 0,
+      borderWidth: 2,
+      yAxisID: 'y-hr',
+      spanGaps: true,
+    },
+    // Allure lissée (gaussien sur données brutes)
+    {
+      label: 'Allure (lissée)',
+      data: smoothPace,
+      borderColor: '#47b8ff',
+      backgroundColor: 'rgba(71,184,255,0.05)',
+      tension: 0.3,
+      fill: false,
+      pointRadius: 0,
+      borderWidth: 2.5,
+      yAxisID: 'y-pace',
+      spanGaps: true,
+    },
   ];
 
-  // Ajouter la puissance si disponible
   const scales = {
-    x:{ ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:8},maxTicksLimit:10,callback:(v,i)=>labels[i]||''}, grid:{color:'rgba(42,42,58,0.5)'} },
-    'y-hr':  { position:'left',  ticks:{color:'#ff4757',font:{family:'DM Mono',size:9}}, grid:{color:'rgba(42,42,58,0.5)'}, min:hrMin,  max:hrMax },
-    'y-pace':{ position:'right', reverse:true, ticks:{color:'#47b8ff',font:{family:'DM Mono',size:9},callback:v=>v?secToAllure(v):''}, grid:{display:false}, min:paceMin, max:paceMax },
+    x: {
+      ticks: { color:'#6b6b8a', font:{family:'DM Mono',size:8}, maxTicksLimit:10, callback:(v,i)=>labels[i]||'' },
+      grid: { color:'rgba(42,42,58,0.5)' }
+    },
+    'y-hr':   { position:'left',  ticks:{color:'#ff4757',font:{family:'DM Mono',size:9}}, grid:{color:'rgba(42,42,58,0.5)'}, min:hrMin, max:hrMax },
+    'y-pace': { position:'right', reverse:true, ticks:{color:'#47b8ff',font:{family:'DM Mono',size:9},callback:v=>v?secToAllure(v):''}, grid:{display:false}, min:paceMin, max:paceMax },
   };
 
   if (smoothPower.some(Boolean)) {
     const validW = smoothPower.filter(Boolean);
     datasets.push({
-      label:'Puissance (W)', data:smoothPower,
-      borderColor:'rgba(232,255,71,0.7)', backgroundColor:'transparent',
-      tension:0.3, fill:false, pointRadius:0, borderWidth:1.5,
-      borderDash:[3,3], yAxisID:'y-power', spanGaps:true,
+      label: 'Puissance (W)',
+      data: smoothPower,
+      borderColor: 'rgba(232,255,71,0.7)',
+      backgroundColor: 'transparent',
+      tension: 0.3,
+      fill: false,
+      pointRadius: 0,
+      borderWidth: 1.5,
+      borderDash: [3,3],
+      yAxisID: 'y-power',
+      spanGaps: true,
     });
     scales['y-power'] = {
-      position:'right', display:true,
-      ticks:{ color:'rgba(232,255,71,0.7)', font:{family:'DM Mono',size:9}, callback:v=>v+'W' },
-      grid:{ display:false },
+      position: 'right',
+      ticks: { color:'rgba(232,255,71,0.7)', font:{family:'DM Mono',size:9}, callback:v=>v+'W' },
+      grid: { display:false },
       min: Math.max(0, Math.min(...validW) - 20),
       max: Math.max(...validW) + 20,
     };
   }
 
   chartInstances['detail-main'] = new Chart(ctx, {
-    type:'line',
-    data:{ labels, datasets },
-    options:{ responsive:true, maintainAspectRatio:true, animation:false,
-      interaction:{ mode:'index', intersect:false },
-      plugins:{
-        legend:{ labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:10} }},
-        tooltip:{ callbacks:{ label:(c) => {
-          if (c.dataset.yAxisID === 'y-pace' && c.raw)  return ` Allure: ${secToAllure(c.raw)}/km`;
-          if (c.dataset.yAxisID === 'y-power' && c.raw) return ` Puissance: ${c.raw}W`;
-          return ` FC: ${c.raw} bpm`;
-        }}}
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: true, animation: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { labels: {
+          color: '#6b6b8a',
+          font: { family:'DM Mono', size:10 },
+          filter: item => item.text !== 'Allure brute',  // cacher du label
+        }},
+        tooltip: { callbacks: { label: (c) => {
+          if (c.dataset.label === 'Allure brute') return null;
+          if (c.dataset.yAxisID === 'y-pace'  && c.raw) return ' Allure: '  + secToAllure(c.raw) + '/km';
+          if (c.dataset.yAxisID === 'y-power' && c.raw) return ' Puissance: ' + c.raw + 'W';
+          return ' FC: ' + c.raw + ' bpm';
+        }, filter: item => item.dataset.label !== 'Allure brute' }}
       },
       scales
     }
@@ -2792,42 +2835,85 @@ function renderBestEffortsChart() {
   destroyChart('best-efforts');
   const ctx = document.getElementById('chart-best-efforts')?.getContext('2d');
   if (!ctx) return;
-  const targetDist = parseInt(document.getElementById('be-distance')?.value || 5000);
-  // Collecter les best efforts pour cette distance sur toutes les séances
-  const points = [];
-  allSessions.forEach(s => {
-    if (!s.best_efforts || !s.date) return;
-    const be = s.best_efforts.find(b => b.distance_m === targetDist);
-    if (be && be.pace_sec) points.push({ date: s.date, pace: parseFloat((be.pace_sec/60).toFixed(3)) });
+
+  const DISTANCES = [
+    { dist: 1000,  label: '1 km',    color: '#47b8ff' },
+    { dist: 2000,  label: '2 km',    color: '#2ed573' },
+    { dist: 5000,  label: '5 km',    color: '#e8ff47' },
+    { dist: 10000, label: '10 km',   color: '#ff4757' },
+    { dist: 21097, label: 'Semi',    color: '#c084fc' },
+    { dist: 42195, label: 'Marathon',color: '#ffa502' },
+  ];
+
+  const allDates = new Set();
+  const pointsByDist = {};
+  DISTANCES.forEach(({ dist }) => {
+    pointsByDist[dist] = {};
+    allSessions.forEach(s => {
+      if (!s.best_efforts || !s.date) return;
+      const be = s.best_efforts.find(b => b.distance_m === dist);
+      if (be && be.elapsed_sec) {
+        // Allure min/km pour que les 4 courbes partagent le même axe
+        const pace = parseFloat((be.elapsed_sec / dist * 1000 / 60).toFixed(3));
+        pointsByDist[dist][s.date] = pace;
+        allDates.add(s.date);
+      }
+    });
   });
-  if (points.length < 2) {
-    ctx.canvas.parentElement.querySelector('canvas').style.display='none';
+
+  if (allDates.size < 1) {
+    ctx.canvas.style.display = 'none';
+    const parent = ctx.canvas.parentElement;
+    if (!parent.querySelector('.empty-state'))
+      parent.insertAdjacentHTML('beforeend', '<div class="empty-state" style="padding:1rem;font-size:.75rem;">Pas encore de best efforts — ils arriveront à la prochaine synchro Strava</div>');
     return;
   }
-  ctx.canvas.style.display='block';
-  points.sort((a,b) => a.date.localeCompare(b.date));
-  const labels = points.map(p => formatDate(p.date));
-  const data   = points.map(p => p.pace);
-  // Tendance
-  const n=data.length, sumX=data.reduce((_,__,i)=>_+i,0), sumY=data.reduce((a,b)=>a+b,0);
-  const sumXY=data.reduce((a,b,i)=>a+i*b,0), sumX2=data.reduce((a,_,i)=>a+i*i,0);
-  const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
-  const intercept=(sumY-slope*sumX)/n;
-  const trend=data.map((_,i)=>parseFloat((slope*i+intercept).toFixed(3)));
-  const improving = slope < 0;
+  ctx.canvas.style.display = 'block';
+
+  const sortedDates = [...allDates].sort();
+  const labels = sortedDates.map(d => formatDate(d));
+
+  const datasets = DISTANCES.map(({ dist, label, color }) => ({
+    label,
+    data: sortedDates.map(d => pointsByDist[dist][d] || null),
+    borderColor: color,
+    backgroundColor: 'transparent',
+    tension: 0.3,
+    pointRadius: 4,
+    pointBackgroundColor: color,
+    borderWidth: 2,
+    spanGaps: false,
+  }));
+
+  const paceFormat = v => {
+    if (!v) return '';
+    const m = Math.floor(v), s2 = Math.round((v % 1) * 60);
+    return m + "'" + String(s2).padStart(2,'0') + '"';
+  };
+
   chartInstances['best-efforts'] = new Chart(ctx, {
-    type:'line',
-    data:{ labels, datasets:[
-      { label:`Meilleur temps ${targetDist/1000}km`, data, borderColor:'#e8ff47', backgroundColor:'rgba(232,255,71,0.08)', tension:0.3, fill:true, pointRadius:4, pointBackgroundColor:'#e8ff47', borderWidth:2 },
-      { label:'Tendance', data:trend, borderColor:improving?'var(--success)':'var(--danger)', backgroundColor:'transparent', tension:0.2, pointRadius:0, borderWidth:1.5, borderDash:[4,4] }
-    ]},
-    options:{ ...CHART_DEFAULTS, interaction:{mode:'index',intersect:false},
-      plugins:{ ...CHART_DEFAULTS.plugins, tooltip:{ callbacks:{ label:(c)=>{ const v=c.raw; const m=Math.floor(v),s=Math.round((v%1)*60); return ` ${c.dataset.label}: ${m}'${String(s).padStart(2,'0')}"/km`; }}}},
-      scales:{ ...CHART_DEFAULTS.scales, y:{ ...CHART_DEFAULTS.scales.y, reverse:true, ticks:{ ...CHART_DEFAULTS.scales.y.ticks, callback:v=>{ const m=Math.floor(v),s=Math.round((v%1)*60); return `${m}'${String(s).padStart(2,'0')}"`;}}}}
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      ...CHART_DEFAULTS,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        ...CHART_DEFAULTS.plugins,
+        legend: { display: true, labels: { color: '#6b6b8a', font: { family: 'DM Mono', size: 10 } } },
+        tooltip: { callbacks: { label: (c) => {
+          if (c.raw === null) return null;
+          return ' ' + c.dataset.label + ': ' + paceFormat(c.raw) + '/km';
+        }}}
+      },
+      scales: {
+        ...CHART_DEFAULTS.scales,
+        y: { ...CHART_DEFAULTS.scales.y, reverse: true,
+          ticks: { ...CHART_DEFAULTS.scales.y.ticks, callback: v => paceFormat(v) }
+        }
+      }
     }
   });
 }
-
 function renderCadenceChart(sessions) {
   destroyChart('cadence');
   const ctx = document.getElementById('chart-cadence')?.getContext('2d');
