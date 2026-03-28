@@ -476,6 +476,29 @@ input[type=range]{padding:0;background:none;border:none;}
     <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Modèle 80/20 : ~80% basse intensité, ~20% haute intensité</div>
     <canvas id="chart-polar" height="80"></canvas>
   </div>
+  <div class="grid-2" style="margin-top:1rem;">
+    <div class="card">
+      <div class="card-title">Progression des meilleurs temps <span class="badge">BEST EFFORTS</span></div>
+      <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Évolution de tes records sur 1km, 5km, 10km</div>
+      <select id="be-distance" onchange="renderBestEffortsChart()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:var(--fm);font-size:.72rem;padding:.3rem .6rem;border-radius:5px;margin-bottom:.5rem;">
+        <option value="1000">1 km</option>
+        <option value="5000" selected>5 km</option>
+        <option value="10000">10 km</option>
+        <option value="2000">2 km</option>
+      </select>
+      <canvas id="chart-best-efforts" height="130"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">Cadence moyenne — progression <span class="badge">PAS/MIN</span></div>
+      <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Cible : 170-180 pas/min · corrélé à l'efficacité de foulée</div>
+      <canvas id="chart-cadence" height="130"></canvas>
+    </div>
+  </div>
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-title">Température & Performance <span class="badge">CONTEXTE</span></div>
+    <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Impact de la chaleur sur l'allure EF et la FC</div>
+    <canvas id="chart-temp" height="90"></canvas>
+  </div>
 </div>
 
 <!-- DETAIL SÉANCE -->
@@ -500,6 +523,20 @@ input[type=range]{padding:0;background:none;border:none;}
     <div class="card">
       <div class="card-title">Intervalles <span class="badge" id="detail-intervals-badge"></span></div>
       <div id="detail-intervals-list"></div>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-top:1rem;">
+    <div id="detail-splits" style="display:none;">
+      <div class="card">
+        <div class="card-title">Splits par km <span class="badge">STRAVA</span></div>
+        <div id="detail-splits-list"></div>
+      </div>
+    </div>
+    <div id="detail-best-efforts" style="display:none;">
+      <div class="card">
+        <div class="card-title">Meilleurs temps <span class="badge">STRAVA</span></div>
+        <div id="detail-be-list"></div>
+      </div>
     </div>
   </div>
   <div class="card" style="margin-top:1rem;">
@@ -785,7 +822,14 @@ function showDbSetupAlert() {
 
 function copySQL() {
   const sql = `create table if not exists profile (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), name text default 'Coureur', pb_10k_seconds integer default 2430, target_10k_seconds integer default 2220, vma_kmh numeric default 16.5, fc_max integer default 208, fc_repos integer default 55, race_15k_date date default '2026-09-20', race_10k_date date default '2027-01-15', weekly_sessions integer default 4, target_weekly_sessions integer default 5, fragility_notes text, prog_intensity integer default 3);
-create table if not exists sessions (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), date date not null, type text not null, distance_km numeric, duration_minutes integer, avg_pace_seconds integer, avg_hr integer, perceived_effort integer, pain_level integer default 0, pain_location text, notes text, intervals jsonb, completed boolean default true, garmin_activity_id bigint, import_id text unique, training_effect numeric, vo2max numeric, cadence_avg integer, elevation_gain numeric, streams jsonb, strava_name text);
+create table if not exists sessions (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), date date not null, type text not null, distance_km numeric, duration_minutes integer, avg_pace_seconds integer, avg_hr integer, perceived_effort integer, pain_level integer default 0, pain_location text, notes text, intervals jsonb, completed boolean default true, garmin_activity_id bigint, import_id text unique, training_effect numeric, vo2max numeric, cadence_avg integer, elevation_gain numeric, streams jsonb, strava_name text, splits jsonb, best_efforts jsonb, suffer_score integer, power_avg integer, power_weighted integer, kilojoules numeric, avg_temp numeric);
+alter table sessions add column if not exists splits jsonb;
+alter table sessions add column if not exists best_efforts jsonb;
+alter table sessions add column if not exists suffer_score integer;
+alter table sessions add column if not exists power_avg integer;
+alter table sessions add column if not exists power_weighted integer;
+alter table sessions add column if not exists kilojoules numeric;
+alter table sessions add column if not exists avg_temp numeric;
 create table if not exists planned_sessions (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), date date not null, type text not null, description text, target_distance_km numeric, target_duration_minutes integer, intensity_zone integer, week_phase text, priority integer default 1, skipped boolean default false, skip_reason text);
 create table if not exists health_logs (id uuid default gen_random_uuid() primary key, created_at timestamp default now(), date date not null, location text, severity integer, notes text, resolved boolean default false);`;
   navigator.clipboard.writeText(sql);
@@ -1879,12 +1923,16 @@ function openDetailSession(id) {
     <div class="stat-card"><div class="stat-label">FC moyenne</div><div class="stat-value" style="font-size:1.8rem;color:var(--danger);">${s.avg_hr||'—'}</div><div class="stat-sub">bpm${z?` · cible ${z.fcLow}-${z.fcHigh}`:''}</div></div>`;
 
   const noteLines=[
-    s.elevation_gain?`<div><span style="color:var(--muted)">Dénivelé:</span> +${s.elevation_gain}m</div>`:'',
-    s.cadence_avg   ?`<div><span style="color:var(--muted)">Cadence:</span> ${s.cadence_avg} pas/min</div>`:'',
-    s.training_effect?`<div><span style="color:var(--muted)">Training Effect:</span> ${s.training_effect}</div>`:'',
-    s.perceived_effort?`<div><span style="color:var(--muted)">Effort ressenti:</span> ${s.perceived_effort}/5</div>`:'',
-    s.pain_level>=1?`<div><span style="color:var(--danger)">Douleur:</span> ${s.pain_level}/5${s.pain_location?' — '+s.pain_location:''}</div>`:'',
-    s.notes?`<div style="margin-top:.5rem;color:var(--muted);">${s.notes}</div>`:'',
+    s.elevation_gain  ? `<div><span style="color:var(--muted)">Dénivelé:</span> +${s.elevation_gain}m</div>` : '',
+    s.cadence_avg     ? `<div><span style="color:var(--muted)">Cadence:</span> ${s.cadence_avg} pas/min</div>` : '',
+    s.training_effect ? `<div><span style="color:var(--muted)">Training Effect:</span> ${s.training_effect}</div>` : '',
+    s.power_weighted  ? `<div><span style="color:var(--muted)">Puissance normalisée:</span> <span style="color:var(--accent)">${s.power_weighted}W</span>${s.power_avg ? ' (moy '+s.power_avg+'W)' : ''}</div>` : '',
+    s.kilojoules      ? `<div><span style="color:var(--muted)">Énergie:</span> ${s.kilojoules} kJ</div>` : '',
+    s.avg_temp != null? `<div><span style="color:var(--muted)">Température:</span> ${s.avg_temp}°C</div>` : '',
+    s.suffer_score    ? `<div><span style="color:var(--muted)">Score souffrance:</span> ${s.suffer_score}/200</div>` : '',
+    s.perceived_effort? `<div><span style="color:var(--muted)">Effort ressenti:</span> ${s.perceived_effort}/5</div>` : '',
+    s.pain_level >= 1 ? `<div><span style="color:var(--danger)">Douleur:</span> ${s.pain_level}/5${s.pain_location ? ' — '+s.pain_location : ''}</div>` : '',
+    s.notes           ? `<div style="margin-top:.5rem;color:var(--muted);">${s.notes}</div>` : '',
   ].filter(Boolean).join('');
   const notesEl=document.getElementById('detail-notes');
   if (notesEl) notesEl.innerHTML=noteLines||'<span style="color:var(--muted)">Aucune note</span>';
@@ -1909,10 +1957,52 @@ function openDetailSession(id) {
     }
   }
 
+  // ── Splits km par km (Strava splits_metric) ──
+  const splitsEl = document.getElementById('detail-splits');
+  if (splitsEl) {
+    if (s.splits && s.splits.length) {
+      splitsEl.style.display = 'block';
+      const avgP = s.avg_pace_seconds || 0;
+      const splitsRows = s.splits.map(sp => {
+        const diff = (sp.pace_sec && avgP) ? avgP - sp.pace_sec : null;
+        const col = diff > 5 ? 'var(--success)' : diff < -5 ? 'var(--danger)' : 'var(--accent2)';
+        const diffStr = diff !== null ? ` <span style="font-size:.6rem;color:${col};">${diff>0?'+':''}${diff}s</span>` : '';
+        return `<div style="display:grid;grid-template-columns:32px 1fr 80px 55px 45px;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.73rem;align-items:center;">
+          <div style="font-family:var(--fd);font-size:.95rem;color:var(--muted);">${sp.km}</div>
+          <div style="background:var(--border);height:4px;border-radius:2px;overflow:hidden;"><div style="height:100%;width:${Math.min(100,Math.round((sp.distance_m/1000)*100))}%;background:${col};"></div></div>
+          <div style="color:${col};">${sp.pace_sec ? secToAllure(sp.pace_sec)+'/km' : '—'}${diffStr}</div>
+          <div style="color:var(--danger);font-size:.7rem;">${sp.avg_hr ? '♥ '+sp.avg_hr : '—'}</div>
+          <div style="color:var(--muted);font-size:.7rem;">${(sp.elev_diff||0)>0?'+':''}${sp.elev_diff||0}m</div>
+        </div>`;
+      }).join('');
+      const listEl = document.getElementById('detail-splits-list');
+      if (listEl) listEl.innerHTML = `<div style="display:grid;grid-template-columns:32px 1fr 80px 55px 45px;gap:.4rem;padding:.25rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);"><div>km</div><div></div><div>Allure</div><div>FC</div><div>D+</div></div>${splitsRows}`;
+    } else { splitsEl.style.display = 'none'; }
+  }
+
+  // ── Best efforts Strava ──
+  const beEl = document.getElementById('detail-best-efforts');
+  if (beEl) {
+    if (s.best_efforts && s.best_efforts.length) {
+      beEl.style.display = 'block';
+      const beRows = s.best_efforts.map(be => {
+        const m = Math.floor(be.elapsed_sec/60), sec2 = be.elapsed_sec%60;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;">
+          <span style="color:var(--muted);">${be.label}</span>
+          <span style="color:var(--accent);font-family:var(--fd);font-size:1rem;">${m}'${String(sec2).padStart(2,'0')}"</span>
+          <span style="color:var(--accent2);">${be.pace_sec ? secToAllure(be.pace_sec)+'/km' : ''}</span>
+        </div>`;
+      }).join('');
+      const beListEl = document.getElementById('detail-be-list');
+      if (beListEl) beListEl.innerHTML = beRows;
+    } else { beEl.style.display = 'none'; }
+  }
+
   // ── BUG #5 CORRIGÉ : showPage AVANT renderDetailCharts (canvas doit être visible) ──
   showPage('detail');
   renderDetailCharts(s);
 }
+
 
 function renderDetailCharts(s) {
   // ── BUG #3 CORRIGÉ : reset complet y compris la section intervalles auto ──
@@ -2695,6 +2785,103 @@ function renderGraphs() {
   renderVolumeChart(recent); renderPaceChart(recent); renderHRChart(recent);
   renderTypesChart(recent); renderLoadChart(recent); renderFitnessChart();
   renderEconomyChart(recent); renderPainChart(recent); renderPolarChart(recent);
+  renderBestEffortsChart(); renderCadenceChart(recent); renderTempChart(recent);
+}
+
+function renderBestEffortsChart() {
+  destroyChart('best-efforts');
+  const ctx = document.getElementById('chart-best-efforts')?.getContext('2d');
+  if (!ctx) return;
+  const targetDist = parseInt(document.getElementById('be-distance')?.value || 5000);
+  // Collecter les best efforts pour cette distance sur toutes les séances
+  const points = [];
+  allSessions.forEach(s => {
+    if (!s.best_efforts || !s.date) return;
+    const be = s.best_efforts.find(b => b.distance_m === targetDist);
+    if (be && be.pace_sec) points.push({ date: s.date, pace: parseFloat((be.pace_sec/60).toFixed(3)) });
+  });
+  if (points.length < 2) {
+    ctx.canvas.parentElement.querySelector('canvas').style.display='none';
+    return;
+  }
+  ctx.canvas.style.display='block';
+  points.sort((a,b) => a.date.localeCompare(b.date));
+  const labels = points.map(p => formatDate(p.date));
+  const data   = points.map(p => p.pace);
+  // Tendance
+  const n=data.length, sumX=data.reduce((_,__,i)=>_+i,0), sumY=data.reduce((a,b)=>a+b,0);
+  const sumXY=data.reduce((a,b,i)=>a+i*b,0), sumX2=data.reduce((a,_,i)=>a+i*i,0);
+  const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
+  const intercept=(sumY-slope*sumX)/n;
+  const trend=data.map((_,i)=>parseFloat((slope*i+intercept).toFixed(3)));
+  const improving = slope < 0;
+  chartInstances['best-efforts'] = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:`Meilleur temps ${targetDist/1000}km`, data, borderColor:'#e8ff47', backgroundColor:'rgba(232,255,71,0.08)', tension:0.3, fill:true, pointRadius:4, pointBackgroundColor:'#e8ff47', borderWidth:2 },
+      { label:'Tendance', data:trend, borderColor:improving?'var(--success)':'var(--danger)', backgroundColor:'transparent', tension:0.2, pointRadius:0, borderWidth:1.5, borderDash:[4,4] }
+    ]},
+    options:{ ...CHART_DEFAULTS, interaction:{mode:'index',intersect:false},
+      plugins:{ ...CHART_DEFAULTS.plugins, tooltip:{ callbacks:{ label:(c)=>{ const v=c.raw; const m=Math.floor(v),s=Math.round((v%1)*60); return ` ${c.dataset.label}: ${m}'${String(s).padStart(2,'0')}"/km`; }}}},
+      scales:{ ...CHART_DEFAULTS.scales, y:{ ...CHART_DEFAULTS.scales.y, reverse:true, ticks:{ ...CHART_DEFAULTS.scales.y.ticks, callback:v=>{ const m=Math.floor(v),s=Math.round((v%1)*60); return `${m}'${String(s).padStart(2,'0')}"`;}}}}
+    }
+  });
+}
+
+function renderCadenceChart(sessions) {
+  destroyChart('cadence');
+  const ctx = document.getElementById('chart-cadence')?.getContext('2d');
+  if (!ctx) return;
+  // Cadence en pas/min réels (cadence_avg * 2 pour bilatéral)
+  const data = sessions.filter(s => s.cadence_avg && ['EF','Aérobie Z3','Long','Seuil','VMA'].includes(s.type))
+    .map(s => ({ date:s.date, cad:s.cadence_avg, type:s.type }));
+  if (data.length < 2) return;
+  const labels = data.map(d => formatDate(d.date));
+  const vals   = data.map(d => d.cad);
+  const colors = data.map(d => ({ 'VMA':'rgba(255,71,87,0.7)', 'Seuil':'rgba(255,165,2,0.7)', 'Aérobie Z3':'rgba(46,213,115,0.7)' }[d.type] || 'rgba(71,184,255,0.7)'));
+  chartInstances['cadence'] = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Cadence (pas/min)', data:vals, backgroundColor:colors, borderRadius:3 }
+    ]},
+    options:{ ...CHART_DEFAULTS,
+      plugins:{ ...CHART_DEFAULTS.plugins, legend:{display:false},
+        annotation:{ annotations:{ target:{ type:'line', yMin:174, yMax:174, borderColor:'rgba(232,255,71,0.5)', borderWidth:1, borderDash:[4,4], label:{content:'Cible 174',display:true,color:'rgba(232,255,71,0.7)',font:{size:9}} }}}},
+      scales:{ ...CHART_DEFAULTS.scales, y:{ ...CHART_DEFAULTS.scales.y, min:150, max:200 }}
+    }
+  });
+}
+
+function renderTempChart(sessions) {
+  destroyChart('temp');
+  const ctx = document.getElementById('chart-temp')?.getContext('2d');
+  if (!ctx) return;
+  const efSessions = sessions.filter(s => s.avg_temp != null && s.avg_pace_seconds && s.avg_hr && s.type === 'EF');
+  if (efSessions.length < 3) {
+    ctx.canvas.parentElement.innerHTML += '<div class="empty-state" style="padding:1rem;font-size:.75rem;">Pas assez de données (séances EF avec température)</div>';
+    return;
+  }
+  const labels = efSessions.map(s => `${formatDate(s.date)} (${s.avg_temp}°)`);
+  const pace   = efSessions.map(s => parseFloat((s.avg_pace_seconds/60).toFixed(3)));
+  const hr     = efSessions.map(s => s.avg_hr);
+  const temps  = efSessions.map(s => s.avg_temp);
+  // Couleur par température
+  const bgColors = temps.map(t => t > 25 ? 'rgba(255,71,87,0.6)' : t > 18 ? 'rgba(255,165,2,0.6)' : 'rgba(71,184,255,0.6)');
+  chartInstances['temp'] = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Allure EF', data:pace, backgroundColor:bgColors, borderRadius:3, yAxisID:'y-pace' },
+      { label:'FC moy', data:hr, type:'line', borderColor:'#ff4757', backgroundColor:'transparent', tension:0.3, pointRadius:3, borderWidth:2, yAxisID:'y-hr' }
+    ]},
+    options:{ ...CHART_DEFAULTS, interaction:{mode:'index',intersect:false},
+      plugins:{ ...CHART_DEFAULTS.plugins, tooltip:{ callbacks:{ label:(c)=>{ if(c.dataset.yAxisID==='y-pace'){const v=c.raw;const m=Math.floor(v),s=Math.round((v%1)*60);return ` Allure: ${m}'${String(s).padStart(2,'0')}"/km`;} return ` FC: ${c.raw}bpm`; }}}},
+      scales:{
+        x:CHART_DEFAULTS.scales.x,
+        'y-pace':{ position:'left', reverse:true, ticks:{color:'#47b8ff',font:{family:'DM Mono',size:9},callback:v=>{const m=Math.floor(v),s=Math.round((v%1)*60);return `${m}'${String(s).padStart(2,'0')}"`;}}, grid:{color:'#2a2a3a'} },
+        'y-hr':{ position:'right', ticks:{color:'#ff4757',font:{family:'DM Mono',size:9}}, grid:{display:false}, min:120 }
+      }
+    }
+  });
 }
 
 function getWeekLabel(dateStr) {
