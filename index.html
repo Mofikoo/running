@@ -1979,36 +1979,155 @@ function renderDetailCharts(s) {
   }
 }
 
-function smoothArray(arr,window) {
-  return arr.map((v,i)=>{
-    if (v===null) return null;
-    const start=Math.max(0,i-Math.floor(window/2));
-    const end=Math.min(arr.length,i+Math.floor(window/2)+1);
-    const slice=arr.slice(start,end).filter(x=>x!==null);
-    return slice.length?Math.round(slice.reduce((a,b)=>a+b,0)/slice.length):null;
+// Interpolation linéaire des nulls avant de lisser (évite les coupures de courbe)
+function interpolateNulls(arr) {
+  const out = [...arr];
+  let i = 0;
+  while (i < out.length) {
+    if (out[i] === null || out[i] === undefined) {
+      // Chercher la prochaine valeur non-null
+      let j = i + 1;
+      while (j < out.length && (out[j] === null || out[j] === undefined)) j++;
+      // Valeur précédente
+      const vPrev = i > 0 ? out[i-1] : (j < out.length ? out[j] : null);
+      const vNext = j < out.length ? out[j] : vPrev;
+      if (vPrev !== null && vNext !== null) {
+        // Interpolation linéaire sur le trou
+        const gap = j - i + 1;
+        for (let k = i; k < j; k++) {
+          out[k] = Math.round(vPrev + (vNext - vPrev) * (k - i + 1) / gap);
+        }
+      } else if (vPrev !== null) {
+        for (let k = i; k < j; k++) out[k] = vPrev;
+      } else if (vNext !== null) {
+        for (let k = i; k < j; k++) out[k] = vNext;
+      }
+      i = j;
+    } else { i++; }
+  }
+  return out;
+}
+
+// Filtre médian (élimine les pics GPS aberrants mieux qu'une moyenne)
+function medianFilter(arr, halfWin) {
+  return arr.map((v, i) => {
+    if (v === null) return null;
+    const start = Math.max(0, i - halfWin);
+    const end   = Math.min(arr.length, i + halfWin + 1);
+    const slice = arr.slice(start, end).filter(x => x !== null).sort((a,b)=>a-b);
+    if (!slice.length) return null;
+    const mid = Math.floor(slice.length / 2);
+    return slice.length % 2 ? slice[mid] : Math.round((slice[mid-1]+slice[mid])/2);
   });
 }
 
-function renderMainChart(s,streams) {
-  const ctx=document.getElementById('chart-detail-main')?.getContext('2d');
-  if (!ctx) return;
-  const t=streams.time, hr=streams.hr, pace=streams.pace;
-  const smoothPace=smoothArray(pace,30), smoothHR=smoothArray(hr,30);
-  const labels=t.map(sec=>(sec%300===0)?`${Math.floor(sec/60)}'`:'');
-  chartInstances['detail-main']=new Chart(ctx,{type:'line',data:{labels,datasets:[
-    {label:'FC brute',data:hr,borderColor:'rgba(255,71,87,0.2)',backgroundColor:'transparent',tension:0,fill:false,pointRadius:0,borderWidth:1,yAxisID:'y-hr'},
-    {label:'FC (bpm)',data:smoothHR,borderColor:'#ff4757',backgroundColor:'rgba(255,71,87,0.08)',tension:0.4,fill:true,pointRadius:0,borderWidth:2,yAxisID:'y-hr'},
-    {label:'Allure brute',data:pace,borderColor:'rgba(71,184,255,0.15)',backgroundColor:'transparent',tension:0,fill:false,pointRadius:0,borderWidth:1,yAxisID:'y-pace'},
-    {label:'Allure',data:smoothPace,borderColor:'#47b8ff',backgroundColor:'rgba(71,184,255,0.06)',tension:0.4,fill:false,pointRadius:0,borderWidth:2,yAxisID:'y-pace'},
-  ]},options:{responsive:true,maintainAspectRatio:true,animation:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:{labels:{color:'#6b6b8a',font:{family:'DM Mono',size:10},filter:(item)=>!item.text.includes('brute')}},
-      tooltip:{callbacks:{label:(c)=>{if(c.dataset.label?.includes('brute'))return null;if(c.dataset.yAxisID==='y-pace'&&c.raw)return ` Allure: ${secToAllure(c.raw)}/km`;return ` FC: ${c.raw} bpm`;},filter:(item)=>!item.dataset.label?.includes('brute')}}},
-    scales:{
-      x:{ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:8},maxTicksLimit:10,callback:(v,i)=>labels[i]||''},grid:{color:'rgba(42,42,58,0.5)'}},
-      'y-hr':{position:'left',ticks:{color:'#ff4757',font:{family:'DM Mono',size:9}},grid:{color:'rgba(42,42,58,0.5)'},min:Math.max(100,(Math.min(...hr.filter(Boolean)))-10),max:(profile.fc_max||208)+5},
-      'y-pace':{position:'right',reverse:true,ticks:{color:'#47b8ff',font:{family:'DM Mono',size:9},callback:v=>v?secToAllure(v):''},grid:{display:false},min:150,max:500}
+// Lissage gaussien (plus naturel que la moyenne glissante)
+function gaussianSmooth(arr, sigma) {
+  const kernel = [];
+  const r = Math.ceil(sigma * 2.5);
+  let sum = 0;
+  for (let i = -r; i <= r; i++) {
+    const w = Math.exp(-(i*i)/(2*sigma*sigma));
+    kernel.push(w); sum += w;
+  }
+  const k = kernel.map(w => w/sum);
+  return arr.map((v, i) => {
+    if (v === null) return null;
+    let val = 0, wSum = 0;
+    for (let j = 0; j < k.length; j++) {
+      const idx = i - r + j;
+      if (idx >= 0 && idx < arr.length && arr[idx] !== null) {
+        val += arr[idx] * k[j]; wSum += k[j];
+      }
     }
-  }});
+    return wSum > 0 ? Math.round(val / wSum) : null;
+  });
+}
+
+// Pipeline complet : interpolation → filtre médian → lissage gaussien
+function smoothArray(arr, windowSize) {
+  const interpolated = interpolateNulls(arr);
+  // Filtre médian d'abord pour éliminer les pics GPS aberrants
+  const medianFiltered = medianFilter(interpolated, 4);
+  // Puis lissage gaussien pour une courbe naturelle
+  const sigma = Math.max(3, windowSize / 6);
+  return gaussianSmooth(medianFiltered, sigma);
+}
+
+function renderMainChart(s, streams) {
+  const ctx = document.getElementById('chart-detail-main')?.getContext('2d');
+  if (!ctx) return;
+
+  const t     = streams.time;
+  const hr    = streams.hr    || [];
+  const pace  = streams.pace  || [];
+  const power = streams.power || [];  // watts Strava (si dispo)
+
+  // Pipeline de lissage amélioré
+  const smoothPace  = smoothArray(pace,  30);
+  const smoothHR    = smoothArray(hr,    20);
+  const smoothPower = power.some(Boolean) ? smoothArray(power, 20) : [];
+
+  const labels = t.map(sec => (sec % 300 === 0) ? `${Math.floor(sec/60)}'` : '');
+
+  // Limites dynamiques axe allure : ignorer les valeurs aberrantes (>8'/km ou <3'/km)
+  const validPace  = smoothPace.filter(v => v && v > 180 && v < 480);
+  const paceMin    = validPace.length ? Math.max(180, Math.min(...validPace) - 20) : 200;
+  const paceMax    = validPace.length ? Math.min(500, Math.max(...validPace) + 40) : 480;
+
+  const validHR    = hr.filter(Boolean);
+  const hrMin      = validHR.length ? Math.max(80,  Math.min(...validHR) - 10) : 100;
+  const hrMax      = validHR.length ? Math.min(220, Math.max(...validHR) + 8)  : (profile.fc_max||208)+5;
+
+  const datasets = [
+    // FC lissée (rouge)
+    { label:'FC (bpm)', data:smoothHR, borderColor:'#ff4757', backgroundColor:'rgba(255,71,87,0.06)',
+      tension:0.3, fill:true, pointRadius:0, borderWidth:2, yAxisID:'y-hr', spanGaps:true },
+    // Allure lissée (bleu)
+    { label:'Allure', data:smoothPace, borderColor:'#47b8ff', backgroundColor:'rgba(71,184,255,0.06)',
+      tension:0.3, fill:false, pointRadius:0, borderWidth:2, yAxisID:'y-pace', spanGaps:true },
+  ];
+
+  // Ajouter la puissance si disponible
+  const scales = {
+    x:{ ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:8},maxTicksLimit:10,callback:(v,i)=>labels[i]||''}, grid:{color:'rgba(42,42,58,0.5)'} },
+    'y-hr':  { position:'left',  ticks:{color:'#ff4757',font:{family:'DM Mono',size:9}}, grid:{color:'rgba(42,42,58,0.5)'}, min:hrMin,  max:hrMax },
+    'y-pace':{ position:'right', reverse:true, ticks:{color:'#47b8ff',font:{family:'DM Mono',size:9},callback:v=>v?secToAllure(v):''}, grid:{display:false}, min:paceMin, max:paceMax },
+  };
+
+  if (smoothPower.some(Boolean)) {
+    const validW = smoothPower.filter(Boolean);
+    datasets.push({
+      label:'Puissance (W)', data:smoothPower,
+      borderColor:'rgba(232,255,71,0.7)', backgroundColor:'transparent',
+      tension:0.3, fill:false, pointRadius:0, borderWidth:1.5,
+      borderDash:[3,3], yAxisID:'y-power', spanGaps:true,
+    });
+    scales['y-power'] = {
+      position:'right', display:true,
+      ticks:{ color:'rgba(232,255,71,0.7)', font:{family:'DM Mono',size:9}, callback:v=>v+'W' },
+      grid:{ display:false },
+      min: Math.max(0, Math.min(...validW) - 20),
+      max: Math.max(...validW) + 20,
+    };
+  }
+
+  chartInstances['detail-main'] = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets },
+    options:{ responsive:true, maintainAspectRatio:true, animation:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:10} }},
+        tooltip:{ callbacks:{ label:(c) => {
+          if (c.dataset.yAxisID === 'y-pace' && c.raw)  return ` Allure: ${secToAllure(c.raw)}/km`;
+          if (c.dataset.yAxisID === 'y-power' && c.raw) return ` Puissance: ${c.raw}W`;
+          return ` FC: ${c.raw} bpm`;
+        }}}
+      },
+      scales
+    }
+  });
 }
 
 function renderZonesChart(zoneMins, isReal) {
