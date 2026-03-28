@@ -200,8 +200,17 @@ input[type=range]{padding:0;background:none;border:none;}
   .section-title{font-size:1.35rem;}
   .section-actions{width:100%;display:flex;gap:.4rem;flex-wrap:wrap;}
   .section-actions .btn{flex:1;min-width:0;font-size:.65rem;padding:.5rem .6rem;text-align:center;}
-  /* Historique mobile : layout carte */
-  .session-item{display:flex;flex-direction:column;gap:.2rem;padding:.75rem .6rem;}
+  /* Historique mobile : grille compacte 2 lignes */
+  .session-item{display:grid;grid-template-columns:auto auto 1fr auto auto;grid-template-rows:auto auto;gap:.2rem .4rem;padding:.65rem .5rem;align-items:center;}
+  .session-item > div:nth-child(1){grid-column:1;grid-row:1;font-size:.62rem;color:var(--muted);}
+  .session-item > div:nth-child(2){grid-column:2;grid-row:1;}
+  .session-item > div:nth-child(3){grid-column:3;grid-row:1;font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .session-item > div:nth-child(4){grid-column:4;grid-row:1;font-size:.72rem;color:var(--accent2);}
+  .session-item > div:nth-child(5){grid-column:1 / span 2;grid-row:2;font-size:.68rem;}
+  .session-item > div:nth-child(6){grid-column:3;grid-row:2;font-size:.68rem;}
+  .session-item > div:nth-child(7){grid-column:4;grid-row:2;font-size:.68rem;color:var(--muted);}
+  .session-item > div:nth-child(8){grid-column:5;grid-row:1 / span 2;display:flex;flex-direction:column;gap:.2rem;align-items:flex-end;}
+  .session-header{display:none !important;}
   .shi-top{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;}
   .shi-bot{display:flex;align-items:center;justify-content:space-between;gap:.4rem;margin-top:.15rem;}
   .shi-mid{font-family:var(--fb);font-size:.76rem;color:var(--muted);}
@@ -1758,6 +1767,13 @@ async function saveSession() {
     const {error}=await db.from('sessions').insert([session]);
     if (error) throw error;
     showToast('Séance enregistrée ✓','success');
+    // Reset form
+    selectedEffort=3; selectedPain=0;
+    setRating('effort',3); setRating('pain',0);
+    const logForm = document.getElementById('log-dist');
+    if (logForm) logForm.closest('form,div')?.querySelectorAll('input,textarea,select').forEach(el=>{
+      if (!['log-date','log-type'].includes(el.id)) el.value='';
+    });
     await loadSessions();
     renderDashboard(); renderWeek(); renderHistory();
     await analyzeSession(session);
@@ -1811,9 +1827,8 @@ function clearLog() {
 function renderHistory() {
   const el=document.getElementById('history-list');
   if (!el) return;
-  if (!allSessions.length) { el.innerHTML='<div class="empty-state">Aucune séance enregistrée</div>'; return; }
   const sub=document.getElementById('history-sub');
-  if (sub) sub.textContent=`${allSessions.length} séances`;
+  if (sub) sub.textContent=`${allSessions.length} séance${allSessions.length>1?'s':''}`;
   if (!allSessions.length) { el.innerHTML='<div class="empty-state">Aucune séance enregistrée</div>'; return; }
   // Header
   const header = `<div class="session-item session-header" style="opacity:.45;font-size:.61rem;text-transform:uppercase;letter-spacing:.09em;padding:.4rem 1rem;background:transparent;border-bottom:1px solid var(--border);">
@@ -1913,7 +1928,7 @@ function openDetailSession(id) {
   if (statsEl) statsEl.innerHTML=`
     <div class="stat-card"><div class="stat-label">Distance</div><div class="stat-value" style="font-size:1.8rem;">${s.distance_km||'—'}</div><div class="stat-sub">km${planned?` · prévu ${planned.target_distance_km}km`:''}</div></div>
     <div class="stat-card"><div class="stat-label">Durée</div><div class="stat-value" style="font-size:1.8rem;">${s.duration_minutes||'—'}</div><div class="stat-sub">minutes</div></div>
-    <div class="stat-card"><div class="stat-label">Allure moy</div><div class="stat-value" style="font-size:1.8rem;color:var(--accent2);">${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds):'—'}</div><div class="stat-sub">/km${z?` · cible ${z.paceHigh}-${z.paceLow}`:''}</div></div>
+    <div class="stat-card"><div class="stat-label">Allure moy</div><div class="stat-value" style="font-size:1.8rem;color:var(--accent2);">${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds):'—'}</div><div class="stat-sub">/km</div></div>
     <div class="stat-card"><div class="stat-label">FC moyenne</div><div class="stat-value" style="font-size:1.8rem;color:var(--danger);">${s.avg_hr||'—'}</div><div class="stat-sub">bpm${z?` · cible ${z.fcLow}-${z.fcHigh}`:''}</div></div>`;
 
   const noteLines=[
@@ -2149,8 +2164,9 @@ function renderMainChart(s, streams) {
 
   // Lissage : on lisse les données brutes stream.pace — pas de recalcul d'allure
   // Le filtre médian élimine les pics GPS, le gaussien lisse la courbe
-  const smoothPace  = smoothArray(pace, 30);
-  const smoothHR    = smoothArray(hr,   20);
+  if (!pace.length && !hr.length) return;
+  const smoothPace  = pace.length  ? smoothArray(pace, 30) : [];
+  const smoothHR    = hr.length    ? smoothArray(hr,   20) : [];
   const smoothPower = power.some(Boolean) ? smoothArray(power, 20) : [];
 
   const labels = t.map(sec => (sec % 300 === 0) ? Math.floor(sec/60) + "'" : '');
@@ -2294,12 +2310,22 @@ function renderZonesChart(zoneMins, isReal) {
   });
 }
 
-function renderPacePerKm(s,streams) {
-  const ctx=document.getElementById('chart-detail-pace')?.getContext('2d');
+function renderPacePerKm(s, streams) {
+  const ctx = document.getElementById('chart-detail-pace')?.getContext('2d');
   if (!ctx) return;
-  let kmPaces=[];
-  if (streams&&streams.distance&&streams.pace) {
-    const dist=streams.distance,pace=streams.pace,hr=streams.hr||[];
+  let kmPaces = [];
+
+  // Priorité 1 : splits Strava (précis, officiels)
+  if (s.splits && s.splits.length) {
+    kmPaces = s.splits.map(sp => ({
+      km:   sp.km,
+      pace: sp.pace_sec  || null,
+      hr:   sp.avg_hr    || null,  // normalize to match streams path field name
+    }));
+  }
+  // Priorité 2 : calculer depuis les streams (si pas de splits)
+  else if (streams && streams.distance && streams.pace) {
+    const dist=streams.distance, pace=streams.pace, hr=streams.hr||[];
     let kmIdx=1,bPace=[],bHR=[];
     for (let i=0;i<dist.length;i++) {
       if (dist[i]!==null&&dist[i]>=kmIdx*1000) {
@@ -2635,16 +2661,15 @@ function saveCoachHistory() {
 function restoreCoachBubbles() {
   const win = document.getElementById('coach-chat-window');
   if (!win) return;
+  // Reload coachHistory from localStorage in case it was updated in another tab
+  if (!coachHistory.length) coachHistory = loadCoachHistory();
   try {
     const saved = localStorage.getItem(COACH_LS_BUBBLES);
-    if (saved) {
+    if (saved && coachHistory.length > 0) {
       win.innerHTML = saved;
       win.scrollTop = win.scrollHeight;
-      // Si on avait une conversation, cacher les suggestions
-      if (coachHistory.length > 0) {
-        const qb = document.getElementById('coach-quick-btns');
-        if (qb) qb.style.display = 'none';
-      }
+      const qb = document.getElementById('coach-quick-btns');
+      if (qb) qb.style.display = 'none';
     }
   } catch(e) {}
 }
@@ -2825,6 +2850,7 @@ function renderGraphs() {
   const days=parseInt(document.getElementById('graph-period')?.value||90);
   const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-days);
   const recent=allSessions.filter(s=>new Date(s.date+'T12:00:00')>=cutoff).sort((a,b)=>a.date.localeCompare(b.date));
+  if (!allSessions.length) return; // rien à afficher
   renderVolumeChart(recent); renderPaceChart(recent); renderHRChart(recent);
   renderTypesChart(recent); renderLoadChart(recent); renderFitnessChart();
   renderEconomyChart(recent); renderPainChart(recent); renderPolarChart(recent);
@@ -2925,15 +2951,21 @@ function renderCadenceChart(sessions) {
   const labels = data.map(d => formatDate(d.date));
   const vals   = data.map(d => d.cad);
   const colors = data.map(d => ({ 'VMA':'rgba(255,71,87,0.7)', 'Seuil':'rgba(255,165,2,0.7)', 'Aérobie Z3':'rgba(46,213,115,0.7)' }[d.type] || 'rgba(71,184,255,0.7)'));
+  // Ligne cible à 174 spm comme dataset (pas besoin du plugin annotation)
+  const targetLine = vals.map(() => 174);
   chartInstances['cadence'] = new Chart(ctx, {
     type:'bar',
     data:{ labels, datasets:[
-      { label:'Cadence (pas/min)', data:vals, backgroundColor:colors, borderRadius:3 }
+      { label:'Cadence (pas/min)', data:vals, backgroundColor:colors, borderRadius:3, order:2 },
+      { label:'Cible 174 spm',    data:targetLine, type:'line',
+        borderColor:'rgba(232,255,71,0.6)', backgroundColor:'transparent',
+        borderWidth:1.5, borderDash:[5,4], pointRadius:0, order:1 }
     ]},
     options:{ ...CHART_DEFAULTS,
-      plugins:{ ...CHART_DEFAULTS.plugins, legend:{display:false},
-        annotation:{ annotations:{ target:{ type:'line', yMin:174, yMax:174, borderColor:'rgba(232,255,71,0.5)', borderWidth:1, borderDash:[4,4], label:{content:'Cible 174',display:true,color:'rgba(232,255,71,0.7)',font:{size:9}} }}}},
-      scales:{ ...CHART_DEFAULTS.scales, y:{ ...CHART_DEFAULTS.scales.y, min:150, max:200 }}
+      plugins:{ ...CHART_DEFAULTS.plugins,
+        legend:{ display:true, labels:{ color:'#6b6b8a', font:{family:'DM Mono',size:9},
+          filter: item => item.text !== 'Cadence (pas/min)' }}},
+      scales:{ ...CHART_DEFAULTS.scales, y:{ ...CHART_DEFAULTS.scales.y, min:150, max:205 }}
     }
   });
 }
@@ -2944,7 +2976,9 @@ function renderTempChart(sessions) {
   if (!ctx) return;
   const efSessions = sessions.filter(s => s.avg_temp != null && s.avg_pace_seconds && s.avg_hr && s.type === 'EF');
   if (efSessions.length < 3) {
-    ctx.canvas.parentElement.innerHTML += '<div class="empty-state" style="padding:1rem;font-size:.75rem;">Pas assez de données (séances EF avec température)</div>';
+    const tempParent = ctx.canvas.parentElement;
+    if (!tempParent.querySelector('.empty-state'))
+      tempParent.insertAdjacentHTML('beforeend', '<div class="empty-state" style="padding:1rem;font-size:.75rem;">Pas assez de données (séances EF avec température)</div>');
     return;
   }
   const labels = efSessions.map(s => `${formatDate(s.date)} (${s.avg_temp}°)`);
@@ -3149,10 +3183,11 @@ function renderTypesChart(sessions) {
         const h   = Math.floor((c.parsed||0)/60), m = Math.round((c.parsed||0)%60);
         return ` ${h>0?h+'h':''}${m}min (${pct}%)`;
       }}},
-      title:[
-        { display:true, text:`Polarisation : ${pctLow}% basse intensité · ${100-pctLow}% haute intensité`, color:'#6b6b8a', font:{family:'DM Mono',size:9} },
-        { display:true, text: sourceLabel, color: streamsUsed===0?'#ffa502':streamsUsed>estimUsed?'#2ed573':'#47b8ff', font:{family:'DM Mono',size:9} },
-      ]
+      title:{ display:true,
+        text:`${pctLow}% basse · ${100-pctLow}% haute intensité | ${sourceLabel}`,
+        color: streamsUsed===0?'#ffa502':streamsUsed>estimUsed?'#2ed573':'#47b8ff',
+        font:{family:'DM Mono',size:9}
+      }
     }}
   });
 }
