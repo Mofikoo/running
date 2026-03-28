@@ -42,7 +42,7 @@ nav.top-nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);back
 .bottom-tab.active{color:var(--accent);}
 .bottom-tab-icon{font-size:1.5rem;line-height:1;}
 .bottom-tab-label{font-family:var(--fm);font-size:.57rem;text-transform:uppercase;letter-spacing:.06em;}
-.page{display:none;padding:1.5rem 2rem;position:relative;z-index:1;}
+.page{display:none;padding:1.5rem 2rem;position:relative;z-index:1;min-height:50vh;}
 .page.active{display:block;animation:fadeIn .3s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 .tb{display:inline-block;font-family:var(--fm);font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;padding:.15rem .4rem;border-radius:3px;}
@@ -3347,7 +3347,8 @@ function showPage(name){
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.bottom-tab').forEach(t=>t.classList.remove('active'));
   const page=document.getElementById('page-'+name);
-  if (page) page.classList.add('active');
+  if (page) { page.classList.add('active'); page.scrollTop=0; }
+  window.scrollTo(0,0);
   const tabs=['dashboard','planning','log','history','graphs','coach','profil','more','detail'];
   const idx=tabs.indexOf(name);
   if (idx>=0) document.querySelectorAll('.nav-tab')[idx]?.classList.add('active');
