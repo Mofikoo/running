@@ -2362,7 +2362,42 @@ Profil: PB ${secToTime(profile.pb_10k_seconds)}, objectif sub-37, FC max ${profi
 // ═══════════════════════════════════════════════════════
 // COACH IA — CHAT INTERACTIF AVEC HISTORIQUE
 // ═══════════════════════════════════════════════════════
-let coachHistory = []; // Persistant pendant la session
+// Coach history — persisté dans localStorage
+const COACH_LS_KEY = 'runcoach_chat_history';
+const COACH_LS_BUBBLES = 'runcoach_chat_bubbles';
+
+function loadCoachHistory() {
+  try {
+    const saved = localStorage.getItem(COACH_LS_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch(e) { return []; }
+}
+function saveCoachHistory() {
+  try {
+    localStorage.setItem(COACH_LS_KEY, JSON.stringify(coachHistory));
+    // Sauvegarder aussi les bulles HTML pour les restaurer visuellement
+    const win = document.getElementById('coach-chat-window');
+    if (win) localStorage.setItem(COACH_LS_BUBBLES, win.innerHTML);
+  } catch(e) {}
+}
+function restoreCoachBubbles() {
+  const win = document.getElementById('coach-chat-window');
+  if (!win) return;
+  try {
+    const saved = localStorage.getItem(COACH_LS_BUBBLES);
+    if (saved) {
+      win.innerHTML = saved;
+      win.scrollTop = win.scrollHeight;
+      // Si on avait une conversation, cacher les suggestions
+      if (coachHistory.length > 0) {
+        const qb = document.getElementById('coach-quick-btns');
+        if (qb) qb.style.display = 'none';
+      }
+    }
+  } catch(e) {}
+}
+
+let coachHistory = loadCoachHistory();
 
 function appendChatBubble(role, text, isLoading=false) {
   const win = document.getElementById('coach-chat-window');
@@ -2377,9 +2412,9 @@ function appendChatBubble(role, text, isLoading=false) {
 
 function clearCoachHistory() {
   coachHistory = [];
+  try { localStorage.removeItem(COACH_LS_KEY); localStorage.removeItem(COACH_LS_BUBBLES); } catch(e) {}
   const win = document.getElementById('coach-chat-window');
   if (win) win.innerHTML = '<div class="chat-bubble coach" style="color:var(--muted);font-size:.8rem;">Conversation effacée. Je suis prêt pour de nouvelles questions !</div>';
-  // Réafficher les suggestions
   const qb = document.getElementById('coach-quick-btns');
   if (qb) qb.style.display = 'flex';
 }
@@ -2470,8 +2505,10 @@ Réponds en français, de façon directe et personnalisée. Tu as accès à l'hi
     // Ajouter la réponse à l'historique
     coachHistory.push({ role: 'assistant', content: reply });
 
-    // Garder l'historique raisonnable (10 échanges max = 20 messages)
-    if (coachHistory.length > 20) coachHistory = coachHistory.slice(-20);
+    // Garder l'historique raisonnable (20 échanges max = 40 messages)
+    if (coachHistory.length > 40) coachHistory = coachHistory.slice(-40);
+    // Persister dans localStorage
+    saveCoachHistory();
 
   } catch(e) {
     if (loadingBubble) {
@@ -2897,6 +2934,7 @@ function showPage(name){
   if (name==='detail') document.getElementById('btab-history')?.classList.add('active');
   if (name==='planning') renderWeek();
   if (name==='graphs')   renderGraphs();
+  if (name==='coach')    restoreCoachBubbles();
 }
 function openModal(id){const el=document.getElementById(id);if(el)el.classList.add('open');}
 function closeModal(id){const el=document.getElementById(id);if(el)el.classList.remove('open');}
