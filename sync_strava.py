@@ -225,13 +225,48 @@ def sync(days_back=7):
                 elif fc >= FC_MAX*0.80: effort = 3
                 else:                   effort = 2
 
-            # Streams (FC/allure par seconde) — même pour les réimports
-            streams_data = None
             time.sleep(0.5)  # rate limiting Strava
+
+            # Détails complets (splits, best_efforts, temperature, puissance, etc.)
+            detail = {}
+            try:
+                detail = get_activity_detail(token, aid)
+            except Exception as e:
+                log.warning(f"  Détails erreur: {e}")
+
+            suffer_score  = detail.get('suffer_score')
+            w_avg_watts   = detail.get('weighted_average_watts')
+            avg_watts_act = detail.get('average_watts')
+            kilojoules    = detail.get('kilojoules')
+            avg_temp      = detail.get('average_temp')
+            rpe_strava    = detail.get('perceived_exertion')
+
+            # RPE Strava si disponible
+            if rpe_strava:
+                effort = min(5, max(1, round(rpe_strava / 2)))
+
+            splits_data       = parse_splits(detail)
+            best_efforts_data = parse_best_efforts(detail)
+            log.info(f"  → splits: {len(splits_data) if splits_data else 0} km | best_efforts: {len(best_efforts_data) if best_efforts_data else 0}")
+
+            # Type recalculé avec Karvonen
+            res = FC_MAX - FC_REPO
+            if avg_hr and stype == 'EF':
+                fc = float(avg_hr)
+                if   fc >= FC_REPO + res*0.90: stype = 'VMA'
+                elif fc >= FC_REPO + res*0.80: stype = 'Seuil'
+                elif fc >= FC_REPO + res*0.70: stype = 'Aérobie Z3'
+
+            # Streams FC/allure par seconde
+            streams_data = None
             try:
                 streams_data = get_streams(token, aid)
                 if streams_data:
-                    log.info(f"  → {streams_data['total_points']} points, zones: {streams_data['zone_minutes']}")
+                    if w_avg_watts:
+                        streams_data['weighted_avg_watts'] = w_avg_watts
+                    if avg_temp is not None:
+                        streams_data['avg_temp'] = avg_temp
+                    log.info(f"  → {streams_data['total_points']} pts | zones: {streams_data['zone_minutes']}")
             except Exception as e:
                 log.warning(f"  Streams erreur: {e}")
 
@@ -251,6 +286,13 @@ def sync(days_back=7):
                 "elevation_gain":     round(elev, 1) if elev else None,
                 "cadence_avg":        int(cadence * 2) if cadence else None,
                 "streams":            streams_data,
+                "splits":             splits_data,
+                "best_efforts":       best_efforts_data,
+                "suffer_score":       int(suffer_score) if suffer_score else None,
+                "power_avg":          int(avg_watts_act) if avg_watts_act else None,
+                "power_weighted":     int(w_avg_watts) if w_avg_watts else None,
+                "kilojoules":         round(kilojoules, 1) if kilojoules else None,
+                "avg_temp":           round(avg_temp, 1) if avg_temp is not None else None,
             }
 
             upsert_session(session)
