@@ -17,7 +17,8 @@ SUPABASE_KEY  = os.environ['SUPABASE_KEY']
 GITHUB_TOKEN  = os.environ.get('GITHUB_TOKEN', '')
 GITHUB_REPO   = os.environ.get('GITHUB_REPOSITORY', '')
 
-FC_MAX = 208
+FC_MAX  = 208
+FC_REPO = 55   # FC repos pour calcul Karvonen
 SUPABASE_HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -80,7 +81,7 @@ def map_type(name, avg_hr):
 
 def get_streams(token, activity_id):
     """Récupère les streams par seconde depuis Strava."""
-    keys = 'time,heartrate,velocity_smooth,cadence,altitude,distance'
+    keys = 'time,heartrate,velocity_smooth,cadence,altitude,distance,watts'
     r = requests.get(
         f'https://www.strava.com/api/v3/activities/{activity_id}/streams',
         headers={"Authorization": f"Bearer {token}"},
@@ -100,6 +101,7 @@ def get_streams(token, activity_id):
     cad_arr  = data.get('cadence', {}).get('data', [])
     alt_arr  = data.get('altitude', {}).get('data', [])
     dist_arr = data.get('distance', {}).get('data', [])
+    watt_arr = data.get('watts', {}).get('data', [])
 
     if not time_arr:
         return None
@@ -125,6 +127,7 @@ def get_streams(token, activity_id):
         'cadence':  [safe_get(cad_arr, i) for i in indices],
         'altitude': [round(safe_get(alt_arr, i), 1) if safe_get(alt_arr, i) else None for i in indices],
         'distance': [round(safe_get(dist_arr, i), 0) if safe_get(dist_arr, i) else None for i in indices],
+        'power':    [int(safe_get(watt_arr, i)) if safe_get(watt_arr, i) else None for i in indices],
     }
 
     # Calcul temps par zone FC
@@ -142,12 +145,14 @@ def compute_zone_times(hr_arr):
     if not hr_arr:
         return None
     zones = {'Z1':0, 'Z2':0, 'Z3':0, 'Z4':0, 'Z5':0}
+    # Zones Karvonen (cohérentes avec l'app)
+    res = FC_MAX - FC_REPO
     bounds = [
-        ('Z1', FC_MAX*0.60, FC_MAX*0.70),
-        ('Z2', FC_MAX*0.70, FC_MAX*0.80),
-        ('Z3', FC_MAX*0.80, FC_MAX*0.88),
-        ('Z4', FC_MAX*0.88, FC_MAX*0.93),
-        ('Z5', FC_MAX*0.93, FC_MAX*1.01),
+        ('Z1', FC_REPO + res*0.50, FC_REPO + res*0.60),
+        ('Z2', FC_REPO + res*0.60, FC_REPO + res*0.70),
+        ('Z3', FC_REPO + res*0.70, FC_REPO + res*0.80),
+        ('Z4', FC_REPO + res*0.80, FC_REPO + res*0.90),
+        ('Z5', FC_REPO + res*0.90, FC_MAX*1.01),
     ]
     for hr in hr_arr:
         if hr is None: continue
@@ -220,12 +225,7 @@ def sync(days_back=7):
                 elif fc >= FC_MAX*0.80: effort = 3
                 else:                   effort = 2
 
-            # Skipper si déjà en base
-            if aid in existing:
-                log.info(f"  → {date_str} déjà importé, skip")
-                continue
-
-            # Streams (FC/allure par seconde) — uniquement pour les nouvelles séances
+            # Streams (FC/allure par seconde) — même pour les réimports
             streams_data = None
             time.sleep(0.5)  # rate limiting Strava
             try:
