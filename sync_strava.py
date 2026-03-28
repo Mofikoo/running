@@ -163,6 +163,60 @@ def compute_zone_times(hr_arr):
     # Convertir en minutes
     return {k: round(v/60, 1) for k, v in zones.items()}
 
+def get_activity_detail(token, activity_id):
+    """Récupère les détails complets d'une activité Strava."""
+    r = requests.get(
+        f'https://www.strava.com/api/v3/activities/{activity_id}',
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if r.status_code != 200:
+        log.warning(f"Détails non disponibles pour {activity_id}: {r.status_code}")
+        return {}
+    return r.json()
+
+def parse_splits(activity_detail):
+    """Splits km par km fournis par Strava."""
+    splits = activity_detail.get('splits_metric', [])
+    if not splits:
+        return None
+    result = []
+    for s in splits:
+        spd = s.get('average_speed')
+        pace_sec = round(1000 / spd) if spd and spd > 0 else None
+        result.append({
+            'km':           s.get('split'),
+            'distance_m':   round(s.get('distance', 0)),
+            'duration_sec': round(s.get('moving_time', 0)),
+            'pace_sec':     pace_sec,
+            'avg_hr':       int(s['average_heartrate']) if s.get('average_heartrate') else None,
+            'elev_diff':    round(s.get('elevation_difference', 0), 1),
+        })
+    return result
+
+def parse_best_efforts(activity_detail):
+    """Meilleurs temps sur distances standard — semi et marathon inclus."""
+    efforts = activity_detail.get('best_efforts', [])
+    if not efforts:
+        return None
+    # Distances exactes utilisées par Strava
+    TARGETS = {200, 400, 1000, 1609, 2000, 5000, 10000, 21097, 42195}
+    result = []
+    seen = set()
+    for e in efforts:
+        dist = round(e.get('distance', 0))
+        if dist not in TARGETS or dist in seen:
+            continue
+        seen.add(dist)
+        elapsed = e.get('elapsed_time', 0)
+        pace_sec = round(elapsed / dist * 1000) if dist > 0 else None
+        result.append({
+            'distance_m':  dist,
+            'label':       e.get('name', f'{dist}m'),
+            'elapsed_sec': elapsed,
+            'pace_sec':    pace_sec,
+        })
+    return result if result else None
+
 def get_existing_ids():
     r = requests.get(
         f"{SUPABASE_URL}/rest/v1/sessions?select=garmin_activity_id&garmin_activity_id=not.is.null",
