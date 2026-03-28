@@ -1,5 +1,5 @@
 // RunCoach Service Worker
-const CACHE_NAME = 'runcoach-v27';
+const CACHE_NAME = 'runcoach-v28';
 const STATIC_ASSETS = [
   '/running/',
   '/running/index.html',
