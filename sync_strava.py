@@ -220,7 +220,12 @@ def sync(days_back=7):
                 elif fc >= FC_MAX*0.80: effort = 3
                 else:                   effort = 2
 
-            # Streams (FC/allure par seconde) — même pour les réimports
+            # Skipper si déjà en base
+            if aid in existing:
+                log.info(f"  → {date_str} déjà importé, skip")
+                continue
+
+            # Streams (FC/allure par seconde) — uniquement pour les nouvelles séances
             streams_data = None
             time.sleep(0.5)  # rate limiting Strava
             try:
