@@ -45,7 +45,7 @@ nav.top-nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);back
 .page{display:none;padding:1.5rem 2rem;position:relative;z-index:1;min-height:50vh;}
 .page.active{display:block;animation:fadeIn .3s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
-.tb{display:inline-block;font-family:var(--fm);font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;padding:.15rem .4rem;border-radius:3px;}
+.tb{display:inline-block;font-family:var(--fm);font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;padding:.2rem .5rem;border-radius:4px;line-height:1.3;}
 .tb-EF{background:rgba(71,184,255,.15);color:var(--accent2);}
 .tb-Z3{background:rgba(46,213,115,.15);color:var(--success);}
 .tb-Seuil{background:rgba(255,165,2,.15);color:var(--warn);}
@@ -67,7 +67,7 @@ nav.top-nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);back
 .confirm-btns .btn{min-width:110px;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;}
 .card:hover{border-color:rgba(232,255,71,.15);}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;align-items:start;}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem;}
 .hero-stats{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem;}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.2rem;}
@@ -145,8 +145,9 @@ input[type=range]{padding:0;background:none;border:none;}
 .ai-name{font-family:var(--fd);font-size:.95rem;letter-spacing:.05em;}
 .ai-sub{font-family:var(--fm);font-size:.6rem;color:var(--muted);}
 .ai-message{font-family:var(--fb);font-size:.86rem;line-height:1.7;white-space:pre-wrap;}
-.chat-window{display:flex;flex-direction:column;gap:.75rem;max-height:55vh;overflow-y:auto;padding:.5rem 0;scroll-behavior:smooth;}
-.chat-bubble{max-width:88%;padding:.75rem 1rem;border-radius:12px;font-family:var(--fb);font-size:.85rem;line-height:1.65;white-space:pre-wrap;}
+.chat-window{display:flex;flex-direction:column;gap:.75rem;flex:1;min-height:0;height:calc(100vh - 280px);overflow-y:auto;padding:.5rem 0 .5rem;scroll-behavior:smooth;}
+.chat-bubble{max-width:88%;padding:.75rem 1rem;border-radius:12px;font-family:var(--fb);font-size:.85rem;line-height:1.65;}
+.chat-bubble.user{white-space:pre-wrap;}
 .chat-bubble.user{align-self:flex-end;background:rgba(232,255,71,.12);border:1px solid rgba(232,255,71,.2);color:var(--text);border-bottom-right-radius:3px;}
 .chat-bubble.coach{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:3px;}
 .chat-bubble.coach.loading{color:var(--muted);}
@@ -455,8 +456,8 @@ input[type=range]{padding:0;background:none;border:none;}
     <div class="card"><div class="card-title">Allure EF — moyenne hebdomadaire <span class="badge">EF ONLY</span></div><canvas id="chart-pace" height="130"></canvas></div>
   </div>
   <div class="grid-2" style="margin-bottom:1rem;">
-    <div class="card"><div class="card-title">FC moyenne par type de séance</div><canvas id="chart-hr" height="130"></canvas></div>
-    <div class="card"><div class="card-title">Temps par zone FC <span class="badge" id="types-badge">STRAVA</span></div><canvas id="chart-types" height="130"></canvas></div>
+    <div class="card" style="align-self:start;"><div class="card-title">FC moyenne par type de séance</div><canvas id="chart-hr" height="220"></canvas></div>
+    <div class="card" style="align-self:start;"><div class="card-title">Temps par zone FC <span class="badge" id="types-badge">STRAVA</span></div><canvas id="chart-types" height="220"></canvas></div>
   </div>
   <div class="card"><div class="card-title">Charge cumulée (km/semaine) + tendance</div><canvas id="chart-load" height="90"></canvas></div>
   <div class="card" style="margin-top:1rem;">
@@ -558,7 +559,7 @@ input[type=range]{padding:0;background:none;border:none;}
     <div><div class="section-title">COACH IA</div><div class="section-sub">Chat · Persistant · Contextuel</div></div>
     <button class="btn btn-ghost btn-sm" onclick="clearCoachHistory()">🗑 Effacer</button>
   </div>
-  <div class="card" style="display:flex;flex-direction:column;gap:0;padding:1rem;">
+  <div class="card" style="display:flex;flex-direction:column;gap:0;padding:1rem;min-height:calc(100vh - 160px);">
     <!-- Suggestions rapides -->
     <div class="chat-quick-btns" id="coach-quick-btns">
       <button class="chat-quick-btn" onclick="sendCoachMsg('Fais un bilan de ma semaine')">📊 Bilan semaine</button>
@@ -2070,7 +2071,7 @@ function renderDetailCharts(s) {
 
   renderPacePerKm(s,streams);
   if (streams&&streams.time) {
-    const intervals=detectIntervals(streams);
+    const intervals=detectIntervals(streams, s.type);
     if (intervals.length>=3) renderIntervalChart(intervals,streams);
   }
 }
@@ -2352,20 +2353,34 @@ function renderPacePerKm(s, streams) {
   }});
 }
 
-function detectIntervals(streams) {
+function detectIntervals(streams, sessionType) {
   const pace = streams.pace, hr = streams.hr||[], time = streams.time;
-  if (!pace || pace.length < 30) return [];
+  if (!pace || pace.length < 60) return [];
 
-  // Lisser plus fortement pour avoir des segments stables
-  const smoothP = smoothArray(pace, 30);
+  // ── Pas de détection sur les séances sans structure d'intervalles ──────────
+  // EF, Long, Récup : allure naturellement variable, pas de blocs structurés
+  if (['EF','Long','Récup','Aérobie Z3'].includes(sessionType)) return [];
+
+  // Lissage fort (60 pts = ~5 min de fenêtre) pour ignorer les micro-variations
+  const smoothP = smoothArray(pace, 60);
   const validP  = smoothP.filter(Boolean);
   if (!validP.length) return [];
 
-  const avgPace   = validP.reduce((a,b)=>a+b,0) / validP.length;
-  const fastThresh = avgPace * 0.88;  // rapide si allure < 88% de la moy (= plus vite)
-  const slowThresh = avgPace * 1.10;  // lent si allure > 110% de la moy (= récup)
+  const totalDurSec = time[time.length-1] - time[0];
+  const avgPace = validP.reduce((a,b)=>a+b,0) / validP.length;
 
-  // Classer chaque seconde : 'fast' | 'slow' | 'normal'
+  // Seuils selon type :
+  // VMA : efforts très marqués (>15% plus vite), récups longues et lentes
+  // Seuil : efforts modérés (>6% plus vite)
+  const fastThresh = sessionType === 'VMA' ? avgPace * 0.85 : avgPace * 0.94;
+  const slowThresh = sessionType === 'VMA' ? avgPace * 1.10 : avgPace * 1.15;
+
+  // Durée minimale selon le type de séance
+  // VMA (400m~90s, 200m~45s) : 45s min
+  // Seuil (x8', x10', x15') : 3 min min
+  const MIN_BLOC_SEC = sessionType === 'VMA' ? 45 : 180;
+
+  // ── Étape 1 : tag chaque seconde ─────────────────────────────────────────
   const tags = smoothP.map(p => {
     if (!p) return 'normal';
     if (p < fastThresh) return 'fast';
@@ -2373,35 +2388,80 @@ function detectIntervals(streams) {
     return 'normal';
   });
 
-  // Détecter les blocs continus (min 45 secondes pour éviter les artefacts)
-  const MIN_DUR = 45;
-  const segments = [];
+  // ── Étape 2 : construire les blocs bruts ─────────────────────────────────
+  const rawBlocs = [];
   let curTag = tags[0], segStart = 0;
-
   for (let i = 1; i <= tags.length; i++) {
     const t = i < tags.length ? tags[i] : null;
     if (t !== curTag || i === tags.length) {
       const segEnd = i;
       const durSec = time[Math.min(segEnd, time.length-1)] - time[segStart];
-      if (durSec >= MIN_DUR) {
-        const pSlice = pace.slice(segStart, segEnd).filter(Boolean);
-        const hSlice = hr.slice(segStart, segEnd).filter(Boolean);
-        segments.push({
-          tag:      curTag,
-          startIdx: segStart, endIdx: segEnd,
-          startTime:time[segStart],
-          endTime:  time[Math.min(segEnd, time.length-1)],
-          durationSec: durSec,
-          avgPace: pSlice.length ? Math.round(pSlice.reduce((a,b)=>a+b,0)/pSlice.length) : null,
-          avgHR:   hSlice.length ? Math.round(hSlice.reduce((a,b)=>a+b,0)/hSlice.length) : null,
-        });
-      }
+      const pSlice = pace.slice(segStart, segEnd).filter(Boolean);
+      const hSlice = hr.slice(segStart, segEnd).filter(Boolean);
+      rawBlocs.push({
+        tag: curTag, durSec,
+        startIdx: segStart, endIdx: segEnd,
+        startTime: time[segStart],
+        endTime: time[Math.min(segEnd, time.length-1)],
+        avgPace: pSlice.length ? Math.round(pSlice.reduce((a,b)=>a+b,0)/pSlice.length) : null,
+        avgHR:   hSlice.length ? Math.round(hSlice.reduce((a,b)=>a+b,0)/hSlice.length) : null,
+      });
       curTag = t; segStart = i;
     }
   }
 
-  // Numéroter tous les segments (rapides EN GRAS, lents en muted)
-  return segments.map((s, i) => ({ ...s, num: i+1 }));
+  // ── Étape 3 : fusionner les blocs courts avec le voisin le plus proche ────
+  // Un bloc < 3min qui est entouré de blocs du même tag → fusionner
+  function mergeShortBlocs(blocs) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let i = 0; i < blocs.length; i++) {
+        if (blocs[i].durSec < MIN_BLOC_SEC) {
+          // Fusionner avec le voisin (préférer même tag, sinon le plus long)
+          const prev = i > 0 ? blocs[i-1] : null;
+          const next = i < blocs.length-1 ? blocs[i+1] : null;
+          let mergeWith = null;
+          if (prev && next) {
+            mergeWith = (prev.tag === blocs[i].tag) ? i-1
+                      : (next.tag === blocs[i].tag) ? i+1
+                      : (prev.durSec >= next.durSec) ? i-1 : i+1;
+          } else if (prev) mergeWith = i-1;
+          else if (next)   mergeWith = i+1;
+
+          if (mergeWith !== null) {
+            const a = blocs[Math.min(i, mergeWith)];
+            const b = blocs[Math.max(i, mergeWith)];
+            const merged = {
+              tag: a.durSec >= b.durSec ? a.tag : b.tag,
+              durSec: a.durSec + b.durSec,
+              startIdx: a.startIdx, endIdx: b.endIdx,
+              startTime: a.startTime, endTime: b.endTime,
+              avgPace: (a.avgPace && b.avgPace) ? Math.round((a.avgPace*a.durSec + b.avgPace*b.durSec)/(a.durSec+b.durSec)) : (a.avgPace||b.avgPace),
+              avgHR:   (a.avgHR   && b.avgHR)   ? Math.round((a.avgHR  *a.durSec + b.avgHR  *b.durSec)/(a.durSec+b.durSec)) : (a.avgHR  ||b.avgHR),
+            };
+            blocs.splice(Math.min(i, mergeWith), 2, merged);
+            changed = true;
+            break;
+          }
+        }
+      }
+    }
+    return blocs;
+  }
+
+  const merged = mergeShortBlocs(rawBlocs);
+
+  // ── Étape 4 : ne garder que si au moins 1 bloc EFFORT significatif ────────
+  const effortBlocs = merged.filter(b => b.tag === 'fast');
+  if (!effortBlocs.length) return [];
+
+  // Si le plus long effort < 3 min → probablement pas une séance structurée
+  const longestEffort = Math.max(...effortBlocs.map(b => b.durSec));
+  if (longestEffort < MIN_BLOC_SEC) return [];
+
+  // Numéroter
+  return merged.map((s, i) => ({ ...s, num: i+1 }));
 }
 
 function renderIntervalChart(intervals,streams) {
@@ -2673,12 +2733,34 @@ function restoreCoachBubbles() {
 
 let coachHistory = loadCoachHistory();
 
+function renderMarkdown(text) {
+  // Convertit le markdown basique en HTML
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Titres ### → gras souligné
+    .replace(/^### (.+)$/gm, '<strong style="font-size:.9rem;color:var(--accent);display:block;margin:.6rem 0 .2rem;">$1</strong>')
+    .replace(/^## (.+)$/gm,  '<strong style="font-size:.95rem;color:var(--accent);display:block;margin:.6rem 0 .2rem;">$1</strong>')
+    // **bold**
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // *italic* ou _italic_
+    .replace(/\*(.+?)\*/g, '<em style="color:var(--accent2);">$1</em>')
+    // Listes * item ou - item
+    .replace(/^[\*\-] (.+)$/gm, '<div style="padding-left:.8rem;margin:.15rem 0;">· $1</div>')
+    // Sauts de ligne
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
 function appendChatBubble(role, text, isLoading=false) {
   const win = document.getElementById('coach-chat-window');
   if (!win) return null;
   const div = document.createElement('div');
   div.className = 'chat-bubble ' + role + (isLoading ? ' loading' : '');
-  div.textContent = text;
+  if (isLoading || role === 'user') {
+    div.textContent = text;
+  } else {
+    div.innerHTML = renderMarkdown(text);
+  }
   win.appendChild(div);
   win.scrollTop = win.scrollHeight;
   return div;
@@ -2772,7 +2854,7 @@ Réponds en français, de façon directe et personnalisée. Tu as accès à l'hi
 
     // Remplacer la bulle de chargement
     if (loadingBubble) {
-      loadingBubble.textContent = reply;
+      loadingBubble.innerHTML = renderMarkdown(reply);
       loadingBubble.classList.remove('loading');
     }
 
@@ -2786,7 +2868,7 @@ Réponds en français, de façon directe et personnalisée. Tu as accès à l'hi
 
   } catch(e) {
     if (loadingBubble) {
-      loadingBubble.textContent = 'Erreur de connexion: ' + e.message;
+      loadingBubble.textContent = '❌ Erreur: ' + e.message;
       loadingBubble.classList.remove('loading');
     }
   }
