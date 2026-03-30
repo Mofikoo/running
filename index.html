@@ -145,13 +145,13 @@ input[type=range]{padding:0;background:none;border:none;}
 .ai-name{font-family:var(--fd);font-size:.95rem;letter-spacing:.05em;}
 .ai-sub{font-family:var(--fm);font-size:.6rem;color:var(--muted);}
 .ai-message{font-family:var(--fb);font-size:.86rem;line-height:1.7;white-space:pre-wrap;}
-.chat-window{display:flex;flex-direction:column;gap:.75rem;flex:1;min-height:0;height:calc(100vh - 280px);overflow-y:auto;padding:.5rem 0 .5rem;scroll-behavior:smooth;}
+.chat-window{display:flex;flex-direction:column;gap:.75rem;flex:1;min-height:0;overflow-y:auto;padding:.5rem 0;scroll-behavior:smooth;}
 .chat-bubble{max-width:88%;padding:.75rem 1rem;border-radius:12px;font-family:var(--fb);font-size:.85rem;line-height:1.65;}
 .chat-bubble.user{white-space:pre-wrap;}
 .chat-bubble.user{align-self:flex-end;background:rgba(232,255,71,.12);border:1px solid rgba(232,255,71,.2);color:var(--text);border-bottom-right-radius:3px;}
 .chat-bubble.coach{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:3px;}
 .chat-bubble.coach.loading{color:var(--muted);}
-.chat-input-row{display:flex;gap:.6rem;align-items:flex-end;padding-top:.5rem;border-top:1px solid var(--border);}
+.chat-input-row{display:flex;gap:.6rem;align-items:flex-end;padding-top:.5rem;border-top:1px solid var(--border);flex-shrink:0;}
 .chat-input-row textarea{flex:1;resize:none;min-height:44px;max-height:100px;border-radius:10px;padding:.65rem .85rem;font-size:.85rem;line-height:1.4;}
 .chat-send-btn{background:var(--accent);border:none;border-radius:10px;color:#0a0a0f;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:1.1rem;transition:background .2s;}
 .chat-send-btn:hover{background:#f5ff70;}
@@ -189,6 +189,7 @@ input[type=range]{padding:0;background:none;border:none;}
   nav.top-nav{padding:0 1rem;justify-content:center;padding-top:env(safe-area-inset-top);}
   .nav-logo{font-size:1.3rem;} .bottom-nav{display:block;}
   .page{padding:.85rem;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 2rem);}
+  #page-coach{padding:.75rem .75rem 0;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));height:calc(100vh - var(--nav-h));}
   .hero-stats{grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;}
   .stat-card{padding:.75rem;} .stat-value{font-size:1.5rem;} .stat-label{font-size:.58rem;} .stat-sub{font-size:.62rem;}
   .grid-2,.grid-3{grid-template-columns:1fr;gap:.6rem;}
@@ -554,12 +555,12 @@ input[type=range]{padding:0;background:none;border:none;}
 </div>
 
 <!-- COACH IA -->
-<div id="page-coach" class="page">
-  <div class="section-header" style="margin-bottom:.75rem;">
+<div id="page-coach" class="page" style="display:flex;flex-direction:column;height:calc(100vh - var(--nav-h));padding-bottom:0;">
+  <div class="section-header" style="margin-bottom:.75rem;flex-shrink:0;">
     <div><div class="section-title">COACH IA</div><div class="section-sub">Chat · Persistant · Contextuel</div></div>
     <button class="btn btn-ghost btn-sm" onclick="clearCoachHistory()">🗑 Effacer</button>
   </div>
-  <div class="card" style="display:flex;flex-direction:column;gap:0;padding:1rem;min-height:calc(100vh - 160px);">
+  <div class="card" style="display:flex;flex-direction:column;gap:0;padding:1rem;flex:1;min-height:0;">
     <!-- Suggestions rapides -->
     <div class="chat-quick-btns" id="coach-quick-btns">
       <button class="chat-quick-btn" onclick="sendCoachMsg('Fais un bilan de ma semaine')">📊 Bilan semaine</button>
@@ -2718,16 +2719,21 @@ function saveCoachHistory() {
 function restoreCoachBubbles() {
   const win = document.getElementById('coach-chat-window');
   if (!win) return;
-  // Reload coachHistory from localStorage in case it was updated in another tab
   if (!coachHistory.length) coachHistory = loadCoachHistory();
+  if (!coachHistory.length) return;
   try {
-    const saved = localStorage.getItem(COACH_LS_BUBBLES);
-    if (saved && coachHistory.length > 0) {
-      win.innerHTML = saved;
-      win.scrollTop = win.scrollHeight;
-      const qb = document.getElementById('coach-quick-btns');
-      if (qb) qb.style.display = 'none';
-    }
+    // Re-rendre depuis coachHistory pour garantir le markdown rendu correctement
+    win.innerHTML = '';
+    coachHistory.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'chat-bubble ' + m.role;
+      if (m.role === 'user') div.textContent = m.content;
+      else div.innerHTML = renderMarkdown(m.content);
+      win.appendChild(div);
+    });
+    win.scrollTop = win.scrollHeight;
+    const qb = document.getElementById('coach-quick-btns');
+    if (qb) qb.style.display = 'none';
   } catch(e) {}
 }
 
