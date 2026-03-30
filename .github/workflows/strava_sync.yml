@@ -3,10 +3,10 @@ name: Strava → Supabase Sync
 on:
   schedule:
     - cron: '0 11 * * *'
+    - cron: '0 13 * * *'
+    - cron: '30 15 * * *'
     - cron: '0 18 * * *'
     - cron: '0 19 * * *'
-    - cron: '0 20 * * *'
-    - cron: '0 21 * * *'
   workflow_dispatch:
     inputs:
       days_back:
