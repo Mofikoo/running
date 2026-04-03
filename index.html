@@ -2357,14 +2357,16 @@ function renderPacePerKm(s, streams) {
 
 function detectIntervals(streams, sessionType) {
   const pace = streams.pace, hr = streams.hr||[], time = streams.time;
-  if (!pace || pace.length < 60) return [];
+  if (!pace || pace.length < 20) return [];
 
   // ── Pas de détection sur les séances sans structure d'intervalles ──────────
-  // EF, Long, Récup : allure naturellement variable, pas de blocs structurés
   if (['EF','Long','Récup','Aérobie Z3'].includes(sessionType)) return [];
 
-  // Lissage fort (60 pts = ~5 min de fenêtre) pour ignorer les micro-variations
-  const smoothP = smoothArray(pace, 60);
+  // Lissage adaptatif selon le type :
+  // VMA (400m = ~18 pts à 5s) : fenêtre courte pour ne pas lisser les efforts
+  // Seuil (15min = ~180 pts) : fenêtre plus large
+  const smoothWin = sessionType === 'VMA' ? 8 : 40;
+  const smoothP = smoothArray(pace, smoothWin);
   const validP  = smoothP.filter(Boolean);
   if (!validP.length) return [];
 
@@ -2401,7 +2403,9 @@ function detectIntervals(streams, sessionType) {
       const pSlice = pace.slice(segStart, segEnd).filter(Boolean);
       const hSlice = hr.slice(segStart, segEnd).filter(Boolean);
       rawBlocs.push({
-        tag: curTag, durSec,
+        tag: curTag,
+        durationSec: durSec,  // nom cohérent avec le rendu
+        durSec,               // alias pour mergeShortBlocs
         startIdx: segStart, endIdx: segEnd,
         startTime: time[segStart],
         endTime: time[Math.min(segEnd, time.length-1)],
@@ -2434,13 +2438,15 @@ function detectIntervals(streams, sessionType) {
           if (mergeWith !== null) {
             const a = blocs[Math.min(i, mergeWith)];
             const b = blocs[Math.max(i, mergeWith)];
+            const newDur = a.durSec + b.durSec;
             const merged = {
               tag: a.durSec >= b.durSec ? a.tag : b.tag,
-              durSec: a.durSec + b.durSec,
+              durSec: newDur,
+              durationSec: newDur,  // cohérent avec le rendu
               startIdx: a.startIdx, endIdx: b.endIdx,
               startTime: a.startTime, endTime: b.endTime,
-              avgPace: (a.avgPace && b.avgPace) ? Math.round((a.avgPace*a.durSec + b.avgPace*b.durSec)/(a.durSec+b.durSec)) : (a.avgPace||b.avgPace),
-              avgHR:   (a.avgHR   && b.avgHR)   ? Math.round((a.avgHR  *a.durSec + b.avgHR  *b.durSec)/(a.durSec+b.durSec)) : (a.avgHR  ||b.avgHR),
+              avgPace: (a.avgPace && b.avgPace) ? Math.round((a.avgPace*a.durSec + b.avgPace*b.durSec)/newDur) : (a.avgPace||b.avgPace),
+              avgHR:   (a.avgHR   && b.avgHR)   ? Math.round((a.avgHR  *a.durSec + b.avgHR  *b.durSec)/newDur) : (a.avgHR  ||b.avgHR),
             };
             blocs.splice(Math.min(i, mergeWith), 2, merged);
             changed = true;
@@ -2463,7 +2469,11 @@ function detectIntervals(streams, sessionType) {
   if (longestEffort < MIN_BLOC_SEC) return [];
 
   // Numéroter
-  return merged.map((s, i) => ({ ...s, num: i+1 }));
+  return merged.map((s, i) => ({
+    ...s,
+    num: i+1,
+    durationSec: s.durationSec || s.durSec || 0,  // garantir durationSec
+  }));
 }
 
 function renderIntervalChart(intervals,streams) {
