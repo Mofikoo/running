@@ -596,6 +596,7 @@ input[type=range]{padding:0;background:none;border:none;}
         <div class="form-group"><label>Objectif 10km (min:sec)</label><input type="text" id="prof-target" value="37:00"></div>
         <div class="form-group"><label>FC Max</label><input type="number" id="prof-fcmax" value="208"></div>
         <div class="form-group"><label>FC Repos</label><input type="number" id="prof-fcrep" value="55"></div>
+        <div class="form-group"><label>VMA (km/h)</label><input type="number" id="prof-vma" step="0.1" value="16.5"></div>
       </div>
     </div>
     <div class="card">
@@ -615,6 +616,31 @@ input[type=range]{padding:0;background:none;border:none;}
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Calculateur allure ↔ vitesse -->
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-title">Convertisseur allure ↔ vitesse</div>
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:.75rem;align-items:center;margin-top:.5rem;">
+      <div>
+        <label style="font-family:var(--fm);font-size:.7rem;color:var(--muted);display:block;margin-bottom:.3rem;">Vitesse (km/h)</label>
+        <input type="number" id="calc-kmh" step="0.1" min="5" max="30" placeholder="16.5"
+          style="width:100%;font-size:1.1rem;text-align:center;padding:.5rem;"
+          oninput="calcFromKmh(this.value)">
+      </div>
+      <div style="font-family:var(--fd);font-size:1.5rem;color:var(--accent);text-align:center;">⇄</div>
+      <div>
+        <label style="font-family:var(--fm);font-size:.7rem;color:var(--muted);display:block;margin-bottom:.3rem;">Allure (min/km)</label>
+        <input type="number" id="calc-pace-min" step="1" min="1" max="9" placeholder="3"
+          style="width:calc(50% - .2rem);font-size:1.1rem;text-align:center;padding:.5rem;display:inline-block;"
+          oninput="calcFromPace()">
+        <span style="font-family:var(--fm);font-size:.8rem;color:var(--muted);margin:0 .2rem;">:</span>
+        <input type="number" id="calc-pace-sec" step="1" min="0" max="59" placeholder="38"
+          style="width:calc(50% - .2rem);font-size:1.1rem;text-align:center;padding:.5rem;display:inline-block;"
+          oninput="calcFromPace()">
+      </div>
+    </div>
+    <div id="calc-result" style="font-family:var(--fm);font-size:.75rem;color:var(--muted);margin-top:.6rem;text-align:center;"></div>
   </div>
 </div>
 
@@ -859,6 +885,7 @@ function applyProfileToForm() {
   set('prof-target',          secToMinSec(profile.target_10k_seconds || 2220));
   set('prof-fcmax',           profile.fc_max   || 208);
   set('prof-fcrep',           profile.fc_repos || 55);
+  set('prof-vma',             profile.vma_kmh  || 16.5);
   set('prof-race15',          profile.race_15k_date || '2026-09-20');
   set('prof-race10',          profile.race_10k_date || '2027-01-15');
   set('prof-sessions',        profile.weekly_sessions        || 4);
@@ -878,6 +905,7 @@ async function saveProfile() {
   profile.target_10k_seconds     = minSecToSec(gv('prof-target'));
   profile.fc_max                 = parseInt(gv('prof-fcmax'));
   profile.fc_repos               = parseInt(gv('prof-fcrep'));
+  profile.vma_kmh                = parseFloat(gv('prof-vma')) || 16.5;
   profile.race_15k_date          = gv('prof-race15');
   profile.race_10k_date          = gv('prof-race10');
   profile.weekly_sessions        = parseInt(gv('prof-sessions'));
@@ -1421,6 +1449,32 @@ function buildPlan() {
     seenRunDates.add(s.date);
     return true;
   });
+}
+
+function calcFromKmh(val) {
+  const kmh = parseFloat(val);
+  if (!kmh || kmh <= 0) return;
+  const totalSec = 3600 / kmh;
+  const m = Math.floor(totalSec / 60);
+  const s = Math.round(totalSec % 60);
+  const minEl = document.getElementById('calc-pace-min');
+  const secEl = document.getElementById('calc-pace-sec');
+  if (minEl) minEl.value = m;
+  if (secEl) secEl.value = String(s).padStart(2,'0');
+  const res = document.getElementById('calc-result');
+  if (res) res.textContent = `${kmh} km/h = ${m}'${String(s).padStart(2,'0')}"/km`;
+}
+
+function calcFromPace() {
+  const m = parseInt(document.getElementById('calc-pace-min')?.value) || 0;
+  const s = parseInt(document.getElementById('calc-pace-sec')?.value) || 0;
+  const totalSec = m * 60 + s;
+  if (!totalSec) return;
+  const kmh = Math.round(3600 / totalSec * 100) / 100;
+  const kmhEl = document.getElementById('calc-kmh');
+  if (kmhEl) kmhEl.value = kmh;
+  const res = document.getElementById('calc-result');
+  if (res) res.textContent = `${m}'${String(s).padStart(2,'0')}"/km = ${kmh} km/h`;
 }
 
 function updateProgLabel(val) {
