@@ -1949,20 +1949,38 @@ function openDetailSession(id) {
   // Intervalles manuels
   const intEl=document.getElementById('detail-intervals');
   if (intEl) {
-    if (s.intervals&&s.intervals.length) {
-      intEl.style.display='block';
-      const badge=document.getElementById('detail-intervals-badge'); if(badge) badge.textContent=`${s.intervals.length} reps`;
-      const listEl=document.getElementById('detail-intervals-list');
-      if (listEl) listEl.innerHTML=s.intervals.map(iv=>`
-        <div style="display:grid;grid-template-columns:30px 1fr 1fr 1fr 1fr;gap:.75rem;padding:.5rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;align-items:center;">
-          <span style="color:var(--muted);font-family:var(--fd);font-size:1rem;">${iv.num}</span>
-          <span>${iv.duration||'—'}</span>
-          <span style="color:var(--accent);">${iv.pace||'—'}/km</span>
-          <span style="color:var(--danger);">${iv.avg_hr?'♥ '+iv.avg_hr:''}</span>
-          <span style="color:var(--muted);">${iv.feel||''}</span>
-        </div>`).join('');
+    if (s.intervals && s.intervals.length) {
+      intEl.style.display = 'block';
+      const badge = document.getElementById('detail-intervals-badge');
+      if (badge) badge.textContent = `${s.intervals.length} reps (manuel)`;
+      const listEl = document.getElementById('detail-intervals-list');
+
+      // Calculer le total en secondes pour les %
+      const totalDurManual = s.duration_minutes ? s.duration_minutes * 60 : 0;
+
+      if (listEl) listEl.innerHTML = `
+        <div style="display:grid;grid-template-columns:26px 1fr 1fr 1fr 1fr 50px;gap:.4rem;padding:.3rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);">
+          <div>#</div><div>Durée</div><div>Allure</div><div>FC</div><div>Ressenti</div><div>%séance</div>
+        </div>
+        ${s.intervals.map((iv, idx) => {
+          let durSec = 0;
+          if (iv.duration) {
+            const parts = iv.duration.replace('"','').split("'");
+            if (parts.length === 2) durSec = parseInt(parts[0])*60 + parseInt(parts[1]||0);
+          }
+          const pct = totalDurManual > 0 && durSec > 0
+            ? Math.round(durSec / totalDurManual * 100) : null;
+          return '<div style="display:grid;grid-template-columns:26px 1fr 1fr 1fr 1fr 50px;gap:.4rem;padding:.35rem 0;border-bottom:1px solid var(--border);font-family:var(--fm);font-size:.75rem;align-items:center;">'
+            + '<div style="color:var(--muted);font-family:var(--fd);font-size:.95rem;">' + (idx+1) + '</div>'
+            + '<div style="color:var(--text);">' + (iv.duration||'—') + '</div>'
+            + '<div style="color:var(--accent);">' + (iv.pace ? iv.pace+'/km' : '—') + '</div>'
+            + '<div style="color:var(--danger);">' + (iv.avg_hr ? '♥ '+iv.avg_hr : '—') + '</div>'
+            + '<div style="color:var(--muted);">' + (iv.feel||'—') + '</div>'
+            + '<div style="color:var(--muted);">' + (pct !== null ? pct+'%' : '—') + '</div>'
+            + '</div>';
+        }).join('')}`;
     } else {
-      intEl.style.display='none';
+      intEl.style.display = 'none';
     }
   }
 
@@ -2072,9 +2090,10 @@ function renderDetailCharts(s) {
   }
 
   renderPacePerKm(s,streams);
-  if (streams&&streams.time) {
-    const intervals=detectIntervals(streams, s.type);
-    if (intervals.length>=3) renderIntervalChart(intervals,streams);
+  // Détection auto uniquement si pas d'intervalles manuels
+  if (streams && streams.time && !(s.intervals && s.intervals.length)) {
+    const intervals = detectIntervals(streams, s.type);
+    if (intervals.length >= 3) renderIntervalChart(intervals, streams);
   }
 }
 
