@@ -597,6 +597,21 @@ input[type=range]{padding:0;background:none;border:none;}
         <div class="form-group"><label>FC Max</label><input type="number" id="prof-fcmax" value="208"></div>
         <div class="form-group"><label>FC Repos</label><input type="number" id="prof-fcrep" value="55"></div>
         <div class="form-group"><label>VMA (km/h)</label><input type="number" id="prof-vma" step="0.1" value="16.5"></div>
+        <div class="form-group full">
+          <label>Convertisseur allure ↔ vitesse</label>
+          <div style="display:flex;align-items:center;gap:.5rem;margin-top:.3rem;">
+            <input type="number" id="calc-kmh" step="0.1" min="5" max="30" placeholder="km/h"
+              style="flex:1;text-align:center;" oninput="calcFromKmh(this.value)">
+            <span style="color:var(--accent);font-size:.9rem;cursor:pointer;" onclick="calcFromKmh(document.getElementById('calc-kmh').value)">⇄</span>
+            <input type="number" id="calc-pace-min" step="1" min="1" max="9" placeholder="min"
+              style="width:60px;text-align:center;" oninput="calcFromPace()">
+            <span style="color:var(--muted);font-size:.8rem;">:</span>
+            <input type="number" id="calc-pace-sec" step="1" min="0" max="59" placeholder="sec"
+              style="width:60px;text-align:center;" oninput="calcFromPace()">
+            <span style="font-family:var(--fm);font-size:.7rem;color:var(--muted);">/km</span>
+          </div>
+          <div id="calc-result" style="font-family:var(--fm);font-size:.72rem;color:var(--accent);margin-top:.3rem;"></div>
+        </div>
       </div>
     </div>
     <div class="card">
@@ -618,30 +633,7 @@ input[type=range]{padding:0;background:none;border:none;}
     </div>
   </div>
 
-  <!-- Calculateur allure ↔ vitesse -->
-  <div class="card" style="margin-top:1rem;">
-    <div class="card-title">Convertisseur allure ↔ vitesse</div>
-    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:.75rem;align-items:center;margin-top:.5rem;">
-      <div>
-        <label style="font-family:var(--fm);font-size:.7rem;color:var(--muted);display:block;margin-bottom:.3rem;">Vitesse (km/h)</label>
-        <input type="number" id="calc-kmh" step="0.1" min="5" max="30" placeholder="16.5"
-          style="width:100%;font-size:1.1rem;text-align:center;padding:.5rem;"
-          oninput="calcFromKmh(this.value)">
-      </div>
-      <div style="font-family:var(--fd);font-size:1.5rem;color:var(--accent);text-align:center;">⇄</div>
-      <div>
-        <label style="font-family:var(--fm);font-size:.7rem;color:var(--muted);display:block;margin-bottom:.3rem;">Allure (min/km)</label>
-        <input type="number" id="calc-pace-min" step="1" min="1" max="9" placeholder="3"
-          style="width:calc(50% - .2rem);font-size:1.1rem;text-align:center;padding:.5rem;display:inline-block;"
-          oninput="calcFromPace()">
-        <span style="font-family:var(--fm);font-size:.8rem;color:var(--muted);margin:0 .2rem;">:</span>
-        <input type="number" id="calc-pace-sec" step="1" min="0" max="59" placeholder="38"
-          style="width:calc(50% - .2rem);font-size:1.1rem;text-align:center;padding:.5rem;display:inline-block;"
-          oninput="calcFromPace()">
-      </div>
-    </div>
-    <div id="calc-result" style="font-family:var(--fm);font-size:.75rem;color:var(--muted);margin-top:.6rem;text-align:center;"></div>
-  </div>
+
 </div>
 
 <!-- MODAL ÉDITION -->
