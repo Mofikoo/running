@@ -904,13 +904,39 @@ async function saveProfile() {
   profile.target_weekly_sessions = parseInt(gv('prof-sessions-target'));
   profile.fragility_notes        = gv('prof-fragility');
   profile.prog_intensity         = parseInt(gv('prof-prog-intensity'));
+  // Construire un objet propre avec uniquement les champs DB (évite erreurs Supabase)
+  const profileData = {
+    name:                  profile.name,
+    pb_10k_seconds:        profile.pb_10k_seconds,
+    target_10k_seconds:    profile.target_10k_seconds,
+    vma_kmh:               profile.vma_kmh,
+    fc_max:                profile.fc_max,
+    fc_repos:              profile.fc_repos,
+    race_15k_date:         profile.race_15k_date,
+    race_10k_date:         profile.race_10k_date,
+    weekly_sessions:       profile.weekly_sessions,
+    target_weekly_sessions:profile.target_weekly_sessions,
+    fragility_notes:       profile.fragility_notes,
+    prog_intensity:        profile.prog_intensity,
+  };
   try {
-    const { data } = await db.from('profile').select('id').limit(1).single();
-    if (data) await db.from('profile').update(profile).eq('id', data.id);
-    else      await db.from('profile').insert([profile]);
+    const { data, error: selErr } = await db.from('profile').select('id').limit(1).single();
+    if (selErr && selErr.code !== 'PGRST116') throw selErr;
+    let saveErr;
+    if (data) {
+      const { error } = await db.from('profile').update(profileData).eq('id', data.id);
+      saveErr = error;
+    } else {
+      const { error } = await db.from('profile').insert([profileData]);
+      saveErr = error;
+    }
+    if (saveErr) throw saveErr;
     showToast('Profil sauvegardé ✓', 'success');
     renderZones(); renderDashboard();
-  } catch(e) { showToast('Erreur sauvegarde', 'error'); }
+  } catch(e) {
+    console.error('saveProfile error:', e);
+    showToast('Erreur sauvegarde: ' + (e.message||e), 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2882,31 +2908,80 @@ async function sendCoachMsg(quickMsg) {
   const zoneDesc = zones.map(z => `${z.name}: ${z.fcLow}-${z.fcHigh}bpm`).join(', ');
   const race10   = new Date(profile.race_10k_date || '2027-01-15');
   const daysLeft = Math.ceil((race10 - new Date()) / 86400000);
+  // Construire le détail riche de chaque séance
   const recentSessions = allSessions.slice(0, 10).map(s => {
     const zoneReal = s.avg_hr ? (zones.find(z => s.avg_hr >= z.fcLow && s.avg_hr < z.fcHigh) || zones[4]) : null;
-    const ivStr    = s.intervals && s.intervals.length
-      ? ' | Intervalles: ' + s.intervals.map(iv => `${iv.duration||'?'}@${iv.pace||'?'}/km`).join(', ')
-      : '';
-    return `- ${s.date}: ${s.type}${zoneReal?' ['+zoneReal.name+' réelle]':''} ${s.distance_km||'?'}km @ ${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds)+'/km':'?'} | FC ${s.avg_hr||'?'}bpm | effort ${s.perceived_effort||'?'}/5 | douleur ${s.pain_level||0}/5${s.notes?' | '+s.notes.slice(0,40):''}${ivStr}`;
+
+    // Intervalles manuels — données exactes saisies par l'athlète
+    let ivStr = '';
+    if (s.intervals && s.intervals.length) {
+      ivStr = '\n  Intervalles saisis: ' + s.intervals.map(iv =>
+        `${iv.num||''}. ${iv.duration||'?'} @ ${iv.pace||'?'}/km${iv.avg_hr?' FC:'+iv.avg_hr:''}${iv.feel?' ('+iv.feel+')':''}`
+      ).join(' | ');
+    }
+
+    // Streams Strava — données internes (FC pic, allure pic, cadence)
+    let streamStr = '';
+    const streams = s.streams?.streams;
+    if (streams) {
+      const hrArr = (streams.hr || []).filter(Boolean);
+      const paceArr = (streams.pace || []).filter(v => v && v > 150 && v < 600);
+      if (hrArr.length) {
+        const fcMax = Math.max(...hrArr);
+        const fcMin = Math.min(...hrArr);
+        streamStr += `\n  FC: moy ${s.avg_hr||'?'}bpm | pic ${fcMax}bpm | min ${fcMin}bpm`;
+      }
+      if (paceArr.length) {
+        const paceMin = Math.min(...paceArr); // allure la plus rapide (sec/km)
+        const paceMax = Math.max(...paceArr); // allure la plus lente
+        streamStr += ` | Allure: moy ${s.avg_pace_seconds?secToAllure(s.avg_pace_seconds):'?'} | pic ${secToAllure(paceMin)} | max ${secToAllure(paceMax)}`;
+      }
+      if (streams.cadence) {
+        const cadArr = streams.cadence.filter(Boolean);
+        if (cadArr.length) {
+          const cadMoy = Math.round(cadArr.reduce((a,b)=>a+b,0)/cadArr.length);
+          streamStr += ` | Cadence moy: ${cadMoy} spm`;
+        }
+      }
+    }
+
+    // Splits km par km
+    let splitsStr = '';
+    if (s.splits && s.splits.length) {
+      splitsStr = '\n  Splits: ' + s.splits.map(sp =>
+        `km${sp.km}: ${sp.pace_sec?secToAllure(sp.pace_sec):'?'}${sp.avg_hr?' FC:'+sp.avg_hr:''}`
+      ).join(' | ');
+    }
+
+    const header = `- ${s.date}: ${s.type}${zoneReal?' ['+zoneReal.name+' réelle]':''} | ${s.distance_km||'?'}km | ${s.duration_minutes||'?'}min | effort ${s.perceived_effort||'?'}/5 | douleur ${s.pain_level||0}/5${s.strava_name?' | "'+s.strava_name+'"':''}`;
+    return header + streamStr + ivStr + splitsStr + (s.notes ? '\n  Notes: '+s.notes.slice(0,80) : '');
   }).join('\n') || 'Aucune';
+
   const nextSessions = plannedSessions.filter(s => s.date >= localDateStr(new Date())).slice(0, 7)
     .map(s => `- ${s.date}: ${s.type} ~${s.target_distance_km||'?'}km`).join('\n') || 'Non généré';
 
-  const systemPrompt = `Tu es un coach running expert, précis et bienveillant. Tu analyses les données réelles de l'athlète.
+  const systemPrompt = `Tu es un coach running expert, rigoureux et bienveillant. Tu analyses les données RÉELLES et DÉTAILLÉES de l'athlète.
+
+RÈGLES D'ANALYSE STRICTES:
+- Ne jamais confondre FC moyenne de séance avec FC de pic d'effort
+- Les "FC pic" et "allure pic" dans les streams sont les vrais maximums atteints
+- Les intervalles saisis sont les vraies répétitions — analyser chaque rep individuellement
+- Les splits km par km montrent la progression réelle de la séance
+- Si les données internes contredisent le type de séance déclaré, le signaler
 
 PROFIL:
-- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37'00" | ${daysLeft} jours restants
+- PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif: sub-37'00" | ${daysLeft} jours
 - FCmax: ${profile.fc_max}bpm | FCrepos: ${profile.fc_repos}bpm | VMA: ${profile.vma_kmh}km/h
 - Zones Karvonen: ${zoneDesc}
 - Fragilités: ${profile.fragility_notes || 'aucune'}
 
-10 DERNIÈRES SÉANCES (zone FC réelle entre crochets):
+10 DERNIÈRES SÉANCES (détails complets avec données internes):
 ${recentSessions}
 
 PLANNING PRÉVU:
 ${nextSessions}
 
-Réponds en français, de façon directe et personnalisée. Tu as accès à l'historique de cette conversation.`;
+Réponds en français, directement et avec rigueur. Appuie-toi sur les données internes (FC pic, allure pic, splits, intervalles réels) plutôt que sur les moyennes.`;
 
   // Ajouter le message user à l'historique
   coachHistory.push({ role: 'user', content: msg });
