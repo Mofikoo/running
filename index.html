@@ -486,9 +486,8 @@ input[type=range]{padding:0;background:none;border:none;}
   </div>
   <div class="grid-2" style="margin-top:1rem;">
     <div class="card">
-      <div class="card-title">Progression des meilleurs temps <span class="badge">BEST EFFORTS</span></div>
-      <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">1km · 2km · 5km · 10km — allure (plus bas = plus vite)</div>
-      <canvas id="chart-best-efforts" height="130"></canvas>
+      <div class="card-title">Records personnels <span class="badge">BEST EFFORTS</span></div>
+      <div id="best-efforts-records" style="margin-top:.5rem;"></div>
     </div>
     <div class="card">
       <div class="card-title">Cadence moyenne — progression <span class="badge">PAS/MIN</span></div>
@@ -3094,87 +3093,58 @@ function renderGraphs() {
 }
 
 function renderBestEffortsChart() {
-  destroyChart('best-efforts');
-  const ctx = document.getElementById('chart-best-efforts')?.getContext('2d');
-  if (!ctx) return;
+  const el = document.getElementById('best-efforts-records');
+  if (!el) return;
 
   const DISTANCES = [
-    { dist: 1000,  label: '1 km',    color: '#47b8ff' },
-    { dist: 2000,  label: '2 km',    color: '#2ed573' },
-    { dist: 5000,  label: '5 km',    color: '#e8ff47' },
-    { dist: 10000, label: '10 km',   color: '#ff4757' },
-    { dist: 21097, label: 'Semi',    color: '#c084fc' },
-    { dist: 42195, label: 'Marathon',color: '#ffa502' },
+    { dist: 1000,  label: '1 km',     color: '#47b8ff', emoji: '⚡' },
+    { dist: 2000,  label: '2 km',     color: '#2ed573', emoji: '🏃' },
+    { dist: 5000,  label: '5 km',     color: '#e8ff47', emoji: '🎯' },
+    { dist: 10000, label: '10 km',    color: '#ff4757', emoji: '🏁' },
+    { dist: 21097, label: 'Semi',     color: '#c084fc', emoji: '🥇' },
+    { dist: 42195, label: 'Marathon', color: '#ffa502', emoji: '🏆' },
   ];
 
-  const allDates = new Set();
-  const pointsByDist = {};
-  DISTANCES.forEach(({ dist }) => {
-    pointsByDist[dist] = {};
-    allSessions.forEach(s => {
-      if (!s.best_efforts || !s.date) return;
-      const be = s.best_efforts.find(b => b.distance_m === dist);
-      if (be && be.elapsed_sec) {
-        // Allure min/km pour que les 4 courbes partagent le même axe
-        const pace = parseFloat((be.elapsed_sec / dist * 1000 / 60).toFixed(3));
-        pointsByDist[dist][s.date] = pace;
-        allDates.add(s.date);
+  // Trouver le meilleur (= le plus rapide = elapsed_sec le plus court) pour chaque distance
+  const records = {};
+  allSessions.forEach(s => {
+    if (!s.best_efforts) return;
+    s.best_efforts.forEach(be => {
+      if (!be.elapsed_sec) return;
+      const existing = records[be.distance_m];
+      if (!existing || be.elapsed_sec < existing.elapsed_sec) {
+        records[be.distance_m] = { ...be, date: s.date };
       }
     });
   });
 
-  if (allDates.size < 1) {
-    ctx.canvas.style.display = 'none';
-    const parent = ctx.canvas.parentElement;
-    if (!parent.querySelector('.empty-state'))
-      parent.insertAdjacentHTML('beforeend', '<div class="empty-state" style="padding:1rem;font-size:.75rem;">Pas encore de best efforts — ils arriveront à la prochaine synchro Strava</div>');
+  const hasAny = DISTANCES.some(d => records[d.dist]);
+  if (!hasAny) {
+    el.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:.75rem;">Pas encore de records — ils arriveront à la prochaine synchro Strava</div>';
     return;
   }
-  ctx.canvas.style.display = 'block';
 
-  const sortedDates = [...allDates].sort();
-  const labels = sortedDates.map(d => formatDate(d));
+  el.innerHTML = DISTANCES.map(({ dist, label, color, emoji }) => {
+    const rec = records[dist];
+    if (!rec) return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border);opacity:.35;">
+      <span style="font-family:var(--fm);font-size:.78rem;color:${color};">${emoji} ${label}</span>
+      <span style="font-family:var(--fm);font-size:.72rem;color:var(--muted);">—</span>
+    </div>`;
 
-  const datasets = DISTANCES.map(({ dist, label, color }) => ({
-    label,
-    data: sortedDates.map(d => pointsByDist[dist][d] || null),
-    borderColor: color,
-    backgroundColor: 'transparent',
-    tension: 0.3,
-    pointRadius: 4,
-    pointBackgroundColor: color,
-    borderWidth: 2,
-    spanGaps: false,
-  }));
+    const m = Math.floor(rec.elapsed_sec / 60);
+    const s = rec.elapsed_sec % 60;
+    const timeStr = m + "'" + String(s).padStart(2,'0') + '"';
+    const paceStr = rec.pace_sec ? secToAllure(rec.pace_sec) + '/km' : '';
 
-  const paceFormat = v => {
-    if (!v) return '';
-    const m = Math.floor(v), s2 = Math.round((v % 1) * 60);
-    return m + "'" + String(s2).padStart(2,'0') + '"';
-  };
-
-  chartInstances['best-efforts'] = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      ...CHART_DEFAULTS,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        ...CHART_DEFAULTS.plugins,
-        legend: { display: true, labels: { color: '#6b6b8a', font: { family: 'DM Mono', size: 10 } } },
-        tooltip: { callbacks: { label: (c) => {
-          if (c.raw === null) return null;
-          return ' ' + c.dataset.label + ': ' + paceFormat(c.raw) + '/km';
-        }}}
-      },
-      scales: {
-        ...CHART_DEFAULTS.scales,
-        y: { ...CHART_DEFAULTS.scales.y, reverse: true,
-          ticks: { ...CHART_DEFAULTS.scales.y.ticks, callback: v => paceFormat(v) }
-        }
-      }
-    }
-  });
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border);">
+      <span style="font-family:var(--fm);font-size:.78rem;color:${color};">${emoji} ${label}</span>
+      <div style="text-align:right;">
+        <span style="font-family:var(--fd);font-size:1.2rem;color:var(--text);">${timeStr}</span>
+        ${paceStr ? `<span style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-left:.5rem;">${paceStr}</span>` : ''}
+        ${rec.date ? `<div style="font-family:var(--fm);font-size:.6rem;color:var(--muted);">${formatDate(rec.date)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 function renderCadenceChart(sessions) {
   destroyChart('cadence');
