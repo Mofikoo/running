@@ -635,6 +635,51 @@ input[type=range]{padding:0;background:none;border:none;}
 
 </div>
 
+<!-- MODAL PLANNED -->
+<div class="modal-overlay" id="modal-planned">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-planned-title">Modifier la séance</div>
+      <button class="icon-btn" onclick="closeModal('modal-planned')">✕</button>
+    </div>
+    <div class="form-grid" style="margin-top:1rem;">
+      <input type="hidden" id="planned-edit-id">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="planned-edit-date">
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="planned-edit-type">
+          <option>EF</option><option>Aérobie Z3</option><option>Seuil</option>
+          <option>VMA</option><option>Long</option><option>Récup</option><option>Muscu</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Distance cible (km)</label>
+        <input type="number" id="planned-edit-dist" step="0.5" min="0" placeholder="10">
+      </div>
+      <div class="form-group">
+        <label>Phase</label>
+        <select id="planned-edit-phase">
+          <option value="base">Base</option>
+          <option value="développement">Développement</option>
+          <option value="affûtage">Affûtage</option>
+          <option value="récupération">Récupération</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Description</label>
+        <textarea id="planned-edit-desc" rows="2" placeholder="Ex: EF 50' allure souple..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="savePlannedEdit()">Sauvegarder</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-planned')">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL ÉDITION -->
 <div class="modal-overlay" id="modal-edit">
   <div class="modal" style="max-width:680px;">
@@ -1580,11 +1625,84 @@ function selectDay(dateStr) {
         ${planned.type==='Muscu'
           ? `<button class="btn" style="flex:1;padding:.5rem;" onclick="openMuscu('${dateStr}')">💪 Voir le programme</button>`
           : `<button class="btn" style="flex:1;padding:.5rem;" onclick="prefillLog('${dateStr}','${planned.type}')">Loguer cette séance</button>`}
+        <button class="btn btn-ghost" style="padding:.5rem .75rem;" onclick="openEditPlanned('${planned.id}','${dateStr}')" title="Modifier">✏️</button>
+        <button class="btn btn-danger" style="padding:.5rem .75rem;" onclick="deletePlanned('${planned.id}')" title="Supprimer">🗑</button>
       </div>
     </div>`;
   } else {
-    el.innerHTML='<div class="empty-state">Repos — aucune séance planifiée</div>';
+    el.innerHTML=`<div class="empty-state" style="padding:1rem;">
+      <div style="margin-bottom:.75rem;color:var(--muted);">Repos — aucune séance planifiée</div>
+      <button class="btn btn-ghost" style="width:100%;" onclick="openAddPlanned('${dateStr}')">➕ Ajouter une séance</button>
+    </div>`;
   }
+}
+
+// ══════════════════════════════════════
+// GESTION MANUELLE DU PLANNING
+// ══════════════════════════════════════
+function openEditPlanned(id, dateStr) {
+  const p = plannedSessions.find(s => s.id === id);
+  if (!p) return;
+  document.getElementById('planned-edit-id').value    = id;
+  document.getElementById('planned-edit-date').value  = p.date;
+  document.getElementById('planned-edit-type').value  = p.type || 'EF';
+  document.getElementById('planned-edit-dist').value  = p.target_distance_km || '';
+  document.getElementById('planned-edit-phase').value = p.week_phase || 'base';
+  document.getElementById('planned-edit-desc').value  = p.description || '';
+  document.getElementById('modal-planned-title').textContent = 'Modifier la séance';
+  openModal('modal-planned');
+}
+
+function openAddPlanned(dateStr) {
+  document.getElementById('planned-edit-id').value    = '';
+  document.getElementById('planned-edit-date').value  = dateStr;
+  document.getElementById('planned-edit-type').value  = 'EF';
+  document.getElementById('planned-edit-dist').value  = '';
+  document.getElementById('planned-edit-phase').value = 'base';
+  document.getElementById('planned-edit-desc').value  = '';
+  document.getElementById('modal-planned-title').textContent = 'Ajouter une séance';
+  openModal('modal-planned');
+}
+
+async function deletePlanned(id) {
+  if (!confirm('Supprimer cette séance du planning ?')) return;
+  const { error } = await db.from('planned_sessions').delete().eq('id', id);
+  if (error) { showToast('Erreur suppression: ' + error.message, 'error'); return; }
+  const { data } = await db.from('planned_sessions').select('*').order('date');
+  plannedSessions = data || [];
+  renderWeek(); renderNextSessions();
+  const el = document.getElementById('session-detail');
+  if (el) el.innerHTML = '<div class="empty-state">Séance supprimée</div>';
+  showToast('Séance supprimée ✓', 'success');
+}
+
+async function savePlannedEdit() {
+  const id   = document.getElementById('planned-edit-id').value;
+  const data = {
+    date:               document.getElementById('planned-edit-date').value,
+    type:               document.getElementById('planned-edit-type').value,
+    target_distance_km: parseFloat(document.getElementById('planned-edit-dist').value) || null,
+    week_phase:         document.getElementById('planned-edit-phase').value || 'base',
+    description:        document.getElementById('planned-edit-desc').value || '',
+    intensity_zone:     null,
+    skipped:            false,
+    priority:           1,
+  };
+  if (!data.date || !data.type) { showToast('Date et type requis', 'error'); return; }
+
+  let error;
+  if (id) {
+    ({ error } = await db.from('planned_sessions').update(data).eq('id', id));
+  } else {
+    ({ error } = await db.from('planned_sessions').insert([data]));
+  }
+  if (error) { showToast('Erreur: ' + error.message, 'error'); return; }
+
+  const { data: refreshed } = await db.from('planned_sessions').select('*').order('date');
+  plannedSessions = refreshed || [];
+  renderWeek(); renderNextSessions();
+  closeModal('modal-planned');
+  showToast(id ? 'Séance modifiée ✓' : 'Séance ajoutée ✓', 'success');
 }
 
 function prefillLog(dateStr, type) {
@@ -1615,14 +1733,14 @@ async function askPlanCoach() {
   const todayFr=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   // ── BUG #4 CORRIGÉ : getDayFr a un guard sur dateStr undefined ──
   const upcoming=plannedSessions.filter(s=>s.date>=today).slice(0,60)
-    .map(s=>`- ${s.date} (${getDayFr(s.date)}): ${s.type} ~${s.target_distance_km}km — "${s.description}" [id:${s.id}]`).join('\n')||'Aucune';
+    .map(s=>`- ${s.date} (${getDayFr(s.date)}): ${s.type} ~${s.target_distance_km}km [phase:${s.week_phase||'?'}] — "${s.description||''}" [id:${s.id}]`).join('\n')||'Aucune';
   const recent=allSessions.slice(0,5)
     .map(s=>`- ${s.date}: ${s.type} ${s.distance_km||'?'}km effort ${s.perceived_effort}/5`).join('\n')||'Aucune';
 
   const prompt=`Tu es un coach running expert. Profil:
 - Aujourd'hui: ${today} (${todayFr})
 - PB 10km: ${secToTime(profile.pb_10k_seconds)} | Objectif sub-37 | Race: ${profile.race_10k_date}
-- Types valides: EF, Aérobie Z3, Seuil, VMA, Long, Récup
+- Types valides: EF, Aérobie Z3, Seuil, VMA, Long, Récup, Muscu
 
 Planning actuel:
 ${upcoming}
@@ -1699,6 +1817,10 @@ async function applyPlanMods() {
     if (d.target_distance_km === 0 || d.target_distance_km === '') d.target_distance_km = null;
     // skipped : boolean
     if (d.skipped === undefined) d.skipped = false;
+    // priority : défaut 1
+    if (d.priority === undefined) d.priority = 1;
+    // week_phase : défaut base
+    if (!d.week_phase) d.week_phase = 'base';
     return d;
   }
 
