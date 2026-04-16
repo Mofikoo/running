@@ -1,5 +1,18 @@
 // RunCoach Service Worker
-const CACHE_NAME = 'runcoach-v39';
+// Le cache se renouvelle automatiquement à chaque nouvelle version de index.html
+const CACHE_NAME = 'runcoach-v1';
+
+// On récupère la date de dernière modif de index.html pour versionner le cache
+async function getCacheVersion() {
+  try {
+    const res = await fetch('/running/index.html', { method: 'HEAD' });
+    const lastModified = res.headers.get('last-modified') || Date.now();
+    return 'runcoach-' + btoa(lastModified).slice(0, 12);
+  } catch {
+    return CACHE_NAME;
+  }
+}
+
 const STATIC_ASSETS = [
   '/running/',
   '/running/index.html',
@@ -8,33 +21,34 @@ const STATIC_ASSETS = [
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
 ];
 
-// Installation : mise en cache des ressources statiques
+// Installation : on calcule le vrai nom de cache depuis le serveur
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(STATIC_ASSETS).catch(err => {
-        console.log('Cache partiel OK:', err);
-      });
-    })
+    getCacheVersion().then(version =>
+      caches.open(version).then(cache =>
+        cache.addAll(STATIC_ASSETS).catch(err => console.log('Cache partiel OK:', err))
+      )
+    )
   );
   self.skipWaiting();
 });
 
-// Activation : nettoyage des anciens caches
+// Activation : supprime tous les anciens caches sauf le courant
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    getCacheVersion().then(version =>
+      caches.keys().then(keys =>
+        Promise.all(keys.filter(k => k !== version).map(k => caches.delete(k)))
+      )
     )
   );
   self.clients.claim();
 });
 
-// Fetch : stratégie Network First pour Supabase/API, Cache First pour statique
+// Fetch : Network First pour les API, Cache First pour le reste
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // API calls (Supabase, OpenRouter, Strava) → toujours réseau
   if (
     url.hostname.includes('supabase.co') ||
     url.hostname.includes('openrouter.ai') ||
@@ -45,28 +59,26 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Ressources statiques → Cache First avec fallback réseau
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        // Met en cache les nouvelles ressources statiques
-        if (response.ok && event.request.method === 'GET') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => {
-        // Offline fallback : retourne la page principale
-        if (event.request.destination === 'document') {
-          return caches.match('/running/');
-        }
-      });
-    })
+    getCacheVersion().then(version =>
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          if (response.ok && event.request.method === 'GET') {
+            const clone = response.clone();
+            caches.open(version).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        }).catch(() => {
+          if (event.request.destination === 'document') {
+            return caches.match('/running/');
+          }
+        });
+      })
+    )
   );
 });
 
-// Message pour forcer la mise à jour
 self.addEventListener('message', event => {
   if (event.data === 'skipWaiting') self.skipWaiting();
 });
