@@ -1614,7 +1614,7 @@ async function askPlanCoach() {
   const today=localDateStr(new Date());
   const todayFr=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   // ── BUG #4 CORRIGÉ : getDayFr a un guard sur dateStr undefined ──
-  const upcoming=plannedSessions.filter(s=>s.date>=today).slice(0,14)
+  const upcoming=plannedSessions.filter(s=>s.date>=today).slice(0,60)
     .map(s=>`- ${s.date} (${getDayFr(s.date)}): ${s.type} ~${s.target_distance_km}km — "${s.description}" [id:${s.id}]`).join('\n')||'Aucune';
   const recent=allSessions.slice(0,5)
     .map(s=>`- ${s.date}: ${s.type} ${s.distance_km||'?'}km effort ${s.perceived_effort}/5`).join('\n')||'Aucune';
