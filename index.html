@@ -821,7 +821,7 @@ async function callAI(payload) {
   }
   return res.json();
 }
-const MODEL       = 'google/gemini-flash-1.5';
+const MODEL       = 'google/gemini-3-flash-preview';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
