@@ -802,22 +802,22 @@ input[type=range]{padding:0;background:none;border:none;}
 // ═══════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://hqnwygpfbceyymkwtccg.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbnd5Z3BmYmNleXlta3d0Y2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTE3MjIsImV4cCI6MjA4OTc2NzcyMn0.Po75hhyCegnNVVihqfQIHJkw20jUeGI1MD95Jqpn-3A';
-// Appel OpenRouter directement depuis le navigateur (pas de proxy)
-const OPENROUTER_KEY = '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';
+// Appel IA via Supabase Edge Function (clé sécurisée côté serveur)
 async function callAI(payload) {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + OPENROUTER_KEY,
-      'HTTP-Referer': 'https://mofikoo.github.io',
-      'X-Title': 'RunCoach',
-    },
-    body: JSON.stringify(payload),
-  });
+  const res = await fetch(
+    'https://hqnwygpfbceyymkwtccg.supabase.co/functions/v1/ai-proxy',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+      },
+      body: JSON.stringify(payload),
+    }
+  );
   if (!res.ok) {
     const t = await res.text();
-    throw new Error('OpenRouter ' + res.status + ': ' + t.slice(0, 100));
+    throw new Error('IA ' + res.status + ': ' + t.slice(0, 100));
   }
   return res.json();
 }
