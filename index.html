@@ -1782,7 +1782,7 @@ IMPORTANT: Pour "update" et "delete", utilise EXACTEMENT les UUIDs entre crochet
 
   try {
     const data=await callAI({model:MODEL,max_tokens:1500,messages:[{role:'user',content:prompt}]});
-    const raw = data.content?.[0]?.text || '{}';
+    const raw = data.choices?.[0]?.message?.content || '{}';
     console.log('[Coach Planning] Raw AI response:', raw); // DEBUG
     let parsed;
     try {
@@ -2017,7 +2017,7 @@ Historique récent:\n${recent}
 Donne analyse concise (2-3 para): qualité, vigilance santé si nécessaire, conseil pour la prochaine. Direct, technique, bienveillant.`;
   try {
     const data=await callAI({model:MODEL,max_tokens:800,messages:[{role:'user',content:prompt}]});
-    textEl.textContent=data.content?.[0]?.text||'Analyse indisponible.';
+    textEl.textContent=data.choices?.[0]?.message?.content||'Analyse indisponible.';
   } catch(e) { textEl.textContent='Coach IA indisponible.'; }
 }
 
@@ -2926,7 +2926,7 @@ Profil: PB ${secToTime(profile.pb_10k_seconds)}, objectif sub-37, FC max ${profi
 3 paragraphes max: verdict global, analyse intervalles si présents, recommandation concrète.`;
   try {
     const data=await callAI({model:MODEL,max_tokens:600,messages:[{role:'user',content:prompt}]});
-    textEl.textContent=data.content?.[0]?.text||'Analyse indisponible.';
+    textEl.textContent=data.choices?.[0]?.message?.content||'Analyse indisponible.';
   } catch(e) { textEl.textContent='Erreur Coach IA: '+e.message; }
 }
 
@@ -3138,7 +3138,7 @@ Réponds en français, directement et avec rigueur. Appuie-toi sur les données 
 
   try {
     const data = await callAI({ model: MODEL, max_tokens: 1000, messages });
-    const reply = data.content?.[0]?.text || 'Je ne peux pas répondre pour le moment.';
+    const reply = data.choices?.[0]?.message?.content || 'Je ne peux pas répondre pour le moment.';
 
     // Remplacer la bulle de chargement
     if (loadingBubble) {
