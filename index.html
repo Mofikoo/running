@@ -3707,12 +3707,12 @@ if ('serviceWorker' in navigator) {
       for (const reg of regs) {
         const swUrl = reg.active?.scriptURL || reg.installing?.scriptURL || '';
         // Si l'URL du SW ne contient pas ?v=3, c'est une ancienne version
-        if (!swUrl.includes('?v=3')) {
+        if (!swUrl.includes('?v=4')) {
           await reg.unregister();
           console.log('Ancien SW supprimé:', swUrl);
         }
       }
-      const r = await navigator.serviceWorker.register('/running/sw.js?v=3');
+      const r = await navigator.serviceWorker.register('/running/sw.js?v=4');
       console.log('SW OK:', r.scope);
     } catch(e) {
       console.log('SW erreur:', e);
