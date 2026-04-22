@@ -189,7 +189,7 @@ input[type=range]{padding:0;background:none;border:none;}
   .nav-tabs{display:none;} .nav-status{display:none;}
   nav.top-nav{padding:0 1rem;justify-content:center;padding-top:env(safe-area-inset-top);}
   .nav-logo{font-size:1.3rem;} .bottom-nav{display:block;}
-  .page{padding:.85rem;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 2rem);}
+  .page{padding:.85rem;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 3.5rem);}
   #page-coach{padding:.75rem .75rem 0;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));}
   .hero-stats{grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;}
   .stat-card{padding:.75rem;} .stat-value{font-size:1.5rem;} .stat-label{font-size:.58rem;} .stat-sub{font-size:.62rem;}
@@ -3220,7 +3220,6 @@ function renderBestEffortsChart() {
 
   const DISTANCES = [
     { dist: 1000,  label: '1 km',     color: '#47b8ff', emoji: '⚡' },
-    { dist: 2000,  label: '2 km',     color: '#2ed573', emoji: '🏃' },
     { dist: 5000,  label: '5 km',     color: '#e8ff47', emoji: '🎯' },
     { dist: 10000, label: '10 km',    color: '#ff4757', emoji: '🏁' },
     { dist: 21097, label: 'Semi',     color: '#c084fc', emoji: '🥇' },
@@ -3302,7 +3301,7 @@ function renderTempChart(sessions) {
   destroyChart('temp');
   const ctx = document.getElementById('chart-temp')?.getContext('2d');
   if (!ctx) return;
-  const efSessions = sessions.filter(s => s.avg_temp != null && s.avg_pace_seconds && s.avg_hr && s.type === 'EF');
+  const efSessions = sessions.filter(s => s.avg_temp != null && s.avg_pace_seconds && s.avg_hr && ['EF','Long','Aérobie Z3'].includes(s.type));
   if (efSessions.length < 3) {
     const tempParent = ctx.canvas.parentElement;
     if (!tempParent.querySelector('.empty-state'))

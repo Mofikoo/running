@@ -1,16 +1,17 @@
-// RunCoach Service Worker
-// Le cache se renouvelle automatiquement à chaque nouvelle version de index.html
-const CACHE_NAME = 'runcoach-v1';
+// RunCoach Service Worker — auto-versioning sans fetch imbriqué
+// La version est déterminée une seule fois à l'install/activate
 
-// On récupère la date de dernière modif de index.html pour versionner le cache
-async function getCacheVersion() {
+let ACTIVE_CACHE = 'runcoach-v1';
+
+// Calcule la version depuis le Last-Modified de index.html
+// Appelé UNIQUEMENT pendant install/activate, jamais pendant fetch
+async function resolveVersion() {
   try {
-    const res = await fetch('/running/index.html', { method: 'HEAD' });
-    const lastModified = res.headers.get('last-modified') || Date.now();
-    return 'runcoach-' + btoa(lastModified).slice(0, 12);
-  } catch {
-    return CACHE_NAME;
-  }
+    const res = await fetch('/running/index.html', { method: 'HEAD', cache: 'no-store' });
+    const lm = res.headers.get('last-modified');
+    if (lm) return 'runcoach-' + btoa(lm).replace(/[^a-zA-Z0-9]/g,'').slice(0, 10);
+  } catch {}
+  return ACTIVE_CACHE;
 }
 
 const STATIC_ASSETS = [
@@ -21,61 +22,60 @@ const STATIC_ASSETS = [
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
 ];
 
-// Installation : on calcule le vrai nom de cache depuis le serveur
 self.addEventListener('install', event => {
   event.waitUntil(
-    getCacheVersion().then(version =>
-      caches.open(version).then(cache =>
+    resolveVersion().then(version => {
+      ACTIVE_CACHE = version;
+      return caches.open(version).then(cache =>
         cache.addAll(STATIC_ASSETS).catch(err => console.log('Cache partiel OK:', err))
-      )
-    )
+      );
+    })
   );
   self.skipWaiting();
 });
 
-// Activation : supprime tous les anciens caches sauf le courant
 self.addEventListener('activate', event => {
   event.waitUntil(
-    getCacheVersion().then(version =>
-      caches.keys().then(keys =>
+    resolveVersion().then(version => {
+      ACTIVE_CACHE = version;
+      return caches.keys().then(keys =>
         Promise.all(keys.filter(k => k !== version).map(k => caches.delete(k)))
-      )
-    )
+      );
+    })
   );
   self.clients.claim();
 });
 
-// Fetch : Network First pour les API, Cache First pour le reste
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
+  // API calls → toujours réseau direct, jamais de cache
   if (
     url.hostname.includes('supabase.co') ||
     url.hostname.includes('openrouter.ai') ||
     url.hostname.includes('workers.dev') ||
-    url.hostname.includes('strava.com')
+    url.hostname.includes('strava.com') ||
+    url.hostname.includes('googleapis.com') && url.pathname.includes('fonts')
   ) {
-    event.respondWith(fetch(event.request));
-    return;
+    return; // laisser passer sans respondWith = comportement réseau normal
   }
 
+  // Ressources statiques → Cache First, fallback réseau
   event.respondWith(
-    getCacheVersion().then(version =>
-      caches.match(event.request).then(cached => {
-        if (cached) return cached;
-        return fetch(event.request).then(response => {
-          if (response.ok && event.request.method === 'GET') {
-            const clone = response.clone();
-            caches.open(version).then(cache => cache.put(event.request, clone));
-          }
-          return response;
-        }).catch(() => {
-          if (event.request.destination === 'document') {
-            return caches.match('/running/');
-          }
-        });
-      })
-    )
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
+      return fetch(event.request).then(response => {
+        if (response.ok && event.request.method === 'GET') {
+          const clone = response.clone();
+          caches.open(ACTIVE_CACHE).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => {
+        if (event.request.destination === 'document') {
+          return caches.match('/running/index.html');
+        }
+      });
+    })
   );
 });
 
