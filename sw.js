@@ -1,10 +1,6 @@
-// RunCoach Service Worker — auto-versioning sans fetch imbriqué
-// La version est déterminée une seule fois à l'install/activate
+// RunCoach Service Worker v4
+let ACTIVE_CACHE = 'runcoach-v4';
 
-let ACTIVE_CACHE = 'runcoach-v1';
-
-// Calcule la version depuis le Last-Modified de index.html
-// Appelé UNIQUEMENT pendant install/activate, jamais pendant fetch
 async function resolveVersion() {
   try {
     const res = await fetch('/running/index.html', { method: 'HEAD', cache: 'no-store' });
@@ -17,9 +13,6 @@ async function resolveVersion() {
 const STATIC_ASSETS = [
   '/running/',
   '/running/index.html',
-  'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
 ];
 
 self.addEventListener('install', event => {
@@ -27,7 +20,7 @@ self.addEventListener('install', event => {
     resolveVersion().then(version => {
       ACTIVE_CACHE = version;
       return caches.open(version).then(cache =>
-        cache.addAll(STATIC_ASSETS).catch(err => console.log('Cache partiel OK:', err))
+        cache.addAll(STATIC_ASSETS).catch(() => {})
       );
     })
   );
@@ -47,31 +40,27 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
+  const req = event.request;
+  const url = new URL(req.url);
 
-  // API calls → toujours réseau direct, jamais de cache
-  if (
-    url.hostname.includes('supabase.co') ||
-    url.hostname.includes('openrouter.ai') ||
-    url.hostname.includes('workers.dev') ||
-    url.hostname.includes('strava.com') ||
-    url.hostname.includes('googleapis.com') && url.pathname.includes('fonts')
-  ) {
-    return; // laisser passer sans respondWith = comportement réseau normal
-  }
+  // Laisser passer TOUT ce qui n'est pas GET (POST, OPTIONS...) sans toucher
+  if (req.method !== 'GET') return;
 
-  // Ressources statiques → Cache First, fallback réseau
+  // Laisser passer toutes les requêtes cross-origin (API, CDN, fonts)
+  if (url.origin !== self.location.origin) return;
+
+  // Seulement les ressources de notre propre domaine en GET
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(req).then(cached => {
       if (cached) return cached;
-      return fetch(event.request).then(response => {
-        if (response.ok && event.request.method === 'GET') {
+      return fetch(req).then(response => {
+        if (response.ok) {
           const clone = response.clone();
-          caches.open(ACTIVE_CACHE).then(cache => cache.put(event.request, clone));
+          caches.open(ACTIVE_CACHE).then(cache => cache.put(req, clone));
         }
         return response;
       }).catch(() => {
-        if (event.request.destination === 'document') {
+        if (req.destination === 'document') {
           return caches.match('/running/index.html');
         }
       });

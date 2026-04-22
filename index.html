@@ -803,6 +803,13 @@ input[type=range]{padding:0;background:none;border:none;}
 const SUPABASE_URL = 'https://hqnwygpfbceyymkwtccg.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxbnd5Z3BmYmNleXlta3d0Y2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTE3MjIsImV4cCI6MjA4OTc2NzcyMn0.Po75hhyCegnNVVihqfQIHJkw20jUeGI1MD95Jqpn-3A';
 const PROXY_URL   = 'https://hqnwygpfbceyymkwtccg.supabase.co/functions/v1/ai-proxy';
+
+// Appel IA via le client Supabase (gère l'auth automatiquement)
+async function callAI(payload) {
+  const { data, error } = await db.functions.invoke('ai-proxy', { body: payload });
+  if (error) throw error;
+  return data;
+}
 const MODEL       = 'google/gemini-3-flash-preview';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1763,8 +1770,7 @@ Réponds UNIQUEMENT en JSON valide (pas de texte avant/après, pas de markdown):
 IMPORTANT: Pour "update" et "delete", utilise EXACTEMENT les UUIDs entre crochets [id:...] du planning ci-dessus. Sans UUID exact, la modification sera ignorée.`;
 
   try {
-    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:1500,messages:[{role:'user',content:prompt}]}),cache:'no-store'});
-    const data=await res.json();
+    const data=await callAI({model:MODEL,max_tokens:1500,messages:[{role:'user',content:prompt}]});
     const raw = data.content?.[0]?.text || '{}';
     console.log('[Coach Planning] Raw AI response:', raw); // DEBUG
     let parsed;
@@ -1999,8 +2005,7 @@ async function analyzeSession(session) {
 Historique récent:\n${recent}
 Donne analyse concise (2-3 para): qualité, vigilance santé si nécessaire, conseil pour la prochaine. Direct, technique, bienveillant.`;
   try {
-    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:800,messages:[{role:'user',content:prompt}]}),cache:'no-store'});
-    const data=await res.json();
+    const data=await callAI({model:MODEL,max_tokens:800,messages:[{role:'user',content:prompt}]});
     textEl.textContent=data.content?.[0]?.text||'Analyse indisponible.';
   } catch(e) { textEl.textContent='Coach IA indisponible.'; }
 }
@@ -2909,8 +2914,7 @@ Profil: PB ${secToTime(profile.pb_10k_seconds)}, objectif sub-37, FC max ${profi
 
 3 paragraphes max: verdict global, analyse intervalles si présents, recommandation concrète.`;
   try {
-    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:600,messages:[{role:'user',content:prompt}]}),cache:'no-store'});
-    const data=await res.json();
+    const data=await callAI({model:MODEL,max_tokens:600,messages:[{role:'user',content:prompt}]});
     textEl.textContent=data.content?.[0]?.text||'Analyse indisponible.';
   } catch(e) { textEl.textContent='Erreur Coach IA: '+e.message; }
 }
@@ -3122,13 +3126,7 @@ Réponds en français, directement et avec rigueur. Appuie-toi sur les données 
   }
 
   try {
-    const res  = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1000, messages }),
-      cache: 'no-store',
-    });
-    const data = await res.json();
+    const data = await callAI({ model: MODEL, max_tokens: 1000, messages });
     const reply = data.content?.[0]?.text || 'Je ne peux pas répondre pour le moment.';
 
     // Remplacer la bulle de chargement
