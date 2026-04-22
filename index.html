@@ -189,8 +189,8 @@ input[type=range]{padding:0;background:none;border:none;}
   .nav-tabs{display:none;} .nav-status{display:none;}
   nav.top-nav{padding:0 1rem;justify-content:center;padding-top:env(safe-area-inset-top);}
   .nav-logo{font-size:1.3rem;} .bottom-nav{display:block;}
-  .page{padding:.85rem;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 3.5rem);}
-  #page-coach{padding:.75rem .75rem 0;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));}
+  .page{padding:.85rem;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 5rem);}
+  #page-coach{padding:.75rem .75rem 0;padding-bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 1rem);}
   .hero-stats{grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;}
   .stat-card{padding:.75rem;} .stat-value{font-size:1.5rem;} .stat-label{font-size:.58rem;} .stat-sub{font-size:.62rem;}
   .grid-2,.grid-3{grid-template-columns:1fr;gap:.6rem;}
@@ -1763,7 +1763,7 @@ Réponds UNIQUEMENT en JSON valide (pas de texte avant/après, pas de markdown):
 IMPORTANT: Pour "update" et "delete", utilise EXACTEMENT les UUIDs entre crochets [id:...] du planning ci-dessus. Sans UUID exact, la modification sera ignorée.`;
 
   try {
-    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:1500,messages:[{role:'user',content:prompt}]})});
+    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:1500,messages:[{role:'user',content:prompt}]}),cache:'no-store'});
     const data=await res.json();
     const raw = data.content?.[0]?.text || '{}';
     console.log('[Coach Planning] Raw AI response:', raw); // DEBUG
@@ -1999,7 +1999,7 @@ async function analyzeSession(session) {
 Historique récent:\n${recent}
 Donne analyse concise (2-3 para): qualité, vigilance santé si nécessaire, conseil pour la prochaine. Direct, technique, bienveillant.`;
   try {
-    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:800,messages:[{role:'user',content:prompt}]})});
+    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:800,messages:[{role:'user',content:prompt}]}),cache:'no-store'});
     const data=await res.json();
     textEl.textContent=data.content?.[0]?.text||'Analyse indisponible.';
   } catch(e) { textEl.textContent='Coach IA indisponible.'; }
@@ -2909,7 +2909,7 @@ Profil: PB ${secToTime(profile.pb_10k_seconds)}, objectif sub-37, FC max ${profi
 
 3 paragraphes max: verdict global, analyse intervalles si présents, recommandation concrète.`;
   try {
-    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:600,messages:[{role:'user',content:prompt}]})});
+    const res=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,max_tokens:600,messages:[{role:'user',content:prompt}]}),cache:'no-store'});
     const data=await res.json();
     textEl.textContent=data.content?.[0]?.text||'Analyse indisponible.';
   } catch(e) { textEl.textContent='Erreur Coach IA: '+e.message; }
@@ -3125,7 +3125,8 @@ Réponds en français, directement et avec rigueur. Appuie-toi sur les données 
     const res  = await fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1000, messages })
+      body: JSON.stringify({ model: MODEL, max_tokens: 1000, messages }),
+      cache: 'no-store',
     });
     const data = await res.json();
     const reply = data.content?.[0]?.text || 'Je ne peux pas répondre pour le moment.';
@@ -3699,10 +3700,23 @@ document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click
 // PWA
 // ═══════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/running/sw.js')
-      .then(r=>console.log('SW OK:',r.scope))
-      .catch(e=>console.log('SW erreur:',e));
+  window.addEventListener('load', async () => {
+    try {
+      // Dés-enregistrer les anciens SW pour forcer le rechargement
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        const swUrl = reg.active?.scriptURL || reg.installing?.scriptURL || '';
+        // Si l'URL du SW ne contient pas ?v=3, c'est une ancienne version
+        if (!swUrl.includes('?v=3')) {
+          await reg.unregister();
+          console.log('Ancien SW supprimé:', swUrl);
+        }
+      }
+      const r = await navigator.serviceWorker.register('/running/sw.js?v=3');
+      console.log('SW OK:', r.scope);
+    } catch(e) {
+      console.log('SW erreur:', e);
+    }
   });
 }
 let deferredPrompt=null;
