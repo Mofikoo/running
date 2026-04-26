@@ -67,7 +67,7 @@ def map_type(name, avg_hr):
         return 'VMA'
     if any(x in n for x in ['seuil','tempo','4x8','3x8','x8\'','x10\'','x15\'']):
         return 'Seuil'
-    if any(x in n for x in ['longue','long run','sortie longue']):
+    if any(x in n for x in ['longue','long run','sortie longue','sl ','sl-',' sl',' sl ']) or n.startswith('sl') or n.endswith(' sl'):
         return 'Long'
     if any(x in n for x in ['récup','recup','recovery']):
         return 'Récup'
@@ -277,7 +277,8 @@ def sync(days_back=7):
                 if fc >= FC_MAX*0.93:   effort = 5
                 elif fc >= FC_MAX*0.88: effort = 4
                 elif fc >= FC_MAX*0.80: effort = 3
-                else:                   effort = 2
+                elif fc >= FC_MAX*0.70: effort = 2
+                else:                   effort = 1  # EF → effort faible
 
             time.sleep(0.5)  # rate limiting Strava
 
