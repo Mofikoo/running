@@ -550,7 +550,7 @@ input[type=range]{padding:0;background:none;border:none;}
 
 <!-- HISTORIQUE -->
 <div id="page-history" class="page">
-  <div class="section-header"><div><div class="section-title">HISTORIQUE</div><div class="section-sub" id="history-sub">—</div></div></div>
+  <div class="section-header"><div><div class="section-title">HISTORIQUE</div><div class="section-sub" id="history-sub">—</div></div><button class="btn btn-ghost btn-sm" id="sync-btn" onclick="triggerStravaSync()">🔄 Sync Strava</button></div>
   <div class="card"><div id="history-list"><div class="empty-state">Chargement...</div></div></div>
 </div>
 
@@ -2033,6 +2033,21 @@ function clearLog() {
 // ═══════════════════════════════════════════════════════
 // HISTORY
 // ═══════════════════════════════════════════════════════
+async function triggerStravaSync() {
+  const btn = document.getElementById('sync-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ En cours...'; }
+  try {
+    const res = await fetch(
+      'https://hqnwygpfbceyymkwtccg.supabase.co/functions/v1/trigger-sync',
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY } }
+    );
+    const data = await res.json();
+    if (data.ok) showToast('Sync lancée ✓ — résultats dans ~1 min', 'success');
+    else showToast('Erreur: ' + (data.error||'inconnue'), 'error');
+  } catch(e) { showToast('Erreur: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync Strava'; } }
+}
+
 function renderHistory() {
   const el=document.getElementById('history-list');
   if (!el) return;
