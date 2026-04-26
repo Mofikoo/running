@@ -454,7 +454,7 @@ input[type=range]{padding:0;background:none;border:none;}
     </select>
   </div>
   <div class="grid-2" style="margin-bottom:1rem;">
-    <div class="card"><div class="card-title">Volume hebdomadaire (km)</div><canvas id="chart-volume" height="130"></canvas></div>
+    <div class="card"><div class="card-title">Volume hebdomadaire (km) <span id="stat-km-year-inline" style="font-family:var(--fm);font-size:.7rem;color:var(--accent);font-weight:600;margin-left:.5rem;"></span></div><canvas id="chart-volume" height="130"></canvas></div>
     <div class="card"><div class="card-title">Allure EF — moyenne hebdomadaire <span class="badge">EF ONLY</span></div><canvas id="chart-pace" height="130"></canvas></div>
   </div>
   <div class="grid-2" style="margin-bottom:1rem;">
@@ -3374,6 +3374,14 @@ function groupByWeek(sessions) {
 const CHART_DEFAULTS={responsive:true,plugins:{legend:{labels:{color:'#6b6b8a',font:{family:'DM Mono',size:10}}}},scales:{x:{ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:9}},grid:{color:'#2a2a3a'}},y:{ticks:{color:'#6b6b8a',font:{family:'DM Mono',size:9}},grid:{color:'#2a2a3a'}}}};
 
 function renderVolumeChart(sessions) {
+  // Km cette année — affiché dans le titre de la card
+  const thisYear = new Date().getFullYear();
+  const yearKm = allSessions
+    .filter(s => s.date && s.date.startsWith(thisYear))
+    .reduce((a,s) => a+(s.distance_km||0), 0);
+  const inlineEl = document.getElementById('stat-km-year-inline');
+  if (inlineEl) inlineEl.textContent = `· ${Math.round(yearKm)} km en ${thisYear}`;
+
   destroyChart('volume');
   const weeks=groupByWeek(sessions);
   const labels=Object.keys(weeks).map(k=>getWeekLabel(k));
