@@ -558,9 +558,15 @@ input[type=range]{padding:0;background:none;border:none;}
 <!-- COACH IA -->
 <div id="page-coach" class="page">
   <div class="section-header" style="margin-bottom:.75rem;flex-shrink:0;">
-    <div><div class="section-title">COACH IA</div><div class="section-sub">Chat · Persistant · Contextuel</div></div>
-    <button class="btn btn-ghost btn-sm" onclick="clearCoachHistory()">🗑 Effacer</button>
+    <div><div class="section-title">COACH IA</div><div class="section-sub" id="coach-thread-name-display">Nouvelle conversation</div></div>
+    <div style="display:flex;gap:.4rem;">
+      <button class="btn btn-ghost btn-sm" onclick="newCoachThread()">➕</button>
+      <button class="btn btn-ghost btn-sm" onclick="renameCoachThread()">✏️</button>
+      <button class="btn btn-ghost btn-sm" onclick="clearCoachHistory()">🗑</button>
+    </div>
   </div>
+  <!-- Liste des threads -->
+  <div id="coach-threads-list" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.6rem;flex-shrink:0;"></div>
   <div class="card" style="display:flex;flex-direction:column;gap:0;padding:1rem;flex:1;min-height:0;">
     <!-- Suggestions rapides -->
     <div class="chat-quick-btns" id="coach-quick-btns">
@@ -571,9 +577,7 @@ input[type=range]{padding:0;background:none;border:none;}
       <button class="chat-quick-btn" onclick="sendCoachMsg('Comment était ma dernière séance ?')">🏃 Dernière séance</button>
     </div>
     <!-- Fenêtre de chat -->
-    <div class="chat-window" id="coach-chat-window">
-      <div class="chat-bubble coach" style="color:var(--muted);font-size:.8rem;">Bonjour ! Je suis ton coach running personnel. Pose-moi n'importe quelle question sur ton entraînement, ta santé, ou ton planning.</div>
-    </div>
+    <div class="chat-window" id="coach-chat-window"></div>
     <!-- Input -->
     <div class="chat-input-row">
       <textarea id="coach-input" placeholder="Pose ta question..." rows="1"
@@ -1574,6 +1578,14 @@ function renderWeek() {
   const we=new Date(ws); we.setDate(we.getDate()+6);
   const wlEl=document.getElementById('week-label');
   if (wlEl) wlEl.textContent=`${formatDateShort(ws)} — ${formatDateShort(we)}`;
+
+  // Total km planifiés cette semaine
+  const wsStr = localDateStr(ws);
+  const weStr = localDateStr(we);
+  const weekPlanned = plannedSessions.filter(s => s.date >= wsStr && s.date <= weStr);
+  const weekKmTotal = weekPlanned.reduce((a,s) => a + (s.target_distance_km||0), 0);
+  const kmLabelEl = document.getElementById('week-km-total');
+  if (kmLabelEl) kmLabelEl.textContent = weekKmTotal > 0 ? `${Math.round(weekKmTotal*10)/10} km planifiés` : '';
 
   // ── BUG #1 CORRIGÉ : calcPhase remplace getPhase (inexistante) ──
   const race10=new Date(profile.race_10k_date||'2027-01-15');
@@ -2947,29 +2959,10 @@ Profil: PB ${secToTime(profile.pb_10k_seconds)}, objectif sub-37, FC max ${profi
 }
 
 // ═══════════════════════════════════════════════════════
-// COACH IA
+// COACH IA — suite
 // ═══════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════
-// COACH IA — CHAT INTERACTIF AVEC HISTORIQUE
-// ═══════════════════════════════════════════════════════
-// Coach history — persisté dans localStorage
-const COACH_LS_KEY = 'runcoach_chat_history';
-const COACH_LS_BUBBLES = 'runcoach_chat_bubbles';
 
-function loadCoachHistory() {
-  try {
-    const saved = localStorage.getItem(COACH_LS_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch(e) { return []; }
-}
-function saveCoachHistory() {
-  try {
-    localStorage.setItem(COACH_LS_KEY, JSON.stringify(coachHistory));
-    // Sauvegarder aussi les bulles HTML pour les restaurer visuellement
-    const win = document.getElementById('coach-chat-window');
-    if (win) localStorage.setItem(COACH_LS_BUBBLES, win.innerHTML);
-  } catch(e) {}
-}
+
 function restoreCoachBubbles() {
   const win = document.getElementById('coach-chat-window');
   if (!win) return;
@@ -3026,13 +3019,14 @@ function appendChatBubble(role, text, isLoading=false) {
   return div;
 }
 
-function clearCoachHistory() {
+async function clearCoachHistory() {
+  if (!confirm('Effacer cette conversation ?')) return;
   coachHistory = [];
-  try { localStorage.removeItem(COACH_LS_KEY); localStorage.removeItem(COACH_LS_BUBBLES); } catch(e) {}
+  await saveCoachHistory();
   const win = document.getElementById('coach-chat-window');
-  if (win) win.innerHTML = '<div class="chat-bubble coach" style="color:var(--muted);font-size:.8rem;">Conversation effacée. Je suis prêt pour de nouvelles questions !</div>';
+  if (win) win.innerHTML = '';
   const qb = document.getElementById('coach-quick-btns');
-  if (qb) qb.style.display = 'flex';
+  if (qb) qb.style.display = '';
 }
 
 async function sendCoachMsg(quickMsg) {
@@ -3723,7 +3717,10 @@ function showPage(name){
   if (name==='detail') document.getElementById('btab-history')?.classList.add('active');
   if (name==='planning') renderWeek();
   if (name==='graphs')   renderGraphs();
-  if (name==='coach')    restoreCoachBubbles();
+  if (name==='coach') {
+    if (!coachThreads.length) loadCoachThreads();
+    else restoreCoachBubbles();
+  }
 }
 function openModal(id){const el=document.getElementById(id);if(el)el.classList.add('open');}
 function closeModal(id){const el=document.getElementById(id);if(el)el.classList.remove('open');}
