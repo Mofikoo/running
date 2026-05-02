@@ -2959,32 +2959,136 @@ Profil: PB ${secToTime(profile.pb_10k_seconds)}, objectif sub-37, FC max ${profi
 }
 
 // ═══════════════════════════════════════════════════════
-// COACH IA — suite
+// COACH IA — MULTI-THREADS (stockés dans Supabase)
 // ═══════════════════════════════════════════════════════
+let coachHistory   = [];
+let coachThreads   = [];
+let activeThreadId = null;
 
+async function loadCoachThreads() {
+  const { data } = await db.from('coach_threads').select('*').order('updated_at', { ascending: false });
+  coachThreads = data || [];
+  if (!coachThreads.length) {
+    await createCoachThread('Général');
+  } else {
+    await switchCoachThread(coachThreads[0].id);
+  }
+  renderCoachThreadsList();
+}
+
+async function createCoachThread(name) {
+  const { data, error } = await db.from('coach_threads')
+    .insert([{ name: name || 'Nouvelle conversation', messages: [] }])
+    .select().single();
+  if (error || !data) { showToast('Erreur création', 'error'); return; }
+  coachThreads.unshift(data);
+  await switchCoachThread(data.id);
+  renderCoachThreadsList();
+}
+
+async function switchCoachThread(id) {
+  activeThreadId = id;
+  const thread = coachThreads.find(t => t.id === id);
+  if (!thread) return;
+  coachHistory = thread.messages || [];
+  const nameEl = document.getElementById('coach-thread-name-display');
+  if (nameEl) nameEl.textContent = thread.name;
+  renderCoachThreadsList();
+  restoreCoachBubbles();
+}
+
+async function saveCoachHistory() {
+  if (!activeThreadId) return;
+  await db.from('coach_threads')
+    .update({ messages: coachHistory, updated_at: new Date().toISOString() })
+    .eq('id', activeThreadId);
+  const t = coachThreads.find(t => t.id === activeThreadId);
+  if (t) t.messages = [...coachHistory];
+}
+
+function loadCoachHistory() { return coachHistory; }
+
+function renderCoachThreadsList() {
+  const el = document.getElementById('coach-threads-list');
+  if (!el) return;
+  el.innerHTML = coachThreads.map(t => {
+    const active = t.id === activeThreadId;
+    return `<button onclick="switchCoachThread('${t.id}')"
+      style="font-family:var(--fm);font-size:.65rem;padding:.25rem .7rem;border-radius:12px;
+             border:1px solid ${active ? 'var(--accent)' : 'var(--border)'};
+             background:${active ? 'rgba(232,255,71,.1)' : 'transparent'};
+             color:${active ? 'var(--accent)' : 'var(--muted)'};
+             cursor:pointer;display:flex;align-items:center;gap:.35rem;white-space:nowrap;">
+      ${t.name}
+      ${coachThreads.length > 1
+        ? `<span onclick="event.stopPropagation();deleteCoachThread('${t.id}')"
+            style="opacity:.45;font-size:.65rem;">✕</span>`
+        : ''}
+    </button>`;
+  }).join('');
+}
+
+async function newCoachThread() {
+  const name = prompt('Nom de la conversation :', 'Nouvelle conversation');
+  if (!name || !name.trim()) return;
+  await createCoachThread(name.trim());
+}
+
+async function renameCoachThread() {
+  if (!activeThreadId) return;
+  const t = coachThreads.find(t => t.id === activeThreadId);
+  const name = prompt('Nouveau nom :', t?.name || '');
+  if (!name || !name.trim()) return;
+  await db.from('coach_threads').update({ name: name.trim() }).eq('id', activeThreadId);
+  if (t) t.name = name.trim();
+  const nameEl = document.getElementById('coach-thread-name-display');
+  if (nameEl) nameEl.textContent = name.trim();
+  renderCoachThreadsList();
+  showToast('Renommé ✓', 'success');
+}
+
+async function deleteCoachThread(id) {
+  if (!confirm('Supprimer cette conversation ?')) return;
+  await db.from('coach_threads').delete().eq('id', id);
+  coachThreads = coachThreads.filter(t => t.id !== id);
+  if (activeThreadId === id) {
+    if (coachThreads.length) await switchCoachThread(coachThreads[0].id);
+    else await createCoachThread('Général');
+  }
+  renderCoachThreadsList();
+}
+
+async function clearCoachHistory() {
+  if (!confirm('Effacer cette conversation ?')) return;
+  coachHistory = [];
+  await saveCoachHistory();
+  const win = document.getElementById('coach-chat-window');
+  if (win) win.innerHTML = '';
+  const qb = document.getElementById('coach-quick-btns');
+  if (qb) qb.style.display = '';
+}
 
 function restoreCoachBubbles() {
   const win = document.getElementById('coach-chat-window');
   if (!win) return;
-  if (!coachHistory.length) coachHistory = loadCoachHistory();
-  if (!coachHistory.length) return;
-  try {
-    // Re-rendre depuis coachHistory pour garantir le markdown rendu correctement
-    win.innerHTML = '';
-    coachHistory.forEach(m => {
-      const div = document.createElement('div');
-      div.className = 'chat-bubble ' + m.role;
-      if (m.role === 'user') div.textContent = m.content;
-      else div.innerHTML = renderMarkdown(m.content);
-      win.appendChild(div);
-    });
-    win.scrollTop = win.scrollHeight;
+  win.innerHTML = '';
+  if (!coachHistory.length) {
     const qb = document.getElementById('coach-quick-btns');
-    if (qb) qb.style.display = 'none';
-  } catch(e) {}
+    if (qb) qb.style.display = '';
+    return;
+  }
+  coachHistory.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'chat-bubble ' + m.role;
+    if (m.role === 'user') div.textContent = m.content;
+    else div.innerHTML = renderMarkdown(m.content);
+    win.appendChild(div);
+  });
+  const win2 = document.getElementById('coach-chat-window');
+  if (win2) win2.scrollTop = win2.scrollHeight;
+  const qb = document.getElementById('coach-quick-btns');
+  if (qb) qb.style.display = 'none';
 }
-
-let coachHistory = loadCoachHistory();
 
 function renderMarkdown(text) {
   // Convertit le markdown basique en HTML
@@ -3019,15 +3123,7 @@ function appendChatBubble(role, text, isLoading=false) {
   return div;
 }
 
-async function clearCoachHistory() {
-  if (!confirm('Effacer cette conversation ?')) return;
-  coachHistory = [];
-  await saveCoachHistory();
-  const win = document.getElementById('coach-chat-window');
-  if (win) win.innerHTML = '';
-  const qb = document.getElementById('coach-quick-btns');
-  if (qb) qb.style.display = '';
-}
+
 
 async function sendCoachMsg(quickMsg) {
   const inputEl = document.getElementById('coach-input');
