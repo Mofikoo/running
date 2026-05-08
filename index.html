@@ -1588,11 +1588,8 @@ function renderWeek() {
   const totalKm  = Math.round((doneKm + plannedKm) * 10) / 10;
   const kmLabelEl = document.getElementById('week-km-total');
   if (kmLabelEl && totalKm > 0) {
-    const parts = [];
-    if (doneKm > 0)    parts.push(`${Math.round(doneKm*10)/10}km faits`);
-    if (plannedKm > 0) parts.push(`${Math.round(plannedKm*10)/10}km prévus`);
-    kmLabelEl.textContent = `${totalKm} km · ${parts.join(' + ')}`;
-  } else if (kmLabelEl) {
+    kmLabelEl.textContent = `${totalKm} km`;
+    } else if (kmLabelEl) {
     kmLabelEl.textContent = '';
   }
 
