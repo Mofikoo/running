@@ -496,11 +496,7 @@ input[type=range]{padding:0;background:none;border:none;}
       <canvas id="chart-cadence" height="130"></canvas>
     </div>
   </div>
-  <div class="card" style="margin-top:1rem;">
-    <div class="card-title">Température & Performance <span class="badge">CONTEXTE</span></div>
-    <div style="font-family:var(--fm);font-size:.65rem;color:var(--muted);margin-bottom:.5rem;">Impact de la chaleur sur l'allure EF et la FC</div>
-    <canvas id="chart-temp" height="90"></canvas>
-  </div>
+
 </div>
 
 </div>
@@ -1579,13 +1575,26 @@ function renderWeek() {
   const wlEl=document.getElementById('week-label');
   if (wlEl) wlEl.textContent=`${formatDateShort(ws)} — ${formatDateShort(we)}`;
 
-  // Total km planifiés cette semaine
-  const wsStr = localDateStr(ws);
-  const weStr = localDateStr(we);
-  const weekPlanned = plannedSessions.filter(s => s.date >= wsStr && s.date <= weStr);
-  const weekKmTotal = weekPlanned.reduce((a,s) => a + (s.target_distance_km||0), 0);
+  // km semaine = réalisés + planifiés restants
+  const wsStr    = localDateStr(ws);
+  const weStr    = localDateStr(we);
+  const todayStr = localDateStr(new Date());
+  const doneThisWeek    = allSessions.filter(s => s.date >= wsStr && s.date <= weStr);
+  const doneDates       = new Set(doneThisWeek.map(s => s.date));
+  const doneKm          = doneThisWeek.reduce((a,s) => a + (s.distance_km||0), 0);
+  const plannedKm       = plannedSessions
+    .filter(s => s.date >= wsStr && s.date <= weStr && s.date >= todayStr && !doneDates.has(s.date))
+    .reduce((a,s) => a + (s.target_distance_km||0), 0);
+  const totalKm  = Math.round((doneKm + plannedKm) * 10) / 10;
   const kmLabelEl = document.getElementById('week-km-total');
-  if (kmLabelEl) kmLabelEl.textContent = weekKmTotal > 0 ? `${Math.round(weekKmTotal*10)/10} km planifiés` : '';
+  if (kmLabelEl && totalKm > 0) {
+    const parts = [];
+    if (doneKm > 0)    parts.push(`${Math.round(doneKm*10)/10}km faits`);
+    if (plannedKm > 0) parts.push(`${Math.round(plannedKm*10)/10}km prévus`);
+    kmLabelEl.textContent = `${totalKm} km · ${parts.join(' + ')}`;
+  } else if (kmLabelEl) {
+    kmLabelEl.textContent = '';
+  }
 
   // ── BUG #1 CORRIGÉ : calcPhase remplace getPhase (inexistante) ──
   const race10=new Date(profile.race_10k_date||'2027-01-15');
@@ -3327,7 +3336,7 @@ function renderGraphs() {
   renderVolumeChart(recent); renderPaceChart(recent); renderHRChart(recent);
   renderTypesChart(recent); renderLoadChart(recent); renderFitnessChart();
   renderEconomyChart(recent); renderPainChart(recent); renderPolarChart(recent);
-  renderBestEffortsChart(); renderCadenceChart(recent); renderTempChart(recent);
+  renderBestEffortsChart(); renderCadenceChart(recent);
 }
 
 function renderBestEffortsChart() {
@@ -3413,39 +3422,6 @@ function renderCadenceChart(sessions) {
   });
 }
 
-function renderTempChart(sessions) {
-  destroyChart('temp');
-  const ctx = document.getElementById('chart-temp')?.getContext('2d');
-  if (!ctx) return;
-  const efSessions = sessions.filter(s => s.avg_temp != null && s.avg_pace_seconds && s.avg_hr && ['EF','Long','Aérobie Z3'].includes(s.type));
-  if (efSessions.length < 3) {
-    const tempParent = ctx.canvas.parentElement;
-    if (!tempParent.querySelector('.empty-state'))
-      tempParent.insertAdjacentHTML('beforeend', '<div class="empty-state" style="padding:1rem;font-size:.75rem;">Pas assez de données (séances EF avec température)</div>');
-    return;
-  }
-  const labels = efSessions.map(s => `${formatDate(s.date)} (${s.avg_temp}°)`);
-  const pace   = efSessions.map(s => parseFloat((s.avg_pace_seconds/60).toFixed(3)));
-  const hr     = efSessions.map(s => s.avg_hr);
-  const temps  = efSessions.map(s => s.avg_temp);
-  // Couleur par température
-  const bgColors = temps.map(t => t > 25 ? 'rgba(255,71,87,0.6)' : t > 18 ? 'rgba(255,165,2,0.6)' : 'rgba(71,184,255,0.6)');
-  chartInstances['temp'] = new Chart(ctx, {
-    type:'bar',
-    data:{ labels, datasets:[
-      { label:'Allure EF', data:pace, backgroundColor:bgColors, borderRadius:3, yAxisID:'y-pace' },
-      { label:'FC moy', data:hr, type:'line', borderColor:'#ff4757', backgroundColor:'transparent', tension:0.3, pointRadius:3, borderWidth:2, yAxisID:'y-hr' }
-    ]},
-    options:{ ...CHART_DEFAULTS, interaction:{mode:'index',intersect:false},
-      plugins:{ ...CHART_DEFAULTS.plugins, tooltip:{ callbacks:{ label:(c)=>{ if(c.dataset.yAxisID==='y-pace'){const v=c.raw;const m=Math.floor(v),s=Math.round((v%1)*60);return ` Allure: ${m}'${String(s).padStart(2,'0')}"/km`;} return ` FC: ${c.raw}bpm`; }}}},
-      scales:{
-        x:CHART_DEFAULTS.scales.x,
-        'y-pace':{ position:'left', reverse:true, ticks:{color:'#47b8ff',font:{family:'DM Mono',size:9},callback:v=>{const m=Math.floor(v),s=Math.round((v%1)*60);return `${m}'${String(s).padStart(2,'0')}"`;}}, grid:{color:'#2a2a3a'} },
-        'y-hr':{ position:'right', ticks:{color:'#ff4757',font:{family:'DM Mono',size:9}}, grid:{display:false}, min:120 }
-      }
-    }
-  });
-}
 
 function getWeekLabel(dateStr) {
   const d=new Date(dateStr+'T12:00:00'), ws=getWeekStart(d);
