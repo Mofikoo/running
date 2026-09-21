@@ -121,6 +121,48 @@ def compute_zone_times(hr_arr):
     return {k: round(v/60, 1) for k, v in zones.items()}
 
 
+BEST_EFFORT_TARGETS = [
+    (1000,  '1 km'),
+    (5000,  '5 km'),
+    (10000, '10 km'),
+    (21097, 'Semi'),
+    (42195, 'Marathon'),
+]
+
+
+def compute_best_efforts(time_arr, dist_arr):
+    """Meilleur temps réel sur chaque distance standard, calculé par fenêtre glissante
+    sur les streams temps/distance cumulés (équivalent des best_efforts Strava)."""
+    pairs = [(t, d) for t, d in zip(time_arr, dist_arr) if t is not None and d is not None]
+    if len(pairs) < 2:
+        return None
+    times  = [p[0] for p in pairs]
+    dists  = [p[1] for p in pairs]
+    total_dist = dists[-1]
+    n = len(dists)
+
+    result = []
+    for dist_m, label in BEST_EFFORT_TARGETS:
+        if total_dist < dist_m:
+            continue
+        i = 0
+        best = None
+        for j in range(n):
+            while i <= j and dists[j] - dists[i] >= dist_m:
+                cand = times[j] - times[i]
+                if best is None or cand < best:
+                    best = cand
+                i += 1
+        if best and best > 0:
+            result.append({
+                'distance_m':  dist_m,
+                'label':       label,
+                'elapsed_sec': round(best),
+                'pace_sec':    round(best / dist_m * 1000),
+            })
+    return result if result else None
+
+
 def get_streams(client, activity_id):
     """Récupère les métriques par point depuis Garmin Connect (activity details)."""
     try:
@@ -177,12 +219,14 @@ def get_streams(client, activity_id):
     }
 
     zone_minutes = compute_zone_times(hr_arr)
+    best_efforts = compute_best_efforts(time_arr, dist_arr)
 
     return {
         'streams': streams_data,
         'zone_minutes': zone_minutes,
         'total_points': len(indices),
         'duration_sec': round(time_arr[-1]) if time_arr and time_arr[-1] else None,
+        'best_efforts': best_efforts,
     }
 
 
@@ -209,6 +253,26 @@ def parse_splits(client, activity_id):
             'elev_diff':    round((s.get('elevationGain') or 0) - (s.get('elevationLoss') or 0), 1),
         })
     return result
+
+
+def get_vo2max(client, date_str, cache={}):
+    """VO2max estimée par la montre à la date donnée (métrique quotidienne, pas par activité)."""
+    if date_str in cache:
+        return cache[date_str]
+    value = None
+    try:
+        data = client.get_max_metrics(date_str)
+        entries = data if isinstance(data, list) else [data]
+        for entry in entries:
+            generic = (entry or {}).get('generic') or {}
+            v = generic.get('vo2MaxPreciseValue') or generic.get('vo2MaxValue')
+            if v:
+                value = round(float(v), 1)
+                break
+    except Exception as e:
+        log.warning(f"VO2max non disponible pour {date_str}: {e}")
+    cache[date_str] = value
+    return value
 
 
 def get_existing_ids():
@@ -308,7 +372,9 @@ def sync(days_back=7):
                 log.warning(f"  Streams erreur: {e}")
 
             power_avg = act.get('avgPower')
-            kilojoules = act.get('calories')  # kcal, pas kJ — pas d'équivalent kJ direct chez Garmin
+            vo2max = get_vo2max(client, date_str)
+            if vo2max:
+                log.info(f"  → VO2max: {vo2max}")
 
             session = {
                 "date":               date_str,
@@ -327,12 +393,13 @@ def sync(days_back=7):
                 "cadence_avg":        int(cadence) if cadence else None,
                 "streams":            streams_data,
                 "splits":             splits_data,
-                "best_efforts":       None,
+                "best_efforts":       streams_data.get('best_efforts') if streams_data else None,
                 "suffer_score":       None,
                 "power_avg":          int(power_avg) if power_avg else None,
                 "power_weighted":     None,
                 "kilojoules":         None,
                 "avg_temp":           None,
+                "vo2max":             vo2max,
             }
 
             upsert_session(session)
