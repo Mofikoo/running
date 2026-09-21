@@ -2178,6 +2178,7 @@ function openDetailSession(id) {
   const noteLines=[
     s.elevation_gain  ? `<div><span style="color:var(--muted)">Dénivelé:</span> +${s.elevation_gain}m</div>` : '',
     s.cadence_avg     ? `<div><span style="color:var(--muted)">Cadence:</span> ${s.cadence_avg} pas/min</div>` : '',
+    s.vo2max          ? `<div><span style="color:var(--muted)">VO2max:</span> <span style="color:var(--accent)">${s.vo2max}</span> ml/kg/min</div>` : '',
     s.training_effect ? `<div><span style="color:var(--muted)">Training Effect:</span> ${s.training_effect}</div>` : '',
     s.power_weighted  ? `<div><span style="color:var(--muted)">Puissance normalisée:</span> <span style="color:var(--accent)">${s.power_weighted}W</span>${s.power_avg ? ' (moy '+s.power_avg+'W)' : ''}</div>` : '',
     s.kilojoules      ? `<div><span style="color:var(--muted)">Énergie:</span> ${s.kilojoules} kJ</div>` : '',
