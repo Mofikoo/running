@@ -461,7 +461,7 @@ input[type=range]{padding:0;background:none;border:none;}
   </div>
   <div class="grid-2" style="margin-bottom:1rem;">
     <div class="card" style="align-self:start;"><div class="card-title">FC moyenne par type de séance</div><canvas id="chart-hr" height="220"></canvas></div>
-    <div class="card" style="align-self:start;"><div class="card-title">Temps par zone FC <span class="badge" id="types-badge">STRAVA</span></div><canvas id="chart-types" height="220"></canvas></div>
+    <div class="card" style="align-self:start;"><div class="card-title">Temps par zone FC <span class="badge" id="types-badge">GARMIN</span></div><canvas id="chart-types" height="220"></canvas></div>
   </div>
   <div class="card"><div class="card-title">Charge cumulée (km/semaine) + tendance</div><canvas id="chart-load" height="90"></canvas></div>
   <div class="card" style="margin-top:1rem;">
@@ -529,13 +529,13 @@ input[type=range]{padding:0;background:none;border:none;}
   <div class="grid-2" style="margin-top:1rem;">
     <div id="detail-splits" style="display:none;">
       <div class="card">
-        <div class="card-title">Splits par km <span class="badge">STRAVA</span></div>
+        <div class="card-title">Splits par km <span class="badge">GARMIN</span></div>
         <div id="detail-splits-list"></div>
       </div>
     </div>
     <div id="detail-best-efforts" style="display:none;">
       <div class="card">
-        <div class="card-title">Meilleurs temps <span class="badge">STRAVA</span></div>
+        <div class="card-title">Meilleurs temps <span class="badge">GARMIN</span></div>
         <div id="detail-be-list"></div>
       </div>
     </div>
@@ -548,7 +548,7 @@ input[type=range]{padding:0;background:none;border:none;}
 
 <!-- HISTORIQUE -->
 <div id="page-history" class="page">
-  <div class="section-header"><div><div class="section-title">HISTORIQUE</div><div class="section-sub" id="history-sub">—</div></div><button class="btn btn-ghost btn-sm" id="sync-btn" onclick="triggerStravaSync()">🔄 Sync Strava</button></div>
+  <div class="section-header"><div><div class="section-title">HISTORIQUE</div><div class="section-sub" id="history-sub">—</div></div><button class="btn btn-ghost btn-sm" id="sync-btn" onclick="triggerStravaSync()">🔄 Sync Garmin</button></div>
   <div class="card"><div id="history-list"><div class="empty-state">Chargement...</div></div></div>
 </div>
 
@@ -2065,7 +2065,7 @@ async function triggerStravaSync() {
     if (data.ok) showToast('Sync lancée ✓ — résultats dans ~1 min', 'success');
     else showToast('Erreur: ' + (data.error||'inconnue'), 'error');
   } catch(e) { showToast('Erreur: ' + e.message, 'error'); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync Strava'; } }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync Garmin'; } }
 }
 
 function renderHistory() {
@@ -2554,7 +2554,7 @@ function renderZonesChart(zoneMins, isReal) {
   const sourceText = isReal === true
     ? '✓ Données FC réelles (seconde par seconde)'
     : isReal === false
-      ? '~ Données import Strava'
+      ? '~ Données import Garmin'
       : '⚠️ Estimation par type de séance';
   const sourceColor = isReal === true ? '#2ed573' : isReal === false ? '#47b8ff' : '#ffa502';
 
@@ -3364,7 +3364,7 @@ function renderBestEffortsChart() {
 
   const hasAny = DISTANCES.some(d => records[d.dist]);
   if (!hasAny) {
-    el.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:.75rem;">Pas encore de records — ils arriveront à la prochaine synchro Strava</div>';
+    el.innerHTML = '<div class="empty-state" style="padding:1rem;font-size:.75rem;">Pas encore de records — ils arriveront à la prochaine synchro Garmin</div>';
     return;
   }
 
@@ -3593,7 +3593,7 @@ function renderTypesChart(sessions) {
 
   // Label de source : RÉEL si toutes les séances ont des streams, MIXTE si partiel, ESTIMÉ si aucun
   const sourceLabel = streamsUsed === 0
-    ? '⚠️ Estimé (pas de streams Strava)'
+    ? '⚠️ Estimé (pas de streams Garmin)'
     : estimUsed === 0
       ? `✓ Données réelles (${streamsUsed} séances)`
       : `~ Mixte: ${streamsUsed} réelles + ${estimUsed} estimées`;

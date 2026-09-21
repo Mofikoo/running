@@ -1,4 +1,4 @@
-name: Strava → Supabase Sync
+name: Garmin → Supabase Sync
 
 on:
   schedule:
@@ -24,15 +24,15 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install requests PyNaCl
-      - name: Run Strava sync
+        run: pip install garminconnect requests PyNaCl
+      - name: Run Garmin sync
         env:
-          STRAVA_CLIENT_ID:     ${{ secrets.STRAVA_CLIENT_ID }}
-          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
-          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY:         ${{ secrets.SUPABASE_KEY }}
-          GITHUB_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY:    ${{ github.repository }}
-          DAYS_BACK:            ${{ github.event.inputs.days_back || '7' }}
-        run: python sync_strava.py
+          GARMIN_EMAIL:      ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD:   ${{ secrets.GARMIN_PASSWORD }}
+          GARMIN_TOKENS:     ${{ secrets.GARMIN_TOKENS }}
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:      ${{ secrets.SUPABASE_KEY }}
+          GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DAYS_BACK:         ${{ github.event.inputs.days_back || '7' }}
+        run: python sync_garmin.py
