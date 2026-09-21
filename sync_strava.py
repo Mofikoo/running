@@ -244,25 +244,25 @@ def sync(days_back=7):
 
     while True:
         r = requests.get(
-    'https://www.strava.com/api/v3/athlete/activities',
-    headers=headers,
-    params={'after': after, 'per_page': 50, 'page': page}
-)
+            'https://www.strava.com/api/v3/athlete/activities',
+            headers=headers,
+            params={'after': after, 'per_page': 50, 'page': page}
+        )
 
-log.info(f"Strava activities HTTP {r.status_code}")
-log.info(f"Strava activities response: {r.text[:1000]}")
+        log.info(f"Strava activities HTTP {r.status_code}")
+        log.info(f"Strava activities response: {r.text[:1000]}")
 
-if r.status_code != 200:
-    raise Exception(f"Strava API error {r.status_code}: {r.text}")
+        if r.status_code != 200:
+            raise Exception(f"Strava API error {r.status_code}: {r.text}")
 
-activities = r.json()
+        activities = r.json()
 
-if not isinstance(activities, list):
-    raise Exception(f"Réponse Strava inattendue: {activities}")
+        if not isinstance(activities, list):
+            raise Exception(f"Réponse Strava inattendue: {activities}")
 
-if not activities:
-    log.info("Strava a retourné 0 activité.")
-    break
+        if not activities:
+            log.info("Strava a retourné 0 activité.")
+            break
 
         running = [a for a in activities if a.get('type') == 'Run' or a.get('sport_type') == 'Run']
         log.info(f"Page {page}: {len(running)} courses")
